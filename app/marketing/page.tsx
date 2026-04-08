@@ -51,7 +51,10 @@ const stats = [
 
 export default function MarketingPage() {
   return (
-    <div className="gold-top-bar min-h-screen bg-navy-dark text-white">
+    <div style={{ minHeight: "100vh", background: "#ffffff", color: "#1a1a1a" }}>
+      {/* Gold top bar */}
+      <div style={{ height: 4, background: "#F5C842", flexShrink: 0 }} />
+
       {/* Sticky Header */}
       <header
         style={{
@@ -62,7 +65,7 @@ export default function MarketingPage() {
           justifyContent: "space-between",
           alignItems: "center",
           position: "sticky",
-          top: "4px",
+          top: 0,
           zIndex: 100,
         }}
       >
@@ -91,6 +94,7 @@ export default function MarketingPage() {
           maxWidth: "1200px",
           margin: "0 auto",
           flexWrap: "wrap",
+          background: "#ffffff",
         }}
       >
         {/* Left Column 55% */}
@@ -110,10 +114,10 @@ export default function MarketingPage() {
           <h1
             style={{
               fontFamily: "'Playfair Display', serif",
-              fontSize: "72px",
+              fontSize: "52px",
               fontWeight: 900,
-              color: "#ffffff",
-              lineHeight: 1.0,
+              color: "#0d1a2e",
+              lineHeight: 1.1,
               marginBottom: "20px",
             }}
           >
@@ -123,7 +127,7 @@ export default function MarketingPage() {
             style={{
               fontFamily: "'DM Sans', sans-serif",
               fontSize: "18px",
-              color: "rgba(255,255,255,0.7)",
+              color: "#64748b",
               maxWidth: "480px",
               lineHeight: 1.7,
               marginBottom: "32px",
@@ -159,8 +163,8 @@ export default function MarketingPage() {
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                border: "1px solid rgba(255,255,255,0.35)",
-                color: "#ffffff",
+                border: "1px solid #e2e8f0",
+                color: "#0d1a2e",
                 padding: "14px 32px",
                 borderRadius: "10px",
                 fontWeight: 600,
@@ -182,7 +186,7 @@ export default function MarketingPage() {
               gap: "8px",
               fontFamily: "'DM Sans', sans-serif",
               fontSize: "13px",
-              color: "rgba(255,255,255,0.5)",
+              color: "#94a3b8",
             }}
           >
             <span>4-Pass QA</span>
@@ -201,8 +205,8 @@ export default function MarketingPage() {
             style={{
               width: "100%",
               borderRadius: "16px",
-              border: "1px solid rgba(245,200,66,0.3)",
-              boxShadow: "0 12px 48px rgba(10,20,40,0.6)",
+              border: "1px solid #e2e8f0",
+              boxShadow: "0 12px 48px rgba(0,0,0,0.08)",
               display: "block",
             }}
           />
@@ -210,7 +214,7 @@ export default function MarketingPage() {
       </section>
 
       {/* Feature Cards */}
-      <section style={{ maxWidth: "1200px", margin: "0 auto", padding: "48px 48px 64px" }}>
+      <section style={{ maxWidth: "1200px", margin: "0 auto", padding: "48px 48px 64px", background: "#ffffff" }}>
         <div style={{ display: "flex", gap: "24px", flexWrap: "wrap" }}>
           {features.map((f) => (
             <div
@@ -310,7 +314,7 @@ export default function MarketingPage() {
       </section>
 
       {/* Stats Row */}
-      <section style={{ maxWidth: "900px", margin: "0 auto", padding: "32px 48px 56px" }}>
+      <section style={{ maxWidth: "900px", margin: "0 auto", padding: "32px 48px 56px", background: "#ffffff" }}>
         <div
           style={{
             display: "flex",
@@ -359,23 +363,36 @@ export default function MarketingPage() {
       </section>
 
       {/* About Bruno */}
-      <section className="px-6 pt-16 pb-8">
-        <div className="mx-auto max-w-lg">
-          <div className="mx-auto mb-6 h-px w-24 bg-[#334155]" />
-          <div className="flex flex-col items-center text-center">
+      <section style={{ padding: "64px 24px 32px", background: "#ffffff" }}>
+        <div style={{ maxWidth: 520, margin: "0 auto" }}>
+          <div style={{ height: 1, width: 96, background: "#e2e8f0", margin: "0 auto 24px" }} />
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
             <img
               src="/bruno.png"
               alt="Bruno"
-              className="mb-4 rounded-full"
-              style={{ width: 80, height: 80, objectFit: "cover" }}
+              style={{
+                width: 80,
+                height: 80,
+                objectFit: "cover",
+                borderRadius: "50%",
+                marginBottom: 16,
+                mixBlendMode: "multiply",
+                background: "transparent",
+              }}
             />
             <p
-              className="mb-4 font-semibold text-gold"
-              style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.12em" }}
+              style={{
+                fontSize: 11,
+                textTransform: "uppercase",
+                letterSpacing: "0.12em",
+                fontWeight: 600,
+                color: "#F5C842",
+                marginBottom: 16,
+              }}
             >
               About Bruno
             </p>
-            <p className="text-[#64748b]" style={{ fontSize: 13, lineHeight: 1.8, maxWidth: 500 }}>
+            <p style={{ fontSize: 13, lineHeight: 1.8, maxWidth: 500, color: "#64748b" }}>
               Bruno started as an internal tool — a way to help BVM account managers run smarter
               client conversations. He learned the SBR playbook, memorized every market, and got
               very good at asking the right questions. Somewhere along the way he stopped being a
@@ -388,7 +405,7 @@ export default function MarketingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-[#1e293b] py-8 text-center text-sm text-[#64748b]">
+      <footer style={{ borderTop: "1px solid #e2e8f0", padding: "32px 0", textAlign: "center", fontSize: 14, color: "#64748b", background: "#ffffff" }}>
         Conceived and directed by Ted Herrera. Built with Claude.
       </footer>
     </div>
