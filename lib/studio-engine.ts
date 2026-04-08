@@ -82,451 +82,181 @@ export function classifyBusiness(answer: string): string {
   return "default";
 }
 
-// ─── Templates — verbatim from bvm-studio-app/app/studio-v2/page.tsx ─────────
+// ─── BVM Source Templates ────────────────────────────────────────────────────
 
-const TEMPLATE_WARM_BOLD = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{business_name}}</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"LocalBusiness","name":"{{business_name}}","address":{"@type":"PostalAddress","addressLocality":"{{city}}","postalCode":"{{zip}}"},"telephone":"{{phone}}"}</script>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Lato',sans-serif;color:#1a1a1a;background:#fff}
-nav{background:#0d1a2e;padding:16px 32px;display:flex;justify-content:space-between;align-items:center}
-.nav-logo{font-family:'Playfair Display',serif;color:#F5C842;font-size:22px;font-weight:700}
-.nav-cta{background:#F5C842;color:#0d1a2e;padding:10px 24px;border-radius:6px;font-weight:700;text-decoration:none;font-size:14px}
-.hero{position:relative;height:520px;overflow:hidden;background:#111}
-.hero img{width:100%;height:100%;object-fit:cover;display:block}
-.hero-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(13,26,46,.85) 0%,rgba(13,26,46,.3) 60%,transparent 100%)}
-.hero-content{position:absolute;bottom:48px;left:48px;right:48px}
-.hero-eyebrow{font-size:11px;font-weight:700;letter-spacing:.15em;color:#F5C842;text-transform:uppercase;margin-bottom:12px}
-.hero-title{font-family:'Playfair Display',serif;font-size:52px;font-weight:900;color:#fff;line-height:1.1;margin-bottom:16px}
-.hero-subtitle{font-size:18px;color:rgba(255,255,255,.85);margin-bottom:28px;font-weight:300}
-.hero-btn{display:inline-block;background:#F5C842;color:#0d1a2e;padding:14px 32px;border-radius:8px;font-weight:700;text-decoration:none;font-size:16px}
-.services{padding:72px 48px;background:#fff}
-.section-eyebrow{font-size:11px;font-weight:700;letter-spacing:.15em;color:#c2692a;text-transform:uppercase;margin-bottom:12px;text-align:center}
-.section-title{font-family:'Playfair Display',serif;font-size:36px;font-weight:700;color:#0d1a2e;text-align:center;margin-bottom:48px}
-.services-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
-.service-card{background:#fff;border:1px solid #f0e8e0;border-top:4px solid #c2692a;border-radius:8px;padding:32px 24px;box-shadow:0 2px 12px rgba(194,105,42,.08)}
-.service-icon{font-size:32px;margin-bottom:16px}
-.service-name{font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:#0d1a2e;margin-bottom:8px}
-.service-desc{font-size:14px;color:#64748b;line-height:1.6}
-.about{background:#0d1a2e;padding:72px 48px;display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}
-.about-eyebrow{font-size:11px;font-weight:700;letter-spacing:.15em;color:#F5C842;text-transform:uppercase;margin-bottom:12px}
-.about-title{font-family:'Playfair Display',serif;font-size:36px;font-weight:700;color:#fff;margin-bottom:20px}
-.about-text{font-size:16px;color:rgba(255,255,255,.75);line-height:1.8}
-.about-stat{font-family:'Playfair Display',serif;font-size:48px;font-weight:900;color:#F5C842}
-.about-stat-label{font-size:14px;color:rgba(255,255,255,.6);margin-top:4px}
-.contact{background:#c2692a;padding:72px 48px;text-align:center}
-.contact-title{font-family:'Playfair Display',serif;font-size:36px;font-weight:700;color:#fff;margin-bottom:16px}
-.contact-sub{font-size:18px;color:rgba(255,255,255,.85);margin-bottom:32px}
-.contact-details{display:flex;justify-content:center;gap:48px;margin-bottom:32px;flex-wrap:wrap}
-.contact-item{font-size:16px;color:#fff}
-.contact-item a{color:#fff;text-decoration:none;font-weight:700}
-.contact-btn{display:inline-block;background:#F5C842;color:#0d1a2e;padding:16px 40px;border-radius:8px;font-weight:700;text-decoration:none;font-size:18px}
-footer{background:#0d1a2e;padding:24px 48px;display:flex;justify-content:space-between;align-items:center}
-.footer-name{font-family:'Playfair Display',serif;color:#F5C842;font-size:16px;font-weight:700}
-.footer-copy{color:rgba(255,255,255,.4);font-size:12px}
-.google-badge{display:inline-flex;align-items:center;gap:8px;background:#fff;border-radius:6px;padding:6px 12px;margin-top:16px}
-.google-badge span{font-size:12px;color:#0d1a2e;font-weight:600}
-</style>
-</head>
-<body>
-<nav><span class="nav-logo">{{business_name}}</span><a href="{{cta_link}}" class="nav-cta">{{cta_text}}</a></nav>
-<div class="hero">
-<img src="{{image_url}}" alt="{{business_name}}" />
-<div class="hero-overlay"></div>
-<div class="hero-content">
-<div class="hero-eyebrow">{{city}} &middot; Est. Local</div>
-<h1 class="hero-title">{{tagline}}</h1>
-<p class="hero-subtitle">Proudly serving {{city}} &mdash; built for your community.</p>
-<a href="{{cta_link}}" class="hero-btn">{{cta_text}} &rarr;</a>
-</div>
-</div>
-<div class="services">
-<div class="section-eyebrow">What We Offer</div>
-<h2 class="section-title">Our Services</h2>
-<div class="services-grid">
-<div class="service-card"><div class="service-icon">&#9733;</div><div class="service-name">{{service_1}}</div><div class="service-desc">Professional {{service_1}} for every client in {{city}}.</div></div>
-<div class="service-card"><div class="service-icon">&#9889;</div><div class="service-name">{{service_2}}</div><div class="service-desc">{{service_2}} delivered with care and expertise.</div></div>
-<div class="service-card"><div class="service-icon">&#10024;</div><div class="service-name">{{service_3}}</div><div class="service-desc">{{service_3}} &mdash; trusted by the {{city}} community.</div></div>
-</div>
-</div>
-<div class="about">
-<div>
-<div class="about-eyebrow">About Us</div>
-<h2 class="about-title">Serving {{city}} with Pride</h2>
-<p class="about-text">{{about_text}}</p>
-</div>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
-<div><div class="about-stat">{{stat_1}}</div><div class="about-stat-label">Years in {{city}}</div></div>
-<div><div class="about-stat">{{stat_2}}</div><div class="about-stat-label">Happy Clients</div></div>
-<div><div class="about-stat">{{stat_3}}</div><div class="about-stat-label">Star Rating</div></div>
-<div><div class="about-stat">24/7</div><div class="about-stat-label">Support</div></div>
-</div>
-</div>
-<div class="contact">
-<h2 class="contact-title">Ready to Get Started?</h2>
-<p class="contact-sub">{{city}} is waiting. So are we.</p>
-<div class="contact-details">
-<div class="contact-item">&#128222; <a href="tel:{{phone_digits}}">{{phone}}</a></div>
-<div class="contact-item">&#128205; {{address}}</div>
-</div>
-<a href="{{cta_link}}" class="contact-btn">{{cta_text}} &rarr;</a>
-<div><div class="google-badge">&#127760; <span>Google Business Profile Optimized</span></div></div>
-</div>
-<footer><span class="footer-name">{{business_name}}</span><span class="footer-copy">&copy; 2026 {{business_name}} &middot; {{city}} &middot; Built with BVM Studio</span></footer>
-</body>
-</html>`;
+const PHOTO_KEYS = Object.keys(PHOTO_MAP);
 
-const TEMPLATE_PROFESSIONAL = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{business_name}}</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"LocalBusiness","name":"{{business_name}}","address":{"@type":"PostalAddress","addressLocality":"{{city}}","postalCode":"{{zip}}"},"telephone":"{{phone}}"}</script>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Inter',sans-serif;color:#1e293b;background:#fff}
-nav{background:#fff;padding:20px 48px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e2e8f0;position:sticky;top:0;z-index:100}
-.nav-logo{font-size:20px;font-weight:800;color:#243454;letter-spacing:-.5px}
-.nav-cta{background:#243454;color:#fff;padding:10px 24px;border-radius:6px;font-weight:600;text-decoration:none;font-size:14px}
-.hero{background:linear-gradient(135deg,#f8fafc 0%,#eef2f7 100%);padding:96px 48px;display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center;min-height:520px}
-.hero-eyebrow{font-size:12px;font-weight:600;letter-spacing:.12em;color:#243454;text-transform:uppercase;margin-bottom:16px;opacity:.6}
-.hero-title{font-size:48px;font-weight:800;color:#243454;line-height:1.1;margin-bottom:20px;letter-spacing:-1px}
-.hero-subtitle{font-size:18px;color:#64748b;margin-bottom:32px;line-height:1.6;font-weight:300}
-.hero-btn{display:inline-block;background:#243454;color:#fff;padding:14px 32px;border-radius:8px;font-weight:600;text-decoration:none;font-size:16px}
-.hero-image{border-radius:16px;overflow:hidden;box-shadow:0 24px 64px rgba(36,52,84,.15)}
-.hero-image img{width:100%;height:400px;object-fit:cover;display:block}
-.services{padding:80px 48px;background:#fff}
-.section-label{font-size:12px;font-weight:600;letter-spacing:.12em;color:#243454;text-transform:uppercase;margin-bottom:8px;opacity:.5;text-align:center}
-.section-title{font-size:36px;font-weight:800;color:#243454;text-align:center;margin-bottom:48px;letter-spacing:-.5px}
-.services-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
-.service-card{background:#f8fafc;border:1px solid #e2e8f0;border-top:3px solid #243454;border-radius:10px;padding:32px 24px}
-.service-icon{font-size:28px;margin-bottom:16px}
-.service-name{font-size:18px;font-weight:700;color:#243454;margin-bottom:8px}
-.service-desc{font-size:14px;color:#64748b;line-height:1.6}
-.about{background:#f8fafc;padding:80px 48px;display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center}
-.about-label{font-size:12px;font-weight:600;letter-spacing:.12em;color:#243454;text-transform:uppercase;margin-bottom:12px;opacity:.5}
-.about-title{font-size:36px;font-weight:800;color:#243454;margin-bottom:20px;letter-spacing:-.5px}
-.about-text{font-size:16px;color:#475569;line-height:1.8}
-.stats{display:grid;grid-template-columns:1fr 1fr;gap:24px}
-.stat-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:24px;text-align:center}
-.stat-num{font-size:40px;font-weight:800;color:#243454;letter-spacing:-1px}
-.stat-label{font-size:12px;color:#64748b;margin-top:4px;font-weight:500}
-.contact{background:#243454;padding:80px 48px;text-align:center}
-.contact-title{font-size:36px;font-weight:800;color:#fff;margin-bottom:12px;letter-spacing:-.5px}
-.contact-sub{font-size:18px;color:rgba(255,255,255,.7);margin-bottom:40px}
-.contact-details{display:flex;justify-content:center;gap:48px;margin-bottom:40px;flex-wrap:wrap}
-.contact-item{font-size:16px;color:rgba(255,255,255,.85)}
-.contact-item a{color:#fff;text-decoration:none;font-weight:600}
-.contact-btn{display:inline-block;background:#fff;color:#243454;padding:16px 40px;border-radius:8px;font-weight:700;text-decoration:none;font-size:18px}
-.google-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.1);border-radius:6px;padding:8px 16px;margin-top:20px}
-.google-badge span{font-size:12px;color:rgba(255,255,255,.8);font-weight:500}
-footer{background:#1a2740;padding:24px 48px;display:flex;justify-content:space-between;align-items:center}
-.footer-name{font-size:16px;font-weight:700;color:#fff}
-.footer-copy{font-size:12px;color:rgba(255,255,255,.35)}
-</style>
-</head>
-<body>
-<nav><span class="nav-logo">{{business_name}}</span><a href="{{cta_link}}" class="nav-cta">{{cta_text}}</a></nav>
-<div class="hero">
-<div>
-<div class="hero-eyebrow">{{city}} &middot; {{zip}}</div>
-<h1 class="hero-title">{{tagline}}</h1>
-<p class="hero-subtitle">Serving {{city}} with excellence. Professional. Reliable. Local.</p>
-<a href="{{cta_link}}" class="hero-btn">{{cta_text}} &rarr;</a>
-</div>
-<div class="hero-image"><img src="{{image_url}}" alt="{{business_name}}" /></div>
-</div>
-<div class="services">
-<div class="section-label">What We Offer</div>
-<h2 class="section-title">Our Services</h2>
-<div class="services-grid">
-<div class="service-card"><div class="service-icon">&#11088;</div><div class="service-name">{{service_1}}</div><div class="service-desc">Professional {{service_1}} for every client in {{city}}.</div></div>
-<div class="service-card"><div class="service-icon">&#127942;</div><div class="service-name">{{service_2}}</div><div class="service-desc">{{service_2}} delivered with precision and care.</div></div>
-<div class="service-card"><div class="service-icon">&#10024;</div><div class="service-name">{{service_3}}</div><div class="service-desc">{{service_3}} &mdash; our clients trust us to get it right.</div></div>
-</div>
-</div>
-<div class="about">
-<div>
-<div class="about-label">About Us</div>
-<h2 class="about-title">Serving {{city}} with Pride</h2>
-<p class="about-text">{{about_text}}</p>
-</div>
-<div class="stats">
-<div class="stat-card"><div class="stat-num">{{stat_1}}</div><div class="stat-label">Years Serving {{city}}</div></div>
-<div class="stat-card"><div class="stat-num">{{stat_2}}</div><div class="stat-label">Happy Clients</div></div>
-<div class="stat-card"><div class="stat-num">{{stat_3}}&#9733;</div><div class="stat-label">Average Rating</div></div>
-<div class="stat-card"><div class="stat-num">24/7</div><div class="stat-label">Support Available</div></div>
-</div>
-</div>
-<div class="contact">
-<h2 class="contact-title">Ready to Get Started?</h2>
-<p class="contact-sub">{{city}} is waiting.</p>
-<div class="contact-details">
-<div class="contact-item">&#128222; <a href="tel:{{phone_digits}}">{{phone}}</a></div>
-<div class="contact-item">&#128205; {{address}}</div>
-</div>
-<a href="{{cta_link}}" class="contact-btn">{{cta_text}} &rarr;</a>
-<div><div class="google-badge">&#127760; <span>Google Business Profile Optimized</span></div></div>
-</div>
-<footer><span class="footer-name">{{business_name}}</span><span class="footer-copy">&copy; 2026 &middot; {{city}} &middot; BVM Studio</span></footer>
-</body>
-</html>`;
-
-const TEMPLATE_BOLD_MODERN = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{business_name}}</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"LocalBusiness","name":"{{business_name}}","address":{"@type":"PostalAddress","addressLocality":"{{city}}","postalCode":"{{zip}}"},"telephone":"{{phone}}"}</script>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'DM Sans',sans-serif;color:#fff;background:#0d1a2e}
-nav{background:#0d1a2e;padding:20px 48px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,.08)}
-.nav-logo{font-size:20px;font-weight:800;color:#fff;letter-spacing:-.5px}
-.nav-logo span{color:#2563eb}
-.nav-cta{background:#2563eb;color:#fff;padding:10px 24px;border-radius:6px;font-weight:700;text-decoration:none;font-size:14px}
-.hero{position:relative;height:560px;overflow:hidden;background:#111}
-.hero img{width:100%;height:100%;object-fit:cover;filter:brightness(.4);display:block}
-.hero-content{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:0 64px}
-.hero-eyebrow{font-family:'DM Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.2em;color:#2563eb;text-transform:uppercase;margin-bottom:16px}
-.hero-title{font-size:56px;font-weight:800;color:#fff;line-height:1.05;margin-bottom:20px;letter-spacing:-1.5px;max-width:700px}
-.hero-subtitle{font-size:18px;color:rgba(255,255,255,.6);margin-bottom:36px;max-width:500px}
-.hero-btn{display:inline-block;background:#2563eb;color:#fff;padding:16px 36px;border-radius:8px;font-weight:700;text-decoration:none;font-size:16px;letter-spacing:-.3px}
-.services{padding:80px 48px;background:#111827}
-.section-mono{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.15em;color:#2563eb;text-transform:uppercase;margin-bottom:12px;text-align:center}
-.section-title{font-size:36px;font-weight:800;color:#fff;text-align:center;margin-bottom:48px;letter-spacing:-.5px}
-.services-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
-.service-card{background:#1a2740;border:1px solid rgba(255,255,255,.06);border-top:3px solid #2563eb;border-radius:10px;padding:32px 24px}
-.service-icon{font-size:28px;margin-bottom:16px}
-.service-name{font-size:18px;font-weight:700;color:#fff;margin-bottom:8px}
-.service-desc{font-size:14px;color:rgba(255,255,255,.5);line-height:1.6}
-.about{background:#0d1a2e;padding:80px 48px;display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center}
-.about-mono{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.15em;color:#2563eb;text-transform:uppercase;margin-bottom:12px}
-.about-title{font-size:36px;font-weight:800;color:#fff;margin-bottom:20px;letter-spacing:-.5px}
-.about-text{font-size:16px;color:rgba(255,255,255,.6);line-height:1.8}
-.stats{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.stat-card{background:#111827;border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:24px;text-align:center}
-.stat-num{font-size:40px;font-weight:800;color:#2563eb;letter-spacing:-1px}
-.stat-label{font-size:12px;color:rgba(255,255,255,.4);margin-top:4px}
-.contact{background:#111827;padding:80px 48px;text-align:center}
-.contact-title{font-size:36px;font-weight:800;color:#fff;margin-bottom:12px;letter-spacing:-.5px}
-.contact-sub{font-size:18px;color:rgba(255,255,255,.5);margin-bottom:40px}
-.contact-details{display:flex;justify-content:center;gap:48px;margin-bottom:40px;flex-wrap:wrap}
-.contact-item{font-size:16px;color:rgba(255,255,255,.7)}
-.contact-item a{color:#2563eb;text-decoration:none;font-weight:600}
-.contact-btn{display:inline-block;background:#2563eb;color:#fff;padding:16px 40px;border-radius:8px;font-weight:700;text-decoration:none;font-size:18px}
-.google-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.05);border-radius:6px;padding:8px 16px;margin-top:20px;border:1px solid rgba(255,255,255,.1)}
-.google-badge span{font-size:12px;color:rgba(255,255,255,.5);font-weight:500}
-footer{background:#080f1a;padding:24px 48px;display:flex;justify-content:space-between;align-items:center}
-.footer-name{font-size:16px;font-weight:700;color:#fff}
-.footer-mono{font-family:'DM Mono',monospace;font-size:11px;color:rgba(255,255,255,.25)}
-.review-strip{background:#0d1a2e;padding:16px 0;overflow:hidden;border-top:1px solid rgba(255,255,255,.1);border-bottom:1px solid rgba(255,255,255,.1)}
-.review-ticker{display:flex;gap:48px;white-space:nowrap;animation:reviewTicker 30s linear infinite}
-.review-item{font-size:13px;color:#fff;font-weight:500}
-.review-item .stars{color:#F5C842}
-.review-item .src{color:rgba(255,255,255,.35);font-size:11px;margin-left:6px}
-@keyframes reviewTicker{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-.featured-badge{position:absolute;top:24px;right:24px;background:#F5C842;color:#0d1a2e;padding:8px 16px;border-radius:6px;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;display:flex;align-items:center;gap:6px;z-index:10}
-.share-wrap{position:fixed;bottom:24px;right:24px;z-index:999;text-align:center}
-.share-btn{background:#F5C842;color:#0d1a2e;border:none;border-radius:50px;padding:12px 20px;font-weight:800;font-size:14px;cursor:pointer;box-shadow:0 4px 20px rgba(245,200,66,.3);animation:goldPulse 2s ease-in-out infinite}
-.share-links{margin-top:8px;font-size:12px;font-weight:600;opacity:0;transition:opacity .3s}
-.share-links.visible{opacity:1}
-.share-links a{color:#F5C842;text-decoration:none;margin:0 6px}
-@keyframes goldPulse{0%{box-shadow:0 4px 20px rgba(245,200,66,.3)}50%{box-shadow:0 4px 32px rgba(245,200,66,.7)}100%{box-shadow:0 4px 20px rgba(245,200,66,.3)}}
-</style>
-</head>
-<body>
-<nav><span class="nav-logo">{{business_name}}<span>.</span></span><a href="{{cta_link}}" class="nav-cta">{{cta_text}}</a></nav>
-<div class="hero">
-<img src="{{image_url}}" alt="{{business_name}}" />
-<div class="featured-badge">&#128081; Featured Local Business &middot; {{city}} &middot; 2026</div>
-<div class="hero-content">
-<div class="hero-eyebrow">{{city}} &middot; {{zip}}</div>
-<h1 class="hero-title">{{tagline}}</h1>
-<p class="hero-subtitle">Built different. Serving {{city}} with intention.</p>
-<a href="{{cta_link}}" class="hero-btn">{{cta_text}} &rarr;</a>
-</div>
-</div>
-<div class="review-strip"><div class="review-ticker">
-<span class="review-item"><span class="stars">&#11088;&#11088;&#11088;&#11088;&#11088;</span> Best {{business_type}} in {{city}}!<span class="src">&mdash; Google</span></span>
-<span class="review-item"><span class="stars">&#11088;&#11088;&#11088;&#11088;&#11088;</span> {{business_name}} never disappoints<span class="src">&mdash; Yelp</span></span>
-<span class="review-item"><span class="stars">&#11088;&#11088;&#11088;&#11088;&#11088;</span> My go-to in {{city}}<span class="src">&mdash; Google</span></span>
-<span class="review-item"><span class="stars">&#11088;&#11088;&#11088;&#11088;&#11088;</span> Outstanding service every time<span class="src">&mdash; Facebook</span></span>
-<span class="review-item"><span class="stars">&#11088;&#11088;&#11088;&#11088;&#11088;</span> Highly recommend to everyone<span class="src">&mdash; Google</span></span>
-<span class="review-item"><span class="stars">&#11088;&#11088;&#11088;&#11088;&#11088;</span> Best {{business_type}} in {{city}}!<span class="src">&mdash; Google</span></span>
-<span class="review-item"><span class="stars">&#11088;&#11088;&#11088;&#11088;&#11088;</span> {{business_name}} never disappoints<span class="src">&mdash; Yelp</span></span>
-<span class="review-item"><span class="stars">&#11088;&#11088;&#11088;&#11088;&#11088;</span> My go-to in {{city}}<span class="src">&mdash; Google</span></span>
-<span class="review-item"><span class="stars">&#11088;&#11088;&#11088;&#11088;&#11088;</span> Outstanding service every time<span class="src">&mdash; Facebook</span></span>
-<span class="review-item"><span class="stars">&#11088;&#11088;&#11088;&#11088;&#11088;</span> Highly recommend to everyone<span class="src">&mdash; Google</span></span>
-</div></div>
-<div class="services">
-<div class="section-mono">What We Offer</div>
-<h2 class="section-title">Our Services</h2>
-<div class="services-grid">
-<div class="service-card"><div class="service-icon">&#9889;</div><div class="service-name">{{service_1}}</div><div class="service-desc">{{service_1}} &mdash; precision-built for {{city}} clients.</div></div>
-<div class="service-card"><div class="service-icon">&#11088;</div><div class="service-name">{{service_2}}</div><div class="service-desc">{{service_2}} delivered on time, every time.</div></div>
-<div class="service-card"><div class="service-icon">&#128293;</div><div class="service-name">{{service_3}}</div><div class="service-desc">{{service_3}} &mdash; the {{city}} standard.</div></div>
-</div>
-</div>
-<div class="about">
-<div>
-<div class="about-mono">Our Story</div>
-<h2 class="about-title">Built for {{city}}</h2>
-<p class="about-text">{{about_text}}</p>
-</div>
-<div class="stats">
-<div class="stat-card"><div class="stat-value stat-num" data-target="{{stat_1_num}}" data-suffix="+">0</div><div class="stat-label">Years in {{city}}</div></div>
-<div class="stat-card"><div class="stat-value stat-num" data-target="{{stat_2_num}}" data-suffix="+">0</div><div class="stat-label">Clients Served</div></div>
-<div class="stat-card"><div class="stat-num">{{stat_3}}&#9733;</div><div class="stat-label">Google Rating</div></div>
-<div class="stat-card"><div class="stat-num">24/7</div><div class="stat-label">Always Available</div></div>
-</div>
-</div>
-<div class="contact">
-<h2 class="contact-title">Let&apos;s go.</h2>
-<p class="contact-sub">{{city}} is waiting. So are we.</p>
-<div class="contact-details">
-<div class="contact-item">&#128222; <a href="tel:{{phone_digits}}">{{phone}}</a></div>
-<div class="contact-item">&#128205; {{address}}</div>
-</div>
-<a href="{{cta_link}}" class="contact-btn">{{cta_text}} &rarr;</a>
-<div><div class="google-badge">&#127760; <span>Google Business Profile Optimized</span></div></div>
-</div>
-<footer><span class="footer-name">{{business_name}}</span><span class="footer-mono">&copy; 2026 &middot; {{city}} &middot; BVM Studio</span></footer>
-<div class="share-wrap">
-<button class="share-btn" onclick="var w=this.parentElement;navigator.clipboard.writeText('\\u{1F389} Check out {{business_name}}! {{published_url}} #{{city_slug}} #localbusiness').then(function(){w.querySelector('.share-btn').textContent='Copied! \\u2713';var lnk=w.querySelector('.share-links');lnk.classList.add('visible');setTimeout(function(){lnk.classList.remove('visible');w.querySelector('.share-btn').textContent='Share Your Site \\u2192'},4000)})">Share Your Site &rarr;</button>
-<div class="share-links"><a href="https://facebook.com" target="_blank">&rarr; Facebook</a><a href="https://instagram.com" target="_blank">&rarr; Instagram</a></div>
-</div>
-<script>
-document.addEventListener('DOMContentLoaded',function(){
-var observer=new IntersectionObserver(function(entries){
-entries.forEach(function(e){
-if(e.isIntersecting){
-var el=e.target;
-var target=parseInt(el.dataset.target)||0;
-var suffix=el.dataset.suffix||'';
-var start=0;
-var step=Math.max(target/60,1);
-var timer=setInterval(function(){
-start+=step;
-if(start>=target){el.textContent=target+suffix;clearInterval(timer);}
-else{el.textContent=Math.floor(start)+suffix;}
-},25);
-observer.unobserve(el);
+function getPhotoVariant(baseType: string, offset: number): string {
+  const idx = PHOTO_KEYS.indexOf(baseType);
+  if (idx < 0) return PHOTO_MAP.default;
+  const newIdx = (idx + offset) % PHOTO_KEYS.length;
+  return PHOTO_MAP[PHOTO_KEYS[newIdx]] || PHOTO_MAP.default;
 }
-});
-},{threshold:0.3});
-document.querySelectorAll('.stat-value[data-target]').forEach(function(el){observer.observe(el)});
-});
-</script>
-</body>
-</html>`;
 
-const TEMPLATES: Record<string, string> = {
-  warm_bold: TEMPLATE_WARM_BOLD,
-  professional: TEMPLATE_PROFESSIONAL,
-  bold_modern: TEMPLATE_BOLD_MODERN,
+function getServicePhoto(serviceName: string): string {
+  const key = classifyBusiness(serviceName);
+  return getPhotoUrl(key);
+}
+
+const BUSINESS_TYPE_LABELS: Record<string, string> = {
+  restaurant: "Restaurant", taco: "Mexican Restaurant", pizza: "Pizza Restaurant",
+  burger: "Burger Joint", cafe: "Café", bakery: "Bakery", dessert: "Dessert Shop",
+  bar: "Bar & Grill", sushi: "Japanese Restaurant", dental: "Dental Practice",
+  salon: "Beauty Salon", spa: "Wellness Spa", fitness: "Fitness Center",
+  gym: "Gym", medical: "Medical Practice", legal: "Law Firm",
+  financial: "Financial Services", realestate: "Real Estate", roofing: "Roofing Company",
+  construction: "Construction", automotive: "Auto Service", tech: "Technology",
+  retail: "Retail Store", default: "Local Business", bank: "Banking",
+  mortgage: "Mortgage", insurance: "Insurance", accounting: "Accounting",
 };
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Template Engine ────────────────────────────────────────────────────────
 
-function fillSlots(template: string, data: Record<string, string>): string {
-  return Object.entries(data).reduce((html, [key, val]) => {
-    const re = new RegExp(`\\{\\{${key}\\}\\}`, "g");
-    return html.replace(re, val || "");
-  }, template);
-}
+const LOOK_VARS = {
+  warm_bold: { accent: "#c2692a", navy: "#243454", fontDisplay: "'Playfair Display',serif", heroOverlay: "rgba(44,24,16,0.82)" },
+  professional: { accent: "#185fa5", navy: "#243454", fontDisplay: "'Inter',sans-serif", heroOverlay: "rgba(24,95,165,0.75)" },
+  bold_modern: { accent: "#2563eb", navy: "#0d1a2e", fontDisplay: "'DM Sans',sans-serif", heroOverlay: "rgba(13,26,46,0.88)" },
+} as const;
 
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-// ─── Main export ─────────────────────────────────────────────────────────────
+function buildTemplate(vars: typeof LOOK_VARS[keyof typeof LOOK_VARS], isPremier: boolean): string {
+  const premierExtras = isPremier ? `
+<style>@keyframes ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}@keyframes goldPulse{0%{box-shadow:0 4px 20px rgba(245,200,66,0.3)}50%{box-shadow:0 4px 32px rgba(245,200,66,0.7)}100%{box-shadow:0 4px 20px rgba(245,200,66,0.3)}}</style>
+<div style="position:fixed;bottom:60px;left:0;right:0;background:#0d1a2e;padding:14px 0;overflow:hidden;z-index:50;border-top:1px solid rgba(255,255,255,0.1)"><div style="display:inline-flex;gap:48px;white-space:nowrap;animation:ticker 30s linear infinite;color:rgba(255,255,255,0.8);font-size:13px">&#11088;&#11088;&#11088;&#11088;&#11088; Best {{BUSINESS_TYPE_LABEL}} in {{CITY}}! — Google Review &nbsp;&middot;&nbsp; &#11088;&#11088;&#11088;&#11088;&#11088; {{BUSINESS_NAME}} never disappoints — Yelp Review &nbsp;&middot;&nbsp; &#11088;&#11088;&#11088;&#11088;&#11088; My go-to in {{CITY}} — Google Review &nbsp;&middot;&nbsp; &#11088;&#11088;&#11088;&#11088;&#11088; Outstanding service every time — Facebook Review &nbsp;&middot;&nbsp; &#11088;&#11088;&#11088;&#11088;&#11088; Highly recommend — Google Review &nbsp;&middot;&nbsp; &#11088;&#11088;&#11088;&#11088;&#11088; Best {{BUSINESS_TYPE_LABEL}} in {{CITY}}! — Google Review &nbsp;&middot;&nbsp; &#11088;&#11088;&#11088;&#11088;&#11088; {{BUSINESS_NAME}} never disappoints — Yelp Review &nbsp;&middot;&nbsp; &#11088;&#11088;&#11088;&#11088;&#11088; My go-to in {{CITY}} — Google Review &nbsp;&middot;&nbsp; &#11088;&#11088;&#11088;&#11088;&#11088; Outstanding service every time — Facebook Review &nbsp;&middot;&nbsp; &#11088;&#11088;&#11088;&#11088;&#11088; Highly recommend — Google Review</div></div>
+<div style="position:fixed;bottom:0;right:0;z-index:100;padding:16px"><button onclick="navigator.clipboard.writeText('Check out {{BUSINESS_NAME}}! {{PUBLISHED_URL}} #{{CITY_SLUG}} #localbusiness').then(function(){this.textContent='Copied!';setTimeout(function(){this.textContent='Share Your Site \\u2192'}.bind(this),2000)}.bind(this))" style="background:#F5C842;color:#0d1a2e;border:none;border-radius:50px;padding:12px 20px;font-weight:800;font-size:14px;cursor:pointer;animation:goldPulse 2s ease-in-out infinite">Share Your Site &#8594;</button></div>
+<script>
+document.addEventListener('DOMContentLoaded',function(){
+var hero=document.querySelector('.block-hero');
+if(hero){var b=document.createElement('div');b.innerHTML='&#128081; Featured Local Business \\u00b7 {{CITY}} \\u00b7 {{YEAR}}';b.style.cssText='position:absolute;top:24px;right:24px;background:#F5C842;color:#0d1a2e;padding:8px 16px;border-radius:6px;font-size:11px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;z-index:10';hero.appendChild(b);}
+var obs=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting){var el=e.target;var t=parseInt(el.getAttribute('data-target')||'0');var s=0;var step=Math.max(t/60,1);var timer=setInterval(function(){s+=step;if(s>=t){el.textContent=t+'+';clearInterval(timer);}else{el.textContent=Math.floor(s)+'';}},25);obs.unobserve(el);}});},{threshold:0.3});
+document.querySelectorAll('.stat-counter').forEach(function(el){obs.observe(el);});
+});
+<\/script>` : "";
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{BUSINESS_NAME}} — {{CITY}}</title>
+<meta name="description" content="{{GEO_COPY}}">
+<meta property="og:title" content="{{BUSINESS_NAME}}">
+<meta property="og:description" content="{{GEO_COPY}}">
+<link rel="canonical" href="{{PUBLISHED_URL}}">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Lato:wght@300;400;700&family=Inter:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"LocalBusiness","name":"{{BUSINESS_NAME}}","address":{"@type":"PostalAddress","addressLocality":"{{CITY}}","postalCode":"{{ZIP}}"},"telephone":"{{PHONE}}"}<\/script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--accent:${vars.accent};--navy:${vars.navy};--font-display:${vars.fontDisplay};--hero-overlay:${vars.heroOverlay}}
+body{font-family:'Lato',sans-serif;color:#1a1a1a;background:#fff;overflow-x:hidden}
+.header-top-nav{background:#fff;border-bottom:1px solid #e5e7eb;position:sticky;top:0;z-index:100}
+.header-top-nav nav{max-width:1200px;margin:0 auto;padding:0 40px;height:72px;display:flex;align-items:center;justify-content:space-between}
+.logo-wrapper{font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--navy)}
+.nav-menu{display:flex;gap:32px;list-style:none}.nav-menu a{font-size:14px;color:#333;text-decoration:none;font-weight:500}.nav-menu a:hover{color:var(--accent)}
+.cta-button{background:var(--accent);color:#fff;padding:10px 24px;border-radius:4px;font-weight:700;text-decoration:none;font-size:14px}
+.block-hero{padding:80px 40px 96px;background:var(--navy);position:relative;overflow:hidden}
+.block-hero .container{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center}
+.hero-media-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.hero-media-grid .col-full{grid-column:1/-1}.hero-media-grid img{width:100%;height:200px;object-fit:cover;border-radius:8px}.hero-media-grid .col-full img{height:240px}
+.hero-eyebrow{font-size:11px;font-weight:700;letter-spacing:0.15em;color:var(--accent);text-transform:uppercase;margin-bottom:16px}
+.hero-title{font-family:var(--font-display);font-size:52px;font-weight:900;color:#fff;line-height:1.05;letter-spacing:-1px;margin-bottom:20px}
+.hero-subtitle{font-size:18px;color:rgba(255,255,255,0.65);line-height:1.75;margin-bottom:48px;max-width:480px}
+.hero-cta{display:inline-block;background:#fff;color:var(--navy);padding:16px 44px;border-radius:999px;font-size:16px;font-weight:800;text-decoration:none;box-shadow:0 4px 24px rgba(0,0,0,0.3)}
+.block-brand-repeat{position:relative;min-height:420px;display:flex;align-items:center;overflow:hidden}.brand-bg{position:absolute;inset:0}.brand-bg img{width:100%;height:100%;object-fit:cover}.brand-overlay{position:absolute;inset:0;background:var(--hero-overlay)}.brand-content{position:relative;max-width:1200px;margin:0 auto;padding:80px 40px;text-align:center;width:100%}.brand-content p{font-size:11px;font-weight:700;letter-spacing:0.15em;color:var(--accent);text-transform:uppercase;margin-bottom:16px}.brand-content h2{font-family:var(--font-display);font-size:42px;font-weight:700;color:#fff;line-height:1.2;max-width:800px;margin:0 auto}
+.block-services{padding:80px 40px;background:#fff}.block-services .container{max-width:1200px;margin:0 auto}.services-eyebrow{font-size:11px;font-weight:700;letter-spacing:0.15em;color:var(--accent);text-transform:uppercase;margin-bottom:12px;text-align:center}.block-services h2{font-family:var(--font-display);font-size:38px;font-weight:700;color:var(--navy);text-align:center;margin-bottom:56px;letter-spacing:-0.5px}.services-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:32px}.service-card img{width:100%;height:220px;object-fit:cover;border-radius:8px;margin-bottom:20px;background:#f1f5f9}.service-card h3{font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--navy);margin-bottom:12px;line-height:1.3}.service-card p{font-size:14px;color:#6b7280;line-height:1.75}.services-cta{text-align:center;margin-top:48px}.services-cta a{display:inline-block;background:var(--navy);color:#fff;padding:14px 40px;border-radius:999px;font-size:15px;font-weight:800;text-decoration:none}
+.block-stats{background:var(--navy);padding:80px 40px}.block-stats .container{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center}.stats-content h2{font-family:var(--font-display);font-size:38px;font-weight:700;color:#fff;margin-bottom:16px}.stats-content p{font-size:16px;color:rgba(255,255,255,0.55);line-height:1.75;margin-bottom:32px}.stats-content a{display:inline-block;background:var(--accent);color:#fff;padding:14px 32px;border-radius:999px;font-size:15px;font-weight:800;text-decoration:none}.stats-numbers{display:grid;grid-template-columns:repeat(3,1fr);gap:0}.stats-item{text-align:center;border-right:1px solid rgba(255,255,255,0.1);padding:0 24px}.stats-item:last-child{border-right:none}.stats-item .value{font-family:var(--font-display);font-size:50px;font-weight:900;color:#fff;letter-spacing:-2px;line-height:1}.stats-item .sufix{font-family:var(--font-display);font-size:28px;font-weight:900;color:var(--accent)}.stats-item p{font-size:12px;color:rgba(255,255,255,0.45);margin-top:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase}
+.block-contact{background:var(--accent);padding:80px 40px;text-align:center}.block-contact .container{max-width:800px;margin:0 auto}.contact-eyebrow{font-size:11px;font-weight:700;letter-spacing:0.15em;color:rgba(255,255,255,0.7);text-transform:uppercase;margin-bottom:12px}.contact-title{font-family:var(--font-display);font-size:42px;font-weight:700;color:#fff;margin-bottom:16px}.contact-sub{font-size:18px;color:rgba(255,255,255,0.85);margin-bottom:40px}.contact-details{display:flex;justify-content:center;gap:48px;margin-bottom:40px;flex-wrap:wrap}.contact-details span{font-size:16px;color:#fff}.contact-details a{color:#fff;text-decoration:none;font-weight:700}.contact-btn{display:inline-block;background:#fff;color:var(--accent);padding:16px 40px;border-radius:999px;font-weight:800;text-decoration:none;font-size:18px}.google-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,0.15);border-radius:6px;padding:8px 16px;margin-top:24px}.google-badge span{font-size:13px;color:#fff;font-weight:600}.social-links{display:flex;justify-content:center;gap:24px;margin-top:20px}.social-links a{color:rgba(255,255,255,0.8);font-size:13px;font-weight:600;text-decoration:none}
+footer{background:#111c2e;padding:40px}.footer-inner{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:32px;padding-bottom:24px;border-bottom:1px solid rgba(255,255,255,0.06)}.footer-brand{font-family:var(--font-display);color:var(--accent);font-size:18px;font-weight:700}.footer-address{color:rgba(255,255,255,0.3);font-size:12px;text-align:center}.footer-bottom{max-width:1200px;margin:20px auto 0;display:flex;justify-content:space-between;align-items:center}.footer-copy{color:rgba(255,255,255,0.2);font-size:11px}.footer-bruno{color:rgba(255,255,255,0.2);font-size:11px;font-style:italic}
+@media(max-width:768px){.block-hero .container{grid-template-columns:1fr}.hero-media-grid{display:none}.hero-title{font-size:36px}.services-grid{grid-template-columns:1fr}.block-stats .container{grid-template-columns:1fr}.stats-numbers{grid-template-columns:1fr}.stats-item{border-right:none;border-bottom:1px solid rgba(255,255,255,0.1);padding:20px 0}.footer-inner{grid-template-columns:1fr;text-align:center}.nav-menu{display:none}}
+</style>
+</head>
+<body>
+<div class="header-top-nav"><nav><div class="logo-wrapper">{{BUSINESS_NAME}}</div><ul class="nav-menu"><li><a href="#services">Services</a></li><li><a href="#about">About</a></li><li><a href="#contact">Contact</a></li></ul><a href="tel:{{PHONE_DIGITS}}" class="cta-button">{{CTA}}</a></nav></div>
+<div class="block-hero"><div class="container"><div class="hero-media-grid"><div class="col-full"><img src="{{HERO_IMAGE}}" alt="{{BUSINESS_NAME}}" referrerpolicy="no-referrer" onerror="this.parentElement.style.background='var(--navy)'"></div><img src="{{HERO_IMAGE_2}}" alt="{{SERVICE_1}}" referrerpolicy="no-referrer" onerror="this.style.display='none'"><img src="{{HERO_IMAGE_3}}" alt="{{SERVICE_2}}" referrerpolicy="no-referrer" onerror="this.style.display='none'"></div><div><div class="hero-eyebrow">{{CITY}} &middot; {{BUSINESS_TYPE_LABEL}}</div><h1 class="hero-title">{{HEADLINE}}</h1><p class="hero-subtitle">{{GEO_COPY}}</p><a href="tel:{{PHONE_DIGITS}}" class="hero-cta">{{CTA}} &rarr;</a></div></div></div>
+<div class="block-brand-repeat"><div class="brand-bg"><img src="{{HERO_IMAGE}}" alt="" referrerpolicy="no-referrer"></div><div class="brand-overlay"></div><div class="brand-content"><p>Your Brand On Repeat</p><h2>{{LOCAL_ADVANTAGE}}</h2></div></div>
+<div class="block-services" id="services"><div class="container"><div class="services-eyebrow">What We Offer</div><h2>Our Services</h2><div class="services-grid"><div class="service-card"><img src="{{SERVICE_IMAGE_1}}" alt="{{SERVICE_1}}" referrerpolicy="no-referrer" onerror="this.style.opacity='0'"><h3>{{SERVICE_1}}</h3><p>{{SERVICE_DESC_1}}</p></div><div class="service-card"><img src="{{SERVICE_IMAGE_2}}" alt="{{SERVICE_2}}" referrerpolicy="no-referrer" onerror="this.style.opacity='0'"><h3>{{SERVICE_2}}</h3><p>{{SERVICE_DESC_2}}</p></div><div class="service-card"><img src="{{SERVICE_IMAGE_3}}" alt="{{SERVICE_3}}" referrerpolicy="no-referrer" onerror="this.style.opacity='0'"><h3>{{SERVICE_3}}</h3><p>{{SERVICE_DESC_3}}</p></div></div><div class="services-cta"><a href="tel:{{PHONE_DIGITS}}">{{CTA}} &rarr;</a></div></div></div>
+<div class="block-stats" id="about"><div class="container"><div class="stats-content"><h2>Serving {{CITY}} with Pride</h2><p>{{MARKET_INSIGHT}}</p><a href="tel:{{PHONE_DIGITS}}">{{CTA}} &rarr;</a></div><div class="stats-numbers"><div class="stats-item"><div><span class="value stat-counter" data-target="{{STAT_1_VAL}}">{{STAT_1_VAL}}</span><span class="sufix">+</span></div><p>{{STAT_1_LABEL}}</p></div><div class="stats-item"><div><span class="value stat-counter" data-target="{{STAT_2_VAL}}">{{STAT_2_VAL}}</span><span class="sufix">+</span></div><p>{{STAT_2_LABEL}}</p></div><div class="stats-item"><div><span class="value">4.9</span><span class="sufix">&#9733;</span></div><p>Customer Rating</p></div></div></div></div>
+<div class="block-contact" id="contact"><div class="container"><p class="contact-eyebrow">Get In Touch</p><h2 class="contact-title">Ready to Get Started?</h2><p class="contact-sub">{{CITY}} is waiting. So are we.</p><div class="contact-details"><span>&#128222; <a href="tel:{{PHONE_DIGITS}}">{{PHONE}}</a></span>{{ADDRESS_LINE}}</div><a href="tel:{{PHONE_DIGITS}}" class="contact-btn">{{CTA}} &rarr;</a><div><div class="google-badge">&#127760; <span>Google Business Profile Optimized</span></div></div><div class="social-links"><a href="#">&#128216; Facebook</a><a href="#">&#128248; Instagram</a><a href="#">&#11088; Yelp</a></div></div></div>
+<footer><div class="footer-inner"><span class="footer-brand">{{BUSINESS_NAME}}</span><span class="footer-address">{{CITY}}, {{ZIP}}</span><span class="footer-bruno">Made by Bruno</span></div><div class="footer-bottom"><span class="footer-copy">&copy; {{YEAR}} {{BUSINESS_NAME}} &middot; {{CITY}} &middot; Built with BVM Studio</span></div></footer>
+${premierExtras}
+</body>
+</html>`;
+}
+
+// ─── Main generation ────────────────────────────────────────────────────────
 
 export function generateSiteHTML(profile: ClientProfile, lookKey: "warm_bold" | "professional" | "bold_modern"): string {
-  const template = TEMPLATES[lookKey] || TEMPLATES.professional;
+  const vars = LOOK_VARS[lookKey] || LOOK_VARS.professional;
+  const isPremier = lookKey === "bold_modern";
+  let html = buildTemplate(vars, isPremier);
+
   const sbr = profile.sbrData as Record<string, unknown> | null;
-
-  // Headline / tagline
-  const taglineSuggestions = sbr?.taglineSuggestions as string[] | undefined;
-  const tagline = (sbr?.campaignHeadline as string)
-    || taglineSuggestions?.[0]
-    || (sbr?.suggestedTagline as string)
-    || `${profile.business_name} — ${profile.city || "Your City"}`;
-
-  // Services
+  const bt = classifyBusiness(profile.business_name + " " + (profile.intakeAnswers?.q2 || ""));
+  const city = profile.city || "Your City";
   const services = profile.intakeAnswers?.q3?.split(",").map((s) => s.trim()) || [];
   const s1 = services[0] || "Our Service";
   const s2 = services[1] || "Custom Solutions";
   const s3 = services[2] || "Expert Care";
-
-  // Contact
   const cta = profile.intakeAnswers?.q4 || "Contact Us";
   const phone = profile.phone || "(555) 000-0000";
-  const phoneDigits = phone.replace(/\D/g, "");
-  const address = profile.intakeAnswers?.q7?.replace(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}[,\s]*/g, "").trim() || profile.city || "";
-  const ctaLink = phoneDigits ? `tel:${phoneDigits}` : "#";
-  const city = profile.city || "Your City";
+  const phoneDigits = phone.replace(/\D/g, "") || "5550000000";
+  const address = profile.intakeAnswers?.q7?.replace(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}[,\s]*/g, "").trim() || "";
+  const headline = (sbr?.campaignHeadline as string) || (sbr?.tagline as string) || (sbr?.suggestedTagline as string) || (sbr?.taglineSuggestions as string[])?.[0] || (profile.business_name + " — " + city);
+  const geoCopy = (sbr?.geoCopyBlock as string) || "Proudly serving " + city + " with excellence and care.";
+  const localAdvantage = (sbr?.localAdvantage as string) || "We know how difficult it is for local businesses to stand out in " + city + ".";
+  const marketInsight = (sbr?.marketInsight as string) || "Proudly serving " + city + " and the surrounding community for years.";
+  const stat1 = (sbr?.yearsServing as string)?.replace(/[^0-9]/g, "") || "12";
+  const stat2 = (sbr?.happyClients as string)?.replace(/[^0-9]/g, "") || "500";
+  const svcDescs = sbr?.services as Array<{ name: string; description: string }> | undefined;
+  const sd1 = svcDescs?.[0]?.description || s1 + " — precision-built for " + city + " clients.";
+  const sd2 = svcDescs?.[1]?.description || s2 + " delivered on time, every time.";
+  const sd3 = svcDescs?.[2]?.description || s3 + " — the " + city + " standard.";
 
-  // Hero image
-  const bt = classifyBusiness(profile.business_name + " " + (profile.intakeAnswers?.q2 || ""));
-  const heroImg = getPhotoUrl(bt);
-
-  // About / copy
-  const aboutText = (sbr?.localAdvantage as string)
-    || (sbr?.marketInsight as string)
-    || (sbr?.geoCopyBlock as string)
-    || `Proudly serving ${city} with excellence and care.`;
-
-  // Stats from SBR data
-  const stat1 = (sbr?.yearsServing as string) || "12+";
-  const stat2 = (sbr?.happyClients as string) || "500+";
-  const rawRating = sbr?.starRating as string | undefined;
-  const stat3 = rawRating || "4.9";
-
-  // Numeric stat values for animated counters
-  const stat1Num = String(parseInt(stat1.replace(/\D/g, "")) || 12);
-  const stat2Num = String(parseInt(stat2.replace(/\D/g, "")) || 500);
-
-  const data: Record<string, string> = {
-    business_name: esc(profile.business_name),
-    city: esc(city),
-    zip: esc(profile.zip || ""),
-    tagline: esc(tagline.slice(0, 80)),
-    service_1: esc(s1),
-    service_2: esc(s2),
-    service_3: esc(s3),
-    cta_text: esc(cta),
-    cta_link: ctaLink,
-    phone: esc(phone),
-    phone_digits: phoneDigits || "5550000000",
-    address: esc(address),
-    about_text: esc(aboutText),
-    image_url: heroImg,
-    stat_1: stat1,
-    stat_2: stat2,
-    stat_3: stat3,
-    stat_1_num: stat1Num,
-    stat_2_num: stat2Num,
-    business_type: esc(bt),
-    city_slug: city.toLowerCase().replace(/\s+/g, ""),
-    published_url: profile.published_url || `${city.toLowerCase().replace(/\s+/g, "")}.bvmstudio.com`,
+  const slots: Record<string, string> = {
+    BUSINESS_NAME: esc(profile.business_name),
+    CITY: esc(city),
+    ZIP: esc(profile.zip || ""),
+    PHONE: esc(phone),
+    PHONE_DIGITS: phoneDigits,
+    CTA: esc(cta),
+    HEADLINE: esc(String(headline).slice(0, 80)),
+    GEO_COPY: esc(geoCopy),
+    LOCAL_ADVANTAGE: esc(localAdvantage),
+    MARKET_INSIGHT: esc(marketInsight),
+    HERO_IMAGE: getPhotoUrl(bt),
+    HERO_IMAGE_2: getPhotoVariant(bt, 1),
+    HERO_IMAGE_3: getPhotoVariant(bt, 2),
+    SERVICE_1: esc(s1),
+    SERVICE_2: esc(s2),
+    SERVICE_3: esc(s3),
+    SERVICE_DESC_1: esc(sd1),
+    SERVICE_DESC_2: esc(sd2),
+    SERVICE_DESC_3: esc(sd3),
+    SERVICE_IMAGE_1: getServicePhoto(s1),
+    SERVICE_IMAGE_2: getServicePhoto(s2),
+    SERVICE_IMAGE_3: getServicePhoto(s3),
+    BUSINESS_TYPE_LABEL: BUSINESS_TYPE_LABELS[bt] || "Local Business",
+    STAT_1_VAL: stat1,
+    STAT_1_LABEL: "Years Serving " + esc(city),
+    STAT_2_VAL: stat2,
+    STAT_2_LABEL: "Happy Customers",
+    ADDRESS_LINE: address ? "<span>&#128205; " + esc(address) + "</span>" : "",
+    YEAR: String(new Date().getFullYear()),
+    PUBLISHED_URL: profile.published_url || "",
+    CITY_SLUG: city.toLowerCase().replace(/\s+/g, ""),
   };
 
-  return fillSlots(template, data);
+  for (const [key, val] of Object.entries(slots)) {
+    html = html.split("{{" + key + "}}").join(val);
+  }
+
+  return html;
 }
 
 export function generateTearSheetPreview(profile: ClientProfile, lookKey: string): string {
   const validKey = (["warm_bold", "professional", "bold_modern"].includes(lookKey) ? lookKey : "professional") as "warm_bold" | "professional" | "bold_modern";
   const html = generateSiteHTML(profile, validKey);
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{margin:0;}</style></head><body><div style="transform:scale(0.38);transform-origin:top left;width:263%;pointer-events:none">${html.replace(/<!DOCTYPE html>/g, "")}</div></body></html>`;
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{margin:0}</style></head><body><div style="transform:scale(0.38);transform-origin:top left;width:263%;pointer-events:none">${html.replace(/<!DOCTYPE html>/g, "")}</div></body></html>`;
 }
