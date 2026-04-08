@@ -485,26 +485,34 @@ export default function ProfilePage() {
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 13 }}>
                     <div>
                       <span style={{ color: "#64748b" }}>Look: </span>
-                      <span style={{ color: "#fff", textTransform: "capitalize" }}>{client.selectedLook?.replace(/_/g, " ") || "—"}</span>
+                      {client.selectedLook
+                        ? <span style={{ color: "#fff", textTransform: "capitalize" }}>{client.selectedLook.replace(/_/g, " ")}</span>
+                        : <span style={{ color: "#94a3b8", fontStyle: "italic" }}>Collected during intake</span>}
                     </div>
                     <div>
                       <span style={{ color: "#64748b" }}>CTA: </span>
-                      <span style={{ color: "#fff" }}>{client.intakeAnswers?.q4 || "—"}</span>
+                      {client.intakeAnswers?.q4
+                        ? <span style={{ color: "#fff" }}>{client.intakeAnswers.q4}</span>
+                        : <span style={{ color: "#94a3b8", fontStyle: "italic" }}>Collected during intake</span>}
                     </div>
                     <div>
                       <span style={{ color: "#64748b" }}>Services: </span>
-                      <span style={{ color: "#fff" }}>{client.intakeAnswers?.q3 || "—"}</span>
+                      {client.intakeAnswers?.q3
+                        ? <span style={{ color: "#fff" }}>{client.intakeAnswers.q3}</span>
+                        : <span style={{ color: "#94a3b8", fontStyle: "italic" }}>Collected during intake</span>}
                     </div>
                     <div>
                       <span style={{ color: "#64748b" }}>Occasion: </span>
-                      <span style={{ color: "#fff" }}>{client.intakeAnswers?.q8 || "—"}</span>
+                      {client.intakeAnswers?.q8
+                        ? <span style={{ color: "#fff" }}>{client.intakeAnswers.q8}</span>
+                        : <span style={{ color: "#94a3b8", fontStyle: "italic" }}>Collected during intake</span>}
                     </div>
                   </div>
                 </div>
 
-                {client.sbrData && (
-                  <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 12, padding: 24 }}>
-                    <h3 style={{ fontSize: 14, fontWeight: 600, color: "#0d1a2e", marginBottom: 16 }}>SBR Analysis</h3>
+                <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 12, padding: 24 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: "#0d1a2e", marginBottom: 16 }}>SBR Analysis</h3>
+                  {client.sbrData && Object.keys(client.sbrData).length > 0 ? (
                     <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13 }}>
                       {Object.entries(client.sbrData).map(([key, val]) => (
                         <div key={key}>
@@ -517,8 +525,12 @@ export default function ProfilePage() {
                         </div>
                       ))}
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <p style={{ fontSize: 13, color: "#94a3b8", fontStyle: "italic", margin: 0 }}>
+                      SBR runs automatically during Bruno intake — requires Anthropic API key
+                    </p>
+                  )}
+                </div>
 
                 {/* Campaign Preview */}
                 <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 12, padding: 24 }}>

@@ -64,6 +64,21 @@ export async function POST(request: Request) {
     logoUrl: null,
   };
 
+  console.log("=== INTAKE CREATE — ALL FIELDS ===");
+  console.log("ID:", id);
+  console.log("Business Name:", businessName);
+  console.log("City:", city);
+  console.log("ZIP:", zip);
+  console.log("Phone:", phone);
+  console.log("CTA:", intakeAnswers.q4 || "(none)");
+  console.log("Services:", intakeAnswers.q3 || "(none)");
+  console.log("Occasion:", intakeAnswers.q8 || "(none)");
+  console.log("Look:", intakeAnswers.q5 || "(none)");
+  console.log("Suggested Domain:", intakeAnswers.q9 || "(none)");
+  console.log("SBR Data:", JSON.stringify(sbrData, null, 2));
+  console.log("All Intake Answers:", JSON.stringify(intakeAnswers, null, 2));
+  console.log("=================================");
+
   addClient(profile);
 
   return Response.json({ success: true, profile });

@@ -313,73 +313,26 @@ export default function TearSheetPage() {
           </div>
         </div>
 
-        {/* Real Site Preview */}
-        <div style={{ maxWidth: 900, margin: "32px auto 0", padding: "0 40px" }}>
-          <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#94a3b8", marginBottom: 20, textAlign: "center" }}>
-            Your site preview — select a look to see how it feels
-          </p>
-
-          {previewLoading ? (
-            <div style={{ textAlign: "center", padding: 60 }}>
-              <div style={{ width: 28, height: 28, border: "2px solid #F5C842", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite", margin: "0 auto" }} />
-              <p style={{ fontSize: 12, color: "#94a3b8", marginTop: 12 }}>Loading preview...</p>
-            </div>
-          ) : siteHtml ? (
-            <div style={{ display: "flex", gap: 24, justifyContent: "center", alignItems: "flex-start" }}>
-              {/* Laptop frame */}
-              <div>
-                <div style={{ background: "#374151", borderRadius: "12px 12px 0 0", padding: "8px 12px 0" }}>
-                  <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#ef4444" }} />
-                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#f59e0b" }} />
-                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#22c55e" }} />
-                  </div>
-                  <div style={{ background: "#fff", borderRadius: "4px 4px 0 0", width: 520, height: 340, overflow: "hidden", position: "relative" }}>
-                    <iframe
-                      srcDoc={siteHtml}
-                      style={{ width: 1300, height: 850, border: "none", transform: "scale(0.4)", transformOrigin: "top left", pointerEvents: "none" }}
-                      title="Laptop preview"
-                    />
-                  </div>
-                </div>
-                <div style={{ background: "#4b5563", height: 16, borderRadius: "0 0 4px 4px" }} />
-                <div style={{ background: "#6b7280", height: 6, width: "70%", margin: "0 auto", borderRadius: "0 0 8px 8px" }} />
-                <p style={{ fontSize: 11, color: "#94a3b8", textAlign: "center", marginTop: 8 }}>Desktop</p>
-              </div>
-
-              {/* Mobile frame */}
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                <div style={{ background: "#374151", borderRadius: 20, padding: 8, width: 156 }}>
-                  <div style={{ width: 30, height: 4, background: "#4b5563", borderRadius: 2, margin: "0 auto 6px" }} />
-                  <div style={{ background: "#fff", borderRadius: 12, width: 140, height: 248, overflow: "hidden", position: "relative" }}>
-                    <iframe
-                      srcDoc={siteHtml}
-                      style={{ width: 375, height: 667, border: "none", transform: "scale(0.373)", transformOrigin: "top left", pointerEvents: "none" }}
-                      title="Mobile preview"
-                    />
-                  </div>
-                  <div style={{ width: 28, height: 28, borderRadius: "50%", border: "2px solid #4b5563", margin: "6px auto 2px" }} />
-                </div>
-                <p style={{ fontSize: 11, color: "#94a3b8", textAlign: "center", marginTop: 8 }}>Mobile</p>
-              </div>
-            </div>
-          ) : (
-            <div style={{ textAlign: "center", padding: 40, color: "#94a3b8", fontSize: 13 }}>
-              Select a look below to see your site preview
-            </div>
-          )}
-          {siteHtml && (
-            <div style={{ textAlign: "center", marginTop: 12 }}>
-              <a
-                href={`/api/site/generate?clientId=${client.id}&lookKey=${selectedLook || client.selectedLook || "warm_bold"}`}
-                target="_blank"
-                style={{ fontSize: 13, color: "#F5C842", fontWeight: 600, textDecoration: "none" }}
-              >
-                View Full Size →
-              </a>
-              <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>Opens your full site preview in a new tab</p>
-            </div>
-          )}
+        {/* Campaign Preview Button */}
+        <div style={{ maxWidth: 600, margin: "32px auto 0", padding: "0 40px", textAlign: "center" }}>
+          <a
+            href={`/api/site/generate?clientId=${client.id}&lookKey=${selectedLook || client.selectedLook || "warm_bold"}`}
+            target="_blank"
+            style={{
+              display: "inline-block",
+              background: "#F5C842",
+              color: "#0d1a2e",
+              padding: "14px 36px",
+              borderRadius: 10,
+              fontSize: 15,
+              fontWeight: 700,
+              textDecoration: "none",
+              boxShadow: "0 4px 16px rgba(245,200,66,0.25)",
+            }}
+          >
+            View Full Campaign Preview →
+          </a>
+          <p style={{ fontSize: 12, color: "#94a3b8", marginTop: 8 }}>Opens your full site preview in a new tab</p>
         </div>
 
         {/* Look Selector — only for tear-sheet */}
