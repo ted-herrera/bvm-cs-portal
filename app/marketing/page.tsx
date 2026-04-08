@@ -1,5 +1,11 @@
 import Link from "next/link";
 
+const BG      = "#0d1a2e";
+const CARD_BG = "#1a2740";
+const NAVY    = "#0d1a2e";
+const WHITE   = "#ffffff";
+const GOLD    = "#F5C842";
+
 const features = [
   {
     title: "Bruno Intake",
@@ -51,14 +57,14 @@ const stats = [
 
 export default function MarketingPage() {
   return (
-    <div style={{ minHeight: "100vh", background: "#ffffff", color: "#1a1a1a" }}>
+    <div style={{ minHeight: "100vh", background: BG, color: WHITE }}>
       {/* Gold top bar */}
-      <div style={{ height: 4, background: "#F5C842", flexShrink: 0 }} />
+      <div style={{ height: 4, background: GOLD, flexShrink: 0 }} />
 
-      {/* Sticky Header */}
+      {/* Sticky Header — white */}
       <header
         style={{
-          background: "#ffffff",
+          background: WHITE,
           borderBottom: "1px solid #e2e8f0",
           padding: "12px 32px",
           display: "flex",
@@ -69,68 +75,73 @@ export default function MarketingPage() {
           zIndex: 100,
         }}
       >
-        <span
-          style={{
-            color: "#0d1a2e",
-            fontWeight: "bold",
-            fontSize: "14px",
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-          }}
-        >
-          BVM DESIGN CENTER
-        </span>
-        <img src="/bvm_logo.png" alt="BVM Logo" style={{ height: "36px", width: "auto" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <img src="/bvm_logo.png" alt="BVM Logo" style={{ height: "36px", width: "auto" }} />
+          <span
+            style={{
+              color: NAVY,
+              fontWeight: "bold",
+              fontSize: "14px",
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+            }}
+          >
+            BVM DESIGN CENTER
+          </span>
+        </div>
+        <nav style={{ display: "flex", gap: 20, alignItems: "center" }}>
+          <Link href="/login" style={{ fontSize: 13, fontWeight: 700, color: GOLD, textDecoration: "none" }}>Login</Link>
+          <Link href="/qa-demo" style={{ fontSize: 13, fontWeight: 600, color: "#6b7280", textDecoration: "none" }}>QA Demo</Link>
+        </nav>
       </header>
 
-      {/* Hero — Two Column */}
+      {/* Hero — Two Column, dark navy */}
       <section
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          padding: "80px 48px 64px",
-          gap: "48px",
+          padding: "80px 48px 80px",
+          gap: "56px",
           maxWidth: "1200px",
           margin: "0 auto",
           flexWrap: "wrap",
-          background: "#ffffff",
         }}
       >
-        {/* Left Column 55% */}
+        {/* Left Column — headline + CTAs */}
         <div style={{ flex: "0 1 55%", minWidth: "320px" }}>
           <p
             style={{
-              color: "#F5C842",
+              color: GOLD,
               fontSize: "11px",
               textTransform: "uppercase",
               letterSpacing: "0.2em",
               marginBottom: "12px",
-              fontWeight: 600,
+              fontWeight: 700,
             }}
           >
-            BVM
+            INTERNAL PRODUCTION TOOL
           </p>
           <h1
             style={{
-              fontFamily: "'Playfair Display', serif",
-              fontSize: "52px",
+              fontFamily: "'Playfair Display', Georgia, serif",
+              fontSize: "56px",
               fontWeight: 900,
-              color: "#0d1a2e",
-              lineHeight: 1.1,
+              color: WHITE,
+              lineHeight: 1.08,
               marginBottom: "20px",
+              letterSpacing: "-1.5px",
             }}
           >
-            Design Center
+            BVM<br />Design Center
           </h1>
           <p
             style={{
-              fontFamily: "'DM Sans', sans-serif",
               fontSize: "18px",
-              color: "#64748b",
+              color: "rgba(255,255,255,0.65)",
               maxWidth: "480px",
-              lineHeight: 1.7,
-              marginBottom: "32px",
+              lineHeight: 1.75,
+              marginBottom: "36px",
             }}
           >
             The internal web production tool that builds, QAs, and delivers
@@ -145,14 +156,14 @@ export default function MarketingPage() {
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: "#F5C842",
-                color: "#0d1a2e",
+                backgroundColor: GOLD,
+                color: NAVY,
                 padding: "14px 32px",
-                borderRadius: "10px",
-                fontWeight: 700,
+                borderRadius: "999px",
+                fontWeight: 800,
                 fontSize: "15px",
                 textDecoration: "none",
-                transition: "opacity 0.2s",
+                boxShadow: "0 4px 24px rgba(245,200,66,0.30)",
               }}
             >
               Open Design Center &rarr;
@@ -163,69 +174,125 @@ export default function MarketingPage() {
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                border: "1px solid #e2e8f0",
-                color: "#0d1a2e",
+                border: "2px solid rgba(255,255,255,0.3)",
+                color: WHITE,
                 padding: "14px 32px",
-                borderRadius: "10px",
-                fontWeight: 600,
+                borderRadius: "999px",
+                fontWeight: 700,
                 fontSize: "15px",
                 textDecoration: "none",
                 background: "transparent",
-                transition: "border-color 0.2s",
               }}
             >
               View QA Demo &rarr;
             </Link>
           </div>
 
-          {/* Trust Stats */}
+          {/* Trust Stats inline */}
           <div
             style={{
               display: "flex",
               alignItems: "center",
               gap: "8px",
-              fontFamily: "'DM Sans', sans-serif",
               fontSize: "13px",
-              color: "#94a3b8",
+              color: "rgba(255,255,255,0.45)",
             }}
           >
             <span>4-Pass QA</span>
-            <span style={{ color: "#F5C842", fontSize: "10px" }}>&bull;</span>
+            <span style={{ color: GOLD, fontSize: "10px" }}>&bull;</span>
             <span>Auto-Fix</span>
-            <span style={{ color: "#F5C842", fontSize: "10px" }}>&bull;</span>
+            <span style={{ color: GOLD, fontSize: "10px" }}>&bull;</span>
             <span>Self-Contained</span>
           </div>
         </div>
 
-        {/* Right Column 45% — Video */}
+        {/* Right Column — Video */}
         <div style={{ flex: "0 1 45%", minWidth: "320px" }}>
           <video
             src="/overview.mp4"
             controls
+            playsInline
             style={{
               width: "100%",
-              borderRadius: "16px",
-              border: "1px solid #e2e8f0",
-              boxShadow: "0 12px 48px rgba(0,0,0,0.08)",
+              borderRadius: "12px",
+              boxShadow: "0 24px 64px rgba(0,0,0,0.5)",
               display: "block",
             }}
           />
         </div>
       </section>
 
-      {/* Feature Cards */}
-      <section style={{ maxWidth: "1200px", margin: "0 auto", padding: "48px 48px 64px", background: "#ffffff" }}>
+      {/* Stats Row — dark navy, gold values */}
+      <section style={{ padding: "60px 48px", borderTop: "1px solid rgba(255,255,255,0.06)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <div
+          style={{
+            maxWidth: "900px",
+            margin: "0 auto",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {stats.map((s, i) => (
+            <div key={s.value + s.label} style={{ display: "flex", alignItems: "center" }}>
+              <div style={{ textAlign: "center", padding: "0 32px" }}>
+                <div
+                  style={{
+                    color: GOLD,
+                    fontSize: "22px",
+                    fontWeight: 800,
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {s.value}
+                </div>
+                <div
+                  style={{
+                    color: "rgba(255,255,255,0.55)",
+                    fontSize: "11px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.06em",
+                    marginTop: "4px",
+                    fontWeight: 600,
+                  }}
+                >
+                  {s.label}
+                </div>
+              </div>
+              {i < stats.length - 1 && (
+                <div
+                  style={{
+                    width: "1px",
+                    height: "36px",
+                    background: "rgba(255,255,255,0.12)",
+                  }}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Feature Cards — dark card bg, gold top border */}
+      <section style={{ maxWidth: "1200px", margin: "0 auto", padding: "80px 48px" }}>
+        <div style={{ textAlign: "center", marginBottom: 56 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: "3px", textTransform: "uppercase", marginBottom: 14 }}>
+            PLATFORM FEATURES
+          </div>
+          <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 38, fontWeight: 900, color: WHITE, letterSpacing: "-0.8px" }}>
+            Everything your reps need. One platform.
+          </h2>
+        </div>
         <div style={{ display: "flex", gap: "24px", flexWrap: "wrap" }}>
           {features.map((f) => (
             <div
               key={f.title}
               style={{
                 flex: "1 1 300px",
-                background: "#ffffff",
+                background: CARD_BG,
                 borderRadius: "16px",
-                borderLeft: "4px solid #F5C842",
-                padding: "32px",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+                borderTop: `3px solid ${GOLD}`,
+                padding: "36px 32px",
                 display: "flex",
                 flexDirection: "column",
                 position: "relative",
@@ -248,25 +315,22 @@ export default function MarketingPage() {
                 {f.icon}
               </div>
 
-              {/* Title */}
               <h3
                 style={{
-                  fontFamily: "'Playfair Display', serif",
+                  fontFamily: "'Playfair Display', Georgia, serif",
                   fontSize: "22px",
                   fontWeight: 700,
-                  color: "#0d1a2e",
+                  color: WHITE,
                   marginBottom: "8px",
                 }}
               >
                 {f.title}
               </h3>
 
-              {/* Description */}
               <p
                 style={{
-                  fontFamily: "'DM Sans', sans-serif",
                   fontSize: "14px",
-                  color: "#64748b",
+                  color: "rgba(255,255,255,0.55)",
                   lineHeight: 1.7,
                   marginBottom: "16px",
                 }}
@@ -274,7 +338,6 @@ export default function MarketingPage() {
                 {f.description}
               </p>
 
-              {/* Bullets */}
               <ul style={{ listStyle: "none", padding: 0, margin: "0 0 24px 0" }}>
                 {f.bullets.map((b) => (
                   <li
@@ -284,22 +347,21 @@ export default function MarketingPage() {
                       alignItems: "center",
                       gap: "8px",
                       fontSize: "13px",
-                      color: "#64748b",
+                      color: "rgba(255,255,255,0.55)",
                       marginBottom: "6px",
                     }}
                   >
-                    <span style={{ color: "#F5C842", fontSize: "8px" }}>&#9679;</span>
+                    <span style={{ color: GOLD, fontSize: "8px" }}>&#9679;</span>
                     {b}
                   </li>
                 ))}
               </ul>
 
-              {/* CTA Link */}
               <div style={{ marginTop: "auto", textAlign: "right" }}>
                 <Link
                   href={f.href}
                   style={{
-                    color: "#F5C842",
+                    color: GOLD,
                     fontWeight: 600,
                     fontSize: "14px",
                     textDecoration: "none",
@@ -313,86 +375,39 @@ export default function MarketingPage() {
         </div>
       </section>
 
-      {/* Stats Row */}
-      <section style={{ maxWidth: "900px", margin: "0 auto", padding: "32px 48px 56px", background: "#ffffff" }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "0",
-          }}
-        >
-          {stats.map((s, i) => (
-            <div key={s.value + s.label} style={{ display: "flex", alignItems: "center" }}>
-              <div style={{ textAlign: "center", padding: "0 32px" }}>
-                <div
-                  style={{
-                    color: "#F5C842",
-                    fontSize: "20px",
-                    fontWeight: 700,
-                    lineHeight: 1.2,
-                  }}
-                >
-                  {s.value}
-                </div>
-                <div
-                  style={{
-                    color: "#64748b",
-                    fontSize: "11px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.06em",
-                    marginTop: "4px",
-                  }}
-                >
-                  {s.label}
-                </div>
-              </div>
-              {i < stats.length - 1 && (
-                <div
-                  style={{
-                    width: "1px",
-                    height: "36px",
-                    background: "rgba(245,200,66,0.4)",
-                  }}
-                />
-              )}
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* About Bruno */}
-      <section style={{ padding: "64px 24px 32px", background: "#ffffff" }}>
-        <div style={{ maxWidth: 520, margin: "0 auto" }}>
-          <div style={{ height: 1, width: 96, background: "#e2e8f0", margin: "0 auto 24px" }} />
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+      {/* Bruno Easter Egg — white background section */}
+      <section style={{ padding: "80px 24px", background: WHITE }}>
+        <div style={{ maxWidth: 700, margin: "0 auto", display: "flex", alignItems: "center", gap: 48, flexWrap: "wrap" }}>
+          <div style={{ flexShrink: 0 }}>
             <img
-              src="/bruno.png"
+              src="/bruno-login.png"
               alt="Bruno"
               style={{
-                width: 80,
-                height: 80,
-                objectFit: "cover",
-                borderRadius: "50%",
-                marginBottom: 16,
+                width: 280,
+                height: "auto",
+                objectFit: "contain",
                 mixBlendMode: "multiply",
                 background: "transparent",
               }}
             />
+          </div>
+          <div style={{ flex: 1, minWidth: 260 }}>
             <p
               style={{
                 fontSize: 11,
                 textTransform: "uppercase",
                 letterSpacing: "0.12em",
-                fontWeight: 600,
-                color: "#F5C842",
+                fontWeight: 700,
+                color: GOLD,
                 marginBottom: 16,
               }}
             >
               About Bruno
             </p>
-            <p style={{ fontSize: 13, lineHeight: 1.8, maxWidth: 500, color: "#64748b" }}>
+            <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 28, fontWeight: 900, color: NAVY, marginBottom: 16, lineHeight: 1.15 }}>
+              Your AI Brand Director
+            </h3>
+            <p style={{ fontSize: 14, lineHeight: 1.8, color: "#64748b" }}>
               Bruno started as an internal tool — a way to help BVM account managers run smarter
               client conversations. He learned the SBR playbook, memorized every market, and got
               very good at asking the right questions. Somewhere along the way he stopped being a
@@ -404,10 +419,20 @@ export default function MarketingPage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer style={{ borderTop: "1px solid #e2e8f0", padding: "32px 0", textAlign: "center", fontSize: 14, color: "#64748b", background: "#ffffff" }}>
-        Conceived and directed by Ted Herrera. Built with Claude.
+      {/* Footer — dark navy */}
+      <footer style={{ background: BG, borderTop: "1px solid rgba(255,255,255,0.08)", padding: "40px", textAlign: "center" }}>
+        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", lineHeight: 1.8 }}>
+          <div style={{ marginBottom: 8 }}>
+            <img src="/bvm_logo.png" alt="BVM" style={{ height: 28, width: "auto", opacity: 0.5 }} />
+          </div>
+          BVM Design Center — Internal Production Tool<br />
+          Conceived and directed by Ted Herrera. Built with Claude.
+        </div>
       </footer>
+
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&display=swap');
+      `}</style>
     </div>
   );
 }
