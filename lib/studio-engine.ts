@@ -330,12 +330,21 @@ nav{background:#0d1a2e;padding:20px 48px;display:flex;justify-content:space-betw
 footer{background:#080f1a;padding:24px 48px;display:flex;justify-content:space-between;align-items:center}
 .footer-name{font-size:16px;font-weight:700;color:#fff}
 .footer-mono{font-family:'DM Mono',monospace;font-size:11px;color:rgba(255,255,255,.25)}
+.review-strip{background:#0d1a2e;padding:16px 0;overflow:hidden;border-top:1px solid rgba(255,255,255,.1);border-bottom:1px solid rgba(255,255,255,.1)}
+.review-ticker{display:flex;gap:48px;white-space:nowrap;animation:reviewTicker 30s linear infinite}
+.review-item{font-size:13px;color:#fff;font-weight:500}
+.review-item .stars{color:#F5C842}
+.review-item .src{color:rgba(255,255,255,.35);font-size:11px;margin-left:6px}
+@keyframes reviewTicker{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.featured-badge{position:absolute;top:24px;right:24px;background:#F5C842;color:#0d1a2e;padding:8px 16px;border-radius:6px;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;display:flex;align-items:center;gap:6px;z-index:10}
+.share-btn{position:fixed;bottom:24px;right:24px;z-index:999;background:#F5C842;color:#0d1a2e;border:none;border-radius:50px;padding:12px 20px;font-weight:800;font-size:14px;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,.3)}
 </style>
 </head>
 <body>
 <nav><span class="nav-logo">{{business_name}}<span>.</span></span><a href="{{cta_link}}" class="nav-cta">{{cta_text}}</a></nav>
 <div class="hero">
 <img src="{{image_url}}" alt="{{business_name}}" />
+<div class="featured-badge">&#128081; Featured Local Business &middot; {{city}} &middot; 2026</div>
 <div class="hero-content">
 <div class="hero-eyebrow">{{city}} &middot; {{zip}}</div>
 <h1 class="hero-title">{{tagline}}</h1>
@@ -343,6 +352,18 @@ footer{background:#080f1a;padding:24px 48px;display:flex;justify-content:space-b
 <a href="{{cta_link}}" class="hero-btn">{{cta_text}} &rarr;</a>
 </div>
 </div>
+<div class="review-strip"><div class="review-ticker">
+<span class="review-item"><span class="stars">&#11088;&#11088;&#11088;&#11088;&#11088;</span> Best {{business_type}} in {{city}}!<span class="src">&mdash; Google</span></span>
+<span class="review-item"><span class="stars">&#11088;&#11088;&#11088;&#11088;&#11088;</span> {{business_name}} never disappoints<span class="src">&mdash; Yelp</span></span>
+<span class="review-item"><span class="stars">&#11088;&#11088;&#11088;&#11088;&#11088;</span> My go-to in {{city}}<span class="src">&mdash; Google</span></span>
+<span class="review-item"><span class="stars">&#11088;&#11088;&#11088;&#11088;&#11088;</span> Outstanding service every time<span class="src">&mdash; Facebook</span></span>
+<span class="review-item"><span class="stars">&#11088;&#11088;&#11088;&#11088;&#11088;</span> Highly recommend to everyone<span class="src">&mdash; Google</span></span>
+<span class="review-item"><span class="stars">&#11088;&#11088;&#11088;&#11088;&#11088;</span> Best {{business_type}} in {{city}}!<span class="src">&mdash; Google</span></span>
+<span class="review-item"><span class="stars">&#11088;&#11088;&#11088;&#11088;&#11088;</span> {{business_name}} never disappoints<span class="src">&mdash; Yelp</span></span>
+<span class="review-item"><span class="stars">&#11088;&#11088;&#11088;&#11088;&#11088;</span> My go-to in {{city}}<span class="src">&mdash; Google</span></span>
+<span class="review-item"><span class="stars">&#11088;&#11088;&#11088;&#11088;&#11088;</span> Outstanding service every time<span class="src">&mdash; Facebook</span></span>
+<span class="review-item"><span class="stars">&#11088;&#11088;&#11088;&#11088;&#11088;</span> Highly recommend to everyone<span class="src">&mdash; Google</span></span>
+</div></div>
 <div class="services">
 <div class="section-mono">What We Offer</div>
 <h2 class="section-title">Our Services</h2>
@@ -359,8 +380,8 @@ footer{background:#080f1a;padding:24px 48px;display:flex;justify-content:space-b
 <p class="about-text">{{about_text}}</p>
 </div>
 <div class="stats">
-<div class="stat-card"><div class="stat-num">{{stat_1}}</div><div class="stat-label">Years in {{city}}</div></div>
-<div class="stat-card"><div class="stat-num">{{stat_2}}</div><div class="stat-label">Clients Served</div></div>
+<div class="stat-card"><div class="stat-value stat-num" data-target="{{stat_1_num}}" data-suffix="+">0</div><div class="stat-label">Years in {{city}}</div></div>
+<div class="stat-card"><div class="stat-value stat-num" data-target="{{stat_2_num}}" data-suffix="+">0</div><div class="stat-label">Clients Served</div></div>
 <div class="stat-card"><div class="stat-num">{{stat_3}}&#9733;</div><div class="stat-label">Google Rating</div></div>
 <div class="stat-card"><div class="stat-num">24/7</div><div class="stat-label">Always Available</div></div>
 </div>
@@ -376,6 +397,29 @@ footer{background:#080f1a;padding:24px 48px;display:flex;justify-content:space-b
 <div><div class="google-badge">&#127760; <span>Google Business Profile Optimized</span></div></div>
 </div>
 <footer><span class="footer-name">{{business_name}}</span><span class="footer-mono">&copy; 2026 &middot; {{city}} &middot; BVM Studio</span></footer>
+<button class="share-btn" onclick="navigator.clipboard.writeText('\\u{1F389} Check out {{business_name}}! {{published_url}} #{{city_slug}} #localbusiness').then(function(){var b=document.querySelector('.share-btn');b.textContent='Copied! \\u2713';setTimeout(function(){b.textContent='Share \\u2192'},2000)})">Share &rarr;</button>
+<script>
+document.addEventListener('DOMContentLoaded',function(){
+var observer=new IntersectionObserver(function(entries){
+entries.forEach(function(e){
+if(e.isIntersecting){
+var el=e.target;
+var target=parseInt(el.dataset.target)||0;
+var suffix=el.dataset.suffix||'';
+var start=0;
+var step=Math.max(target/60,1);
+var timer=setInterval(function(){
+start+=step;
+if(start>=target){el.textContent=target+suffix;clearInterval(timer);}
+else{el.textContent=Math.floor(start)+suffix;}
+},25);
+observer.unobserve(el);
+}
+});
+},{threshold:0.3});
+document.querySelectorAll('.stat-value[data-target]').forEach(function(el){observer.observe(el)});
+});
+</script>
 </body>
 </html>`;
 
@@ -441,6 +485,10 @@ export function generateSiteHTML(profile: ClientProfile, lookKey: "warm_bold" | 
   const rawRating = sbr?.starRating as string | undefined;
   const stat3 = rawRating || "4.9";
 
+  // Numeric stat values for animated counters
+  const stat1Num = String(parseInt(stat1.replace(/\D/g, "")) || 12);
+  const stat2Num = String(parseInt(stat2.replace(/\D/g, "")) || 500);
+
   const data: Record<string, string> = {
     business_name: esc(profile.business_name),
     city: esc(city),
@@ -459,6 +507,11 @@ export function generateSiteHTML(profile: ClientProfile, lookKey: "warm_bold" | 
     stat_1: stat1,
     stat_2: stat2,
     stat_3: stat3,
+    stat_1_num: stat1Num,
+    stat_2_num: stat2Num,
+    business_type: esc(bt),
+    city_slug: city.toLowerCase().replace(/\s+/g, ""),
+    published_url: profile.published_url || `${city.toLowerCase().replace(/\s+/g, "")}.bvmstudio.com`,
   };
 
   return fillSlots(template, data);
