@@ -12,6 +12,8 @@ const PUBLIC_PATHS = [
   "/_next",
   "/favicon.ico",
   "/bvm_logo.png",
+  "/bruno.png",
+  "/bruno-login.png",
   "/overview.mp4",
 ];
 
