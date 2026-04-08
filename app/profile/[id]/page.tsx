@@ -25,6 +25,11 @@ export default function ProfilePage() {
   const [replySent, setReplySent] = useState(false);
   const [campaignLook, setCampaignLook] = useState<string>("professional");
   const [customRequested, setCustomRequested] = useState(false);
+  const [toast, setToast] = useState("");
+  const [loginModal, setLoginModal] = useState(false);
+  const [loginUser, setLoginUser] = useState("");
+  const [loginPass, setLoginPass] = useState("");
+  const [loginCreated, setLoginCreated] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -59,7 +64,11 @@ export default function ProfilePage() {
   // Initialize campaignLook from client
   useEffect(() => {
     if (client?.selectedLook) setCampaignLook(client.selectedLook);
-  }, [client?.selectedLook]);
+    if (client?.business_name) {
+      setLoginUser(client.business_name.toLowerCase().replace(/[^a-z0-9]/g, ""));
+      setLoginPass(Math.random().toString(36).slice(2, 8));
+    }
+  }, [client?.selectedLook, client?.business_name]);
 
   const CAMPAIGN_LOOKS = ["warm_bold", "professional", "bold_modern"] as const;
   const CAMPAIGN_LOOK_STYLES: Record<string, { accent: string; bg: string }> = {
@@ -353,48 +362,72 @@ export default function ProfilePage() {
 
         {/* Main Content */}
         <main style={{ flex: 1, overflow: "auto" }}>
+          {/* Gold top bar */}
+          <div style={{ height: 4, background: "#F5C842" }} />
+
           {/* Header */}
-          <div style={{ background: "#0d1a2e", borderBottom: "1px solid #e2e8f0", padding: "24px 32px" }}>
-            <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 28, fontWeight: 700, color: "#fff", margin: 0 }}>
-              {client.business_name}
-            </h1>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
-              <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 9999, background: "#243454", color: "#94a3b8", fontWeight: 500 }}>
-                {client.assigned_rep}
-              </span>
-              <span
-                className={STAGE_COLORS[client.stage]}
-                style={{ fontSize: 11, padding: "3px 10px", borderRadius: 9999, color: "#fff", fontWeight: 600 }}
-              >
-                {STAGE_LABELS[client.stage]}
-              </span>
-              <span style={{ fontSize: 12, color: "#64748b" }}>
-                {client.city}
-              </span>
+          <div style={{ background: "#0d1a2e", padding: "24px 32px" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", color: "#F5C842", textTransform: "uppercase", margin: "0 0 8px" }}>REP STAGING AREA</p>
+                <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 28, fontWeight: 700, color: "#fff", margin: 0 }}>
+                  {client.business_name}
+                </h1>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 12, color: "#64748b" }}>
+                  <Link href="/dashboard" style={{ color: "#64748b", textDecoration: "none" }}>Dashboard</Link>
+                  <span>→</span>
+                  <Link href="/clients" style={{ color: "#64748b", textDecoration: "none" }}>Clients</Link>
+                  <span>→</span>
+                  <span style={{ color: "#F5C842" }}>{client.business_name}</span>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={async () => {
+                  const url = `${window.location.origin}/tearsheet/${client.id}`;
+                  navigator.clipboard.writeText(url);
+                  await fetch(`/api/profile/message/${client.id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: `Your campaign is ready for review! ${url}`, from: "system", repName: "System" }) });
+                  setToast(`Tear Sheet link copied! Send this to your client: ${url}`);
+                  setTimeout(() => setToast(""), 4000);
+                }} style={{ background: "#F5C842", color: "#0d1a2e", border: "none", padding: "10px 20px", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                  Send Tear Sheet →
+                </button>
+                <button onClick={() => {
+                  const url = `${window.location.origin}/client/${client.id}`;
+                  navigator.clipboard.writeText(url);
+                  setToast(`Client portal link copied! ${url}`);
+                  setTimeout(() => setToast(""), 4000);
+                }} style={{ background: "transparent", color: "#fff", border: "1px solid rgba(255,255,255,0.3)", padding: "10px 20px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                  Send Client Portal →
+                </button>
+                <button onClick={() => setLoginModal(true)} style={{ background: "#334155", color: "#94a3b8", border: "none", padding: "10px 20px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                  Create Client Login →
+                </button>
+              </div>
+            </div>
+
+            {/* Stage pill + rep */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
+              <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 9999, background: "#243454", color: "#94a3b8", fontWeight: 500 }}>{client.assigned_rep}</span>
+              <span className={STAGE_COLORS[client.stage]} style={{ fontSize: 11, padding: "3px 10px", borderRadius: 9999, color: "#fff", fontWeight: 600 }}>{STAGE_LABELS[client.stage]}</span>
+              <span style={{ fontSize: 12, color: "#64748b" }}>{client.city}</span>
             </div>
 
             {/* Tabs */}
             <div style={{ display: "flex", gap: 4, marginTop: 20 }}>
               {tabs.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => setTab(t.id)}
-                  style={{
-                    padding: "8px 20px",
-                    borderRadius: "8px 8px 0 0",
-                    fontSize: 13,
-                    fontWeight: 500,
-                    border: "none",
-                    cursor: "pointer",
-                    background: tab === t.id ? "#1a2740" : "transparent",
-                    color: tab === t.id ? "#F5C842" : "#64748b",
-                  }}
-                >
+                <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: "8px 20px", borderRadius: "8px 8px 0 0", fontSize: 13, fontWeight: 500, border: "none", cursor: "pointer", background: tab === t.id ? "#1a2740" : "transparent", color: tab === t.id ? "#F5C842" : "#64748b" }}>
                   {t.label}
                 </button>
               ))}
             </div>
           </div>
+
+          {/* Toast */}
+          {toast && (
+            <div style={{ background: "#22c55e", color: "#fff", padding: "10px 24px", fontSize: 13, fontWeight: 600, textAlign: "center" }}>
+              {toast}
+            </div>
+          )}
 
           <div style={{ padding: 32, background: "#ffffff", minHeight: "calc(100vh - 200px)" }}>
             {/* Overview Tab */}
@@ -481,7 +514,7 @@ export default function ProfilePage() {
                 )}
 
                 <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 12, padding: 24 }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 600, color: "#0d1a2e", marginBottom: 16 }}>Key Details</h3>
+                  <div style={{ display: "inline-block", background: "#0d1a2e", color: "#F5C842", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", padding: "4px 12px", borderRadius: 4, marginBottom: 16, textTransform: "uppercase" }}>KEY DETAILS</div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 13 }}>
                     <div>
                       <span style={{ color: "#64748b" }}>Look: </span>
@@ -511,7 +544,7 @@ export default function ProfilePage() {
                 </div>
 
                 <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 12, padding: 24 }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 600, color: "#0d1a2e", marginBottom: 16 }}>SBR Analysis</h3>
+                  <div style={{ display: "inline-block", background: "#0d1a2e", color: "#F5C842", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", padding: "4px 12px", borderRadius: 4, marginBottom: 16, textTransform: "uppercase" }}>SBR ANALYSIS</div>
                   {client.sbrData && Object.keys(client.sbrData).length > 0 ? (
                     <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13 }}>
                       {Object.entries(client.sbrData).map(([key, val]) => (
@@ -574,7 +607,7 @@ export default function ProfilePage() {
 
                 {/* Campaign Preview — locked panels */}
                 <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 12, padding: 24 }}>
-                  <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, fontWeight: 700, color: "#0d1a2e", margin: "0 0 4px", textAlign: "center" }}>Campaign Assets</h3>
+                  <div style={{ textAlign: "center", marginBottom: 8 }}><span style={{ display: "inline-block", background: "#0d1a2e", color: "#F5C842", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", padding: "4px 12px", borderRadius: 4, textTransform: "uppercase" }}>SITE PREVIEW</span></div>
                   <p style={{ fontSize: 11, color: "#94a3b8", fontStyle: "italic", textAlign: "center", margin: "0 0 20px" }}>Look: {CAMPAIGN_LOOK_LABELS[client.selectedLook || "professional"] || "Professional"}</p>
 
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
@@ -1062,6 +1095,40 @@ export default function ProfilePage() {
           </div>
         </main>
       </div>
+
+      {/* Login Modal */}
+      {loginModal && (
+        <>
+          <div onClick={() => setLoginModal(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 200 }} />
+          <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", background: "#fff", borderRadius: 16, padding: 32, width: 400, zIndex: 201, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+            <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, fontWeight: 700, color: "#0d1a2e", margin: "0 0 16px" }}>Create login for {client.business_name}</h3>
+            {!loginCreated ? (
+              <>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "#64748b", display: "block", marginBottom: 4 }}>Username</label>
+                  <input value={loginUser} onChange={(e) => setLoginUser(e.target.value)} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 14, boxSizing: "border-box" }} />
+                </div>
+                <div style={{ marginBottom: 20 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "#64748b", display: "block", marginBottom: 4 }}>Password</label>
+                  <input value={loginPass} onChange={(e) => setLoginPass(e.target.value)} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 14, boxSizing: "border-box" }} />
+                </div>
+                <button onClick={() => setLoginCreated(true)} style={{ width: "100%", background: "#F5C842", color: "#0d1a2e", border: "none", padding: "12px", borderRadius: 8, fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
+                  Create Login →
+                </button>
+              </>
+            ) : (
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 36, marginBottom: 12 }}>✅</div>
+                <p style={{ fontSize: 14, fontWeight: 600, color: "#0d1a2e", margin: "0 0 8px" }}>Login created!</p>
+                <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 4px" }}>Username: <strong>{loginUser}</strong></p>
+                <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 16px" }}>Password: <strong>{loginPass}</strong></p>
+                <p style={{ fontSize: 12, color: "#94a3b8" }}>Share these with your client so they can log in at /login</p>
+                <button onClick={() => { setLoginModal(false); setLoginCreated(false); }} style={{ marginTop: 16, background: "#0d1a2e", color: "#fff", border: "none", padding: "10px 24px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Done</button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
