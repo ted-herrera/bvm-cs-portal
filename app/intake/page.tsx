@@ -78,6 +78,120 @@ function IntakeInner() {
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chat]);
 
+  async function runDemo() {
+    const d = 800;
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const add = (role: "bruno" | "user", text: string) => setChat((p) => [...p, { role, text }]);
+
+    add("user", "Ted's Tacos");
+    await wait(d);
+    setBizName("Ted's Tacos");
+    add("bruno", "Ted's Tacos — love it. What city and ZIP code are you in?");
+    await wait(d);
+
+    add("user", "Tulsa 74103");
+    await wait(d);
+    setCity("Tulsa"); setZip("74103");
+    add("bruno", "Tulsa — great market. Let me pull some data...");
+    await wait(d);
+    add("bruno", "What's your first service or specialty?");
+    await wait(d);
+
+    add("user", "Street Tacos");
+    await wait(d);
+    setCurrentServiceName("Street Tacos");
+    add("bruno", "What makes your Street Tacos stand out?");
+    await wait(d);
+    add("user", "Hand-pressed corn tortillas filled with slow-braised meats and house-made salsas — made fresh every day.");
+    await wait(d);
+    add("bruno", 'Here\'s how that reads:\n\n"Hand-pressed corn tortillas filled with slow-braised meats and house-made salsas — made fresh every day."\n\nDoes that work?');
+    await wait(d);
+    add("user", "Yes");
+    await wait(d);
+    setServices([{ name: "Street Tacos", description: "Hand-pressed corn tortillas filled with slow-braised meats and house-made salsas — made fresh every day." }]);
+    add("bruno", "Solid. What's service #2?");
+    await wait(d);
+
+    add("user", "Catering");
+    await wait(d);
+    add("bruno", "What makes your Catering stand out?");
+    await wait(d);
+    add("user", "Full-service taco catering for events of any size. We bring the kitchen to you.");
+    await wait(d);
+    add("bruno", 'Here\'s how that reads:\n\n"Full-service taco catering for events of any size. We bring the kitchen to you."\n\nDoes that work?');
+    await wait(d);
+    add("user", "Yes");
+    await wait(d);
+    setServices((p) => [...p, { name: "Catering", description: "Full-service taco catering for events of any size. We bring the kitchen to you." }]);
+    add("bruno", "Love it. What's service #3?");
+    await wait(d);
+
+    add("user", "Late Night");
+    await wait(d);
+    add("bruno", "What makes your Late Night stand out?");
+    await wait(d);
+    add("user", "Open until 2am on weekends — Tulsa's go-to spot after the lights go down.");
+    await wait(d);
+    add("bruno", 'Here\'s how that reads:\n\n"Open until 2am on weekends — Tulsa\'s go-to spot after the lights go down."\n\nDoes that work?');
+    await wait(d);
+    add("user", "Yes");
+    await wait(d);
+    setServices((p) => [...p, { name: "Late Night", description: "Open until 2am on weekends — Tulsa's go-to spot after the lights go down." }]);
+    add("bruno", "Generating tagline options...");
+    await wait(d);
+
+    add("bruno", "Here are three tagline options — tap the one you like:");
+    await wait(d);
+    add("user", "Tulsa's Taco Revolution Starts Here");
+    await wait(d);
+    setTagline("Tulsa's Taco Revolution Starts Here");
+    add("bruno", 'Locked: "Tulsa\'s Taco Revolution Starts Here"\n\nHow long have you been open?');
+    await wait(d);
+
+    add("user", "8 years");
+    await wait(d);
+    setYearsOpen("8");
+    setCustomerCount("50,000+");
+    setStarRating("4.9");
+    add("bruno", "Based on 8 years in Tulsa, I'm estimating you've served over 50,000 customers — does that sound right?");
+    await wait(d);
+
+    add("user", "Yes");
+    await wait(d);
+    add("bruno", 'What\'s something a happy customer actually said about you?\n\nOr say "skip".');
+    await wait(d);
+
+    add("user", "Best tacos in Tulsa, period.");
+    await wait(d);
+    setCustomerQuote("Best tacos in Tulsa, period.");
+    add("bruno", 'Here\'s your featured review:\n\n"⭐⭐⭐⭐⭐ Best tacos in Tulsa, period. — Google Review"\n\nWhat\'s the best phone number for customers to call?');
+    await wait(d);
+
+    add("user", "(918) 222-4555");
+    await wait(d);
+    setPhone("(918) 222-4555");
+    add("bruno", "What should the main button say on your site?");
+    await wait(d);
+
+    add("user", "Order Now");
+    await wait(d);
+    setCta("Order Now");
+    add("bruno", "Last thing — choose your site style:");
+    await wait(d);
+
+    add("user", "Premier ⭐");
+    await wait(d);
+    setLook("bold_modern");
+    setSuggestedDomain("tedstacos-tulsa.com");
+    import("canvas-confetti").then((mod) => mod.default({ particleCount: 120, spread: 80, colors: ["#F5C842", "#0d1a2e", "#ffffff"] }));
+    add("bruno", "⭐ Premier selected! Your site will include our featured business badge, live review ticker, and animated stats.");
+    await wait(d);
+
+    add("bruno", "That's everything!\n\n📋 Ted's Tacos\nTulsa, 74103\n(918) 222-4555\n\nTagline: \"Tulsa's Taco Revolution Starts Here\"\nLook: Premier ⭐\n\nOpening your profile...");
+    await wait(1200);
+    router.push("/profile/client-demo");
+  }
+
   // Live preview
   useEffect(() => {
     if (!look || !bizName) return;
@@ -472,6 +586,9 @@ function IntakeInner() {
               <h2 style={{ fontSize: 18, fontWeight: 700, color: "#fff", margin: 0 }}>Bruno Intake</h2>
               <p style={{ fontSize: 12, color: "#64748b", margin: "2px 0 0" }}>Step: {step}</p>
             </div>
+            <button onClick={runDemo} style={{ background: "#F5C842", color: "#0d1a2e", border: "none", padding: "6px 16px", borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              🎬 Demo Mode
+            </button>
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>

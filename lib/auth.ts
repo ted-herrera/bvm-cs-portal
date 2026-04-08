@@ -14,6 +14,8 @@ export const USERS: User[] = [
   { username: "dev1", password: "password", role: "dev", name: "Dev 1" },
   { username: "dev2", password: "password", role: "dev", name: "Dev 2" },
   { username: "demo", password: "demo", role: "rep", name: "Demo Rep" },
+  { username: "alexa", password: "alexa", role: "rep", name: "Alex A" },
+  { username: "elizabeth", password: "elizabeth", role: "rep", name: "Elizabeth" },
 ];
 
 const BOT_SECRET = process.env.BOT_SECRET || "designcenter2026";
