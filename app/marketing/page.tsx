@@ -431,40 +431,76 @@ export default function MarketingPage() {
         </div>
       </section>
 
-      {/* Performance Benchmarks */}
+      {/* Performance Benchmarks — Sourced */}
       <section style={{ background: BG, padding: "96px 40px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto" }}>
           <div style={{ textAlign: "center", marginBottom: 56 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: "3px", textTransform: "uppercase", marginBottom: 14 }}>
               PERFORMANCE AT SCALE
             </div>
-            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 38, fontWeight: 900, color: WHITE, letterSpacing: "-0.8px" }}>
+            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 42, fontWeight: 900, color: WHITE, letterSpacing: "-0.8px", marginBottom: 12 }}>
               What happens when every rep runs at 10x?
             </h2>
+            <p style={{ fontSize: 14, color: "rgba(255,255,255,0.4)", maxWidth: 600, margin: "0 auto" }}>
+              Projected benchmarks based on BLS labor data, Clutch.co agency surveys, and BVM field operations.
+            </p>
           </div>
+
+          {/* Stat Cards */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
             {[
-              { value: "10x", label: "Sites Per Rep Per Month", sub: "From 4-6 to 40-60 \u2014 same rep, same hours" },
-              { value: "97%", label: "Reduction in Production Cost", sub: "From $300-500 per site to ~$12 in API costs" },
-              { value: "48,000", label: "QA Hours Saved Monthly", sub: "Across 1,219 reps \u2014 zero manual QA" },
+              { value: "4 hrs", label: "Time to Market", sub: "From 3-4 weeks to same-day delivery", cite: "vs. industry avg 3-4 weeks (Clutch.co 2024)" },
+              { value: "97%", label: "Cost Reduction Per Site", sub: "From $1,875 to ~$17 per site", cite: "vs. Clutch.co avg $1,875 small business site" },
+              { value: "$59M", label: "Annual Savings at Scale", sub: "762 devs \u2192 18 devs at full rep adoption", cite: "Projected at 1,219 reps \u00d7 4 sites/month" },
             ].map((s) => (
               <div key={s.value} style={{ background: CARD_BG, borderTop: `3px solid ${GOLD}`, borderRadius: 12, padding: "32px 24px", textAlign: "center" }}>
                 <div style={{ fontSize: 64, fontWeight: 900, color: GOLD, lineHeight: 1 }}>{s.value}</div>
                 <div style={{ fontSize: 16, fontWeight: 700, color: WHITE, marginTop: 12 }}>{s.label}</div>
                 <div style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", marginTop: 8, lineHeight: 1.5 }}>{s.sub}</div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", marginTop: 8, fontStyle: "italic" }}>{s.cite}</div>
               </div>
             ))}
           </div>
-          <div style={{ textAlign: "center", marginTop: 48 }}>
-            <p style={{ fontSize: 18, color: WHITE, maxWidth: 700, margin: "0 auto 32px", lineHeight: 1.6 }}>
-              1,219 reps. 10x output. Same headcount. That&apos;s not an efficiency gain &mdash; that&apos;s a different business.
+
+          {/* Comparison Table */}
+          <div style={{ background: WHITE, borderRadius: 12, padding: 32, marginTop: 40 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: "left", padding: "10px 12px", borderBottom: `2px solid ${GOLD}`, color: GOLD, fontWeight: 700, fontSize: 12, letterSpacing: "0.05em" }}></th>
+                  <th style={{ textAlign: "center", padding: "10px 12px", borderBottom: `2px solid ${GOLD}`, color: "#64748b", fontWeight: 700, fontSize: 12 }}>Traditional Agency</th>
+                  <th style={{ textAlign: "center", padding: "10px 12px", borderBottom: `2px solid ${GOLD}`, color: NAVY, fontWeight: 800, fontSize: 12 }}>BVM Design Center</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  ["Cost per site", "$1,875", "~$17"],
+                  ["Time to market", "3-4 weeks", "4-6 hours"],
+                  ["Devs at scale", "762", "18"],
+                  ["Annual payroll", "$60.9M", "$1.44M"],
+                  ["QA hours/month", "48,000", "0"],
+                  ["Sites per dev/month", "6-8", "280"],
+                ].map(([label, trad, bvm], i) => (
+                  <tr key={i} style={{ borderBottom: "1px solid #e2e8f0" }}>
+                    <td style={{ padding: "10px 12px", color: "#334155", fontWeight: 600 }}>{label}</td>
+                    <td style={{ padding: "10px 12px", textAlign: "center", color: "#94a3b8" }}>{trad}</td>
+                    <td style={{ padding: "10px 12px", textAlign: "center", color: NAVY, fontWeight: 700 }}>{bvm}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p style={{ fontSize: 11, color: "#94a3b8", fontStyle: "italic", marginTop: 16, textAlign: "center" }}>
+              Sources: Clutch.co 2024 Web Design Cost Report &middot; BLS Occupational Outlook Handbook 2024 &middot; Anthropic API Pricing &middot; BVM Internal Operations Data
             </p>
+          </div>
+
+          <div style={{ textAlign: "center", marginTop: 48 }}>
             <Link href="/intake" style={{
               display: "inline-block", background: GOLD, color: NAVY,
               padding: "16px 40px", borderRadius: 999, fontSize: 16, fontWeight: 800,
               textDecoration: "none", boxShadow: "0 4px 24px rgba(245,200,66,0.30)",
             }}>
-              See How It Works &rarr;
+              See the Full Demo &rarr;
             </Link>
           </div>
         </div>
