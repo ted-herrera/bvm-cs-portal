@@ -15,22 +15,7 @@ export default function QAPage() {
   const [expandedPass, setExpandedPass] = useState<string | null>(null);
   const [clients, setClients] = useState<ClientProfile[]>([]);
   const [attachClientId, setAttachClientId] = useState("");
-  const [authChecked, setAuthChecked] = useState(false);
-
-  // Role gate: only rep or dev
-  useEffect(() => {
-    try {
-      const cookie = document.cookie.split("; ").find((c) => c.startsWith("dc_session="));
-      if (cookie) {
-        const val = JSON.parse(decodeURIComponent(cookie.split("=")[1]));
-        if (val.role === "rep" || val.role === "dev") {
-          setAuthChecked(true);
-          return;
-        }
-      }
-    } catch { /* ignore */ }
-    window.location.href = "/login";
-  }, []);
+  const [authChecked] = useState(true);
 
   useEffect(() => {
     if (!authChecked) return;
