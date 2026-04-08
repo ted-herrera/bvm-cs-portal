@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import TopNav from "@/components/TopNav";
 import { classifyBusinessType, getCTASuggestion } from "@/lib/business-classifier";
+import { BRUNO_INTAKE_PROMPT } from "@/lib/sbr";
 
 interface Msg {
   role: "bruno" | "user";
@@ -119,7 +120,7 @@ function IntakeInner() {
     try {
       const res = await fetch("/api/chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ system: "Return ONLY a JSON array of 3 taglines. No markdown.", messages: [{ role: "user", content: prompt }] }),
+        body: JSON.stringify({ system: BRUNO_INTAKE_PROMPT + "\n\nFor this specific request: Return ONLY a JSON array of 3 taglines. No markdown, no explanation.", messages: [{ role: "user", content: prompt }] }),
       });
       const data = await res.json();
       const text = String(data?.content?.[0]?.text ?? data?.content ?? data?.response ?? "");

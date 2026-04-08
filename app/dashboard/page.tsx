@@ -175,7 +175,7 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: "100vh", background: "#fff" }}>
+      <div style={{ minHeight: "100vh", background: "#1a2f50" }}>
         <TopNav activePage="dashboard" />
         <div style={{ display: "flex", justifyContent: "center", paddingTop: 120 }}>
           <div style={{ width: 32, height: 32, border: "2px solid #F5C842", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
@@ -185,7 +185,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#fff", display: "flex", flexDirection: "column" }}>
+    <div style={{ minHeight: "100vh", background: "#0f1f3d", display: "flex", flexDirection: "column" }}>
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -230,22 +230,22 @@ export default function DashboardPage() {
         </aside>
 
         {/* ── MAIN CONTENT ─────────────────────────────────────────────────── */}
-        <main style={{ flex: 1, background: "#fff", overflowY: "auto", display: "flex", flexDirection: "column" }}>
+        <main style={{ flex: 1, background: "#0f1f3d", overflowY: "auto", display: "flex", flexDirection: "column" }}>
 
           {/* Header */}
-          <div style={{ padding: "20px 24px", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ padding: "20px 24px", borderBottom: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
-              <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 26, fontWeight: 700, color: "#0d1a2e", margin: 0 }}>
+              <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 26, fontWeight: 700, color: "#e2e8f0", margin: 0 }}>
                 {getGreeting()}, Ted
               </h1>
-              <p style={{ fontSize: 12, color: "#94a3b8", margin: "4px 0 0" }}>{today}</p>
+              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", margin: "4px 0 0" }}>{today}</p>
               {/* Affirmation */}
               <p onClick={() => setAffIdx((affIdx + 1) % AFFIRMATIONS.length)} style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 13, color: "#F5C842", fontStyle: "italic", margin: "8px 0 0", cursor: "pointer", animation: "fadeIn 0.5s", opacity: 1 }}>
                 ✨ {AFFIRMATIONS[affIdx]}
               </p>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              {weather && <span style={{ fontSize: 13, color: "#64748b" }}>{weather.temp} {weather.icon}</span>}
+              {weather && <span style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>{weather.temp} {weather.icon}</span>}
               <div style={{ position: "relative" }}>
                 <button onClick={() => setBellOpen(!bellOpen)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", position: "relative", padding: 4 }}>
                   🔔
@@ -274,14 +274,14 @@ export default function DashboardPage() {
                   {priorityQueue.slice(0, 8).map(({ client: c, story }) => {
                     const action = getAction(c);
                     return (
-                      <div key={c.id} onClick={() => { setDrawerClient(c); setDrawerTab("overview"); }} style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: "10px 16px", cursor: "pointer", transition: "box-shadow 0.15s" }}
+                      <div key={c.id} onClick={() => { setDrawerClient(c); setDrawerTab("overview"); }} style={{ display: "flex", alignItems: "center", gap: 12, background: "#0f1f3d", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "10px 16px", cursor: "pointer", transition: "box-shadow 0.15s" }}
                         onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.06)"; }}
                         onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; }}
                       >
                         <div style={{ width: 8, height: 8, borderRadius: "50%", background: story.color, flexShrink: 0 }} />
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <span style={{ fontSize: 14, fontWeight: 700, color: "#0d1a2e" }}>{c.business_name}</span>
-                          <span style={{ fontSize: 12, color: "#94a3b8", marginLeft: 8 }}>{c.city}</span>
+                          <span style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0" }}>{c.business_name}</span>
+                          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginLeft: 8 }}>{c.city}</span>
                         </div>
                         <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 999, background: `${story.color}18`, color: story.color, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}>
                           {story.icon} {story.text}
@@ -301,19 +301,19 @@ export default function DashboardPage() {
                 {kanbanCols.map((stage) => {
                   const stageClients = clients.filter((c) => c.stage === stage);
                   return (
-                    <div key={stage} style={{ background: "#f8fafc", borderRadius: 10, padding: 10, minHeight: 200 }}>
+                    <div key={stage} style={{ background: "#1a2f50", borderRadius: 10, padding: 10, minHeight: 200 }}>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>{STAGE_LABELS[stage]}</span>
-                        <span style={{ fontSize: 10, fontWeight: 700, background: "#e2e8f0", color: "#64748b", width: 20, height: 20, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>{stageClients.length}</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{STAGE_LABELS[stage]}</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, background: "#243454", color: "rgba(255,255,255,0.4)", width: 20, height: 20, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>{stageClients.length}</span>
                       </div>
                       {stageClients.map((c) => {
                         const days = daysSince(lastStageDate(c));
                         const dayColor = days > 10 ? "#ef4444" : days > 5 ? "#f59e0b" : "#94a3b8";
                         return (
-                          <div key={c.id} onClick={() => { setDrawerClient(c); setDrawerTab("overview"); }} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 12px", marginBottom: 6, cursor: "pointer", fontSize: 12 }}>
-                            <p style={{ fontWeight: 700, color: "#0d1a2e", margin: 0 }}>{c.business_name}</p>
+                          <div key={c.id} onClick={() => { setDrawerClient(c); setDrawerTab("overview"); }} style={{ background: "#0f1f3d", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "10px 12px", marginBottom: 6, cursor: "pointer", fontSize: 12 }}>
+                            <p style={{ fontWeight: 700, color: "#e2e8f0", margin: 0 }}>{c.business_name}</p>
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
-                              <span style={{ color: "#94a3b8", fontSize: 11 }}>{c.city}</span>
+                              <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>{c.city}</span>
                               <span style={{ color: dayColor, fontSize: 10, fontWeight: 600 }}>{days}d</span>
                             </div>
                             {c.interests?.print && <span style={{ fontSize: 9, color: "#92400e", fontWeight: 700 }}>📰</span>}
@@ -328,15 +328,15 @@ export default function DashboardPage() {
             </div>
 
             {/* ── RIGHT PANEL ─────────────────────────────────────────────── */}
-            <div style={{ width: 280, flexShrink: 0 }}>
+            <div style={{ width: 280, flexShrink: 0, background: "#162744", borderRadius: 12, padding: "20px 16px" }}>
               {/* Follow Up Today */}
               <div style={{ marginBottom: 24 }}>
                 <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#F5C842", marginBottom: 10 }}>Follow Up Today</p>
-                {followUps.length === 0 && <p style={{ fontSize: 12, color: "#94a3b8", fontStyle: "italic" }}>All caught up!</p>}
+                {followUps.length === 0 && <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", fontStyle: "italic" }}>All caught up!</p>}
                 {followUps.slice(0, 5).map((c) => (
-                  <div key={c.id} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 12px", marginBottom: 6 }}>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: "#0d1a2e", margin: 0 }}>{c.business_name}</p>
-                    <p style={{ fontSize: 11, color: "#94a3b8", margin: "2px 0 6px" }}>Tear sheet unopened {daysSince(lastStageDate(c))}d</p>
+                  <div key={c.id} style={{ background: "#1a2f50", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "10px 12px", marginBottom: 6 }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0", margin: 0 }}>{c.business_name}</p>
+                    <p style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", margin: "2px 0 6px" }}>Tear sheet unopened {daysSince(lastStageDate(c))}d</p>
                     <Link href={`/tearsheet/${c.id}`} style={{ fontSize: 11, color: "#F5C842", fontWeight: 600, textDecoration: "none" }}>Send Reminder →</Link>
                   </div>
                 ))}
@@ -345,12 +345,12 @@ export default function DashboardPage() {
               {/* Campaign Interest */}
               <div style={{ marginBottom: 24 }}>
                 <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#F5C842", marginBottom: 10 }}>Campaign Interest</p>
-                {interests.length === 0 && <p style={{ fontSize: 12, color: "#94a3b8", fontStyle: "italic" }}>No interest signals yet.</p>}
+                {interests.length === 0 && <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", fontStyle: "italic" }}>No interest signals yet.</p>}
                 {interests.slice(0, 5).map((c) => {
                   const types = Object.keys(c.interests || {}).filter((k) => !k.endsWith("_at") && c.interests?.[k]);
                   return (
-                    <div key={c.id} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 12px", marginBottom: 6 }}>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: "#0d1a2e", margin: 0 }}>{c.business_name}</p>
+                    <div key={c.id} style={{ background: "#1a2f50", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "10px 12px", marginBottom: 6 }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0", margin: 0 }}>{c.business_name}</p>
                       <p style={{ fontSize: 11, color: "#F5C842", margin: "2px 0 6px" }}>{types.join(", ")}</p>
                       <a href={`tel:${c.phone?.replace(/\D/g, "")}`} style={{ fontSize: 11, color: "#F5C842", fontWeight: 600, textDecoration: "none" }}>Call Now →</a>
                     </div>
@@ -361,7 +361,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Bottom Stats Bar */}
-          <div style={{ borderTop: "1px solid #e2e8f0", padding: "16px 24px", display: "flex", gap: 40, justifyContent: "center" }}>
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", padding: "16px 24px", display: "flex", gap: 40, justifyContent: "center", background: "#0d1a2e" }}>
             {[
               { value: delivered, label: "Sites Delivered" },
               { value: "4.2 hrs", label: "Avg TTM" },
@@ -370,7 +370,7 @@ export default function DashboardPage() {
             ].map((s) => (
               <div key={s.label} style={{ textAlign: "center" }}>
                 <div style={{ fontSize: 22, fontWeight: 800, color: "#F5C842" }}>{s.value}</div>
-                <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{s.label}</div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>{s.label}</div>
               </div>
             ))}
           </div>
@@ -381,18 +381,18 @@ export default function DashboardPage() {
       {bellOpen && (
         <>
           <div onClick={() => setBellOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 48 }} />
-          <div style={{ position: "fixed", top: 60, right: 24, width: 360, background: "#fff", borderRadius: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.2)", border: "1px solid #e2e8f0", zIndex: 100, maxHeight: "70vh", overflowY: "auto" }}>
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: "#0d1a2e" }}>Notifications</span>
+          <div style={{ position: "fixed", top: 60, right: 24, width: 360, background: "#0d1a2e", borderRadius: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.08)", zIndex: 100, maxHeight: "70vh", overflowY: "auto" }}>
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0" }}>Notifications</span>
               <button onClick={() => setReadNotifs(new Set(notifications.map((n) => n.id)))} style={{ background: "none", border: "none", fontSize: 11, color: "#3b82f6", cursor: "pointer" }}>Mark all read</button>
             </div>
             {notifications.map((n) => (
               <Link key={n.id} href={`/profile/${n.clientId}`} onClick={() => setBellOpen(false)} style={{ display: "flex", gap: 10, padding: "10px 16px", borderBottom: "1px solid #f8fafc", textDecoration: "none", background: readNotifs.has(n.id) ? "#fff" : "#f8fafc" }}>
                 <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: "#0d1a2e", margin: 0 }}>{n.name}</p>
-                  <p style={{ fontSize: 11, color: "#64748b", margin: "2px 0 0" }}>{n.msg}</p>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0", margin: 0 }}>{n.name}</p>
+                  <p style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", margin: "2px 0 0" }}>{n.msg}</p>
                 </div>
-                <span style={{ fontSize: 10, color: "#94a3b8", whiteSpace: "nowrap", flexShrink: 0 }}>{n.time}</span>
+                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", whiteSpace: "nowrap", flexShrink: 0 }}>{n.time}</span>
               </Link>
             ))}
           </div>
@@ -403,17 +403,17 @@ export default function DashboardPage() {
       {drawerClient && (
         <>
           <div onClick={() => setDrawerClient(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 49 }} />
-          <div style={{ position: "fixed", top: 0, right: 0, width: 400, height: "100vh", background: "#fff", boxShadow: "-8px 0 32px rgba(0,0,0,0.15)", zIndex: 50, display: "flex", flexDirection: "column", animation: "slideIn 0.25s ease-out" }}>
-            <div style={{ padding: "20px", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ position: "fixed", top: 0, right: 0, width: 400, height: "100vh", background: "#0f1f3d", boxShadow: "-8px 0 32px rgba(0,0,0,0.15)", zIndex: 50, display: "flex", flexDirection: "column", animation: "slideIn 0.25s ease-out" }}>
+            <div style={{ padding: "20px", borderBottom: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
-                <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, fontWeight: 700, color: "#0d1a2e", margin: 0 }}>{drawerClient.business_name}</h2>
-                <p style={{ fontSize: 12, color: "#94a3b8", margin: "2px 0 0" }}>{drawerClient.city} · {STAGE_LABELS[drawerClient.stage]}</p>
+                <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, fontWeight: 700, color: "#e2e8f0", margin: 0 }}>{drawerClient.business_name}</h2>
+                <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", margin: "2px 0 0" }}>{drawerClient.city} · {STAGE_LABELS[drawerClient.stage]}</p>
               </div>
-              <button onClick={() => setDrawerClient(null)} style={{ background: "none", border: "none", fontSize: 22, color: "#94a3b8", cursor: "pointer" }}>×</button>
+              <button onClick={() => setDrawerClient(null)} style={{ background: "none", border: "none", fontSize: 22, color: "rgba(255,255,255,0.5)", cursor: "pointer" }}>×</button>
             </div>
 
             {/* Tabs */}
-            <div style={{ display: "flex", borderBottom: "1px solid #e2e8f0" }}>
+            <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
               {([{ key: "overview" as const, label: "Overview" }, { key: "comm" as const, label: "Communication" }, { key: "actions" as const, label: "Actions" }]).map((t) => (
                 <button key={t.key} onClick={() => setDrawerTab(t.key)} style={{ flex: 1, padding: "10px 0", border: "none", cursor: "pointer", fontSize: 12, fontWeight: drawerTab === t.key ? 700 : 500, color: drawerTab === t.key ? "#0d1a2e" : "#94a3b8", background: "transparent", borderBottom: drawerTab === t.key ? "2px solid #F5C842" : "2px solid transparent" }}>
                   {t.label}
@@ -424,28 +424,28 @@ export default function DashboardPage() {
             <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
               {drawerTab === "overview" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12, fontSize: 13 }}>
-                  <div><span style={{ color: "#64748b" }}>Phone: </span><span style={{ color: "#0d1a2e", fontWeight: 600 }}>{drawerClient.phone || "—"}</span></div>
-                  <div><span style={{ color: "#64748b" }}>Look: </span><span style={{ color: "#0d1a2e", fontWeight: 600, textTransform: "capitalize" }}>{drawerClient.selectedLook?.replace(/_/g, " ") || "—"}</span></div>
-                  <div><span style={{ color: "#64748b" }}>Services: </span><span style={{ color: "#0d1a2e" }}>{drawerClient.intakeAnswers?.q3 || "—"}</span></div>
-                  <div><span style={{ color: "#64748b" }}>CTA: </span><span style={{ color: "#0d1a2e" }}>{drawerClient.intakeAnswers?.q4 || "—"}</span></div>
-                  <div><span style={{ color: "#64748b" }}>Stage: </span><span style={{ color: "#F5C842", fontWeight: 600 }}>{STAGE_LABELS[drawerClient.stage]}</span></div>
-                  <div><span style={{ color: "#64748b" }}>Created: </span><span style={{ color: "#0d1a2e" }}>{new Date(drawerClient.created_at).toLocaleDateString()}</span></div>
+                  <div><span style={{ color: "rgba(255,255,255,0.4)" }}>Phone: </span><span style={{ color: "#e2e8f0", fontWeight: 600 }}>{drawerClient.phone || "—"}</span></div>
+                  <div><span style={{ color: "rgba(255,255,255,0.4)" }}>Look: </span><span style={{ color: "#e2e8f0", fontWeight: 600, textTransform: "capitalize" }}>{drawerClient.selectedLook?.replace(/_/g, " ") || "—"}</span></div>
+                  <div><span style={{ color: "rgba(255,255,255,0.4)" }}>Services: </span><span style={{ color: "#e2e8f0" }}>{drawerClient.intakeAnswers?.q3 || "—"}</span></div>
+                  <div><span style={{ color: "rgba(255,255,255,0.4)" }}>CTA: </span><span style={{ color: "#e2e8f0" }}>{drawerClient.intakeAnswers?.q4 || "—"}</span></div>
+                  <div><span style={{ color: "rgba(255,255,255,0.4)" }}>Stage: </span><span style={{ color: "#F5C842", fontWeight: 600 }}>{STAGE_LABELS[drawerClient.stage]}</span></div>
+                  <div><span style={{ color: "rgba(255,255,255,0.4)" }}>Created: </span><span style={{ color: "#e2e8f0" }}>{new Date(drawerClient.created_at).toLocaleDateString()}</span></div>
                   {drawerClient.interests && Object.keys(drawerClient.interests).filter((k) => !k.endsWith("_at") && drawerClient.interests?.[k]).length > 0 && (
-                    <div><span style={{ color: "#64748b" }}>Interests: </span><span style={{ color: "#F5C842", fontWeight: 600 }}>{Object.keys(drawerClient.interests).filter((k) => !k.endsWith("_at") && drawerClient.interests?.[k]).join(", ")}</span></div>
+                    <div><span style={{ color: "rgba(255,255,255,0.4)" }}>Interests: </span><span style={{ color: "#F5C842", fontWeight: 600 }}>{Object.keys(drawerClient.interests).filter((k) => !k.endsWith("_at") && drawerClient.interests?.[k]).join(", ")}</span></div>
                   )}
                 </div>
               )}
 
               {drawerTab === "comm" && (
                 <div>
-                  {drawerClient.messages.length === 0 && <p style={{ color: "#94a3b8", fontSize: 13, textAlign: "center", padding: "20px 0" }}>No messages yet.</p>}
+                  {drawerClient.messages.length === 0 && <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, textAlign: "center", padding: "20px 0" }}>No messages yet.</p>}
                   {drawerClient.messages.map((m, i) => (
-                    <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid #f1f5f9" }}>
+                    <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                       <div style={{ display: "flex", justifyContent: "space-between" }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: "#0d1a2e" }}>{m.from}</span>
-                        <span style={{ fontSize: 10, color: "#94a3b8" }}>{timeAgo(m.timestamp)}</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0" }}>{m.from}</span>
+                        <span style={{ fontSize: 10, color: "rgba(255,255,255,0.5)" }}>{timeAgo(m.timestamp)}</span>
                       </div>
-                      <p style={{ fontSize: 13, color: "#334155", margin: "4px 0 0", lineHeight: 1.5 }}>{m.text}</p>
+                      <p style={{ fontSize: 13, color: "#cbd5e1", margin: "4px 0 0", lineHeight: 1.5 }}>{m.text}</p>
                     </div>
                   ))}
                   <div ref={chatEndRef} />
@@ -454,23 +454,23 @@ export default function DashboardPage() {
 
               {drawerTab === "actions" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <Link href={`/profile/${drawerClient.id}`} style={{ display: "block", background: "#F5C842", color: "#0d1a2e", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: "none", textAlign: "center" }}>Open Full Profile →</Link>
-                  <Link href={`/tearsheet/${drawerClient.id}`} style={{ display: "block", background: "#f8fafc", color: "#0d1a2e", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none", textAlign: "center", border: "1px solid #e2e8f0" }}>Open Tear Sheet →</Link>
-                  <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/client/${drawerClient.id}`); }} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", color: "#0d1a2e", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Copy Client Portal Link</button>
-                  <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/tearsheet/${drawerClient.id}`); }} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", color: "#0d1a2e", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Copy Tear Sheet Link</button>
+                  <Link href={`/profile/${drawerClient.id}`} style={{ display: "block", background: "#F5C842", color: "#e2e8f0", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: "none", textAlign: "center" }}>Open Full Profile →</Link>
+                  <Link href={`/tearsheet/${drawerClient.id}`} style={{ display: "block", background: "#1a2f50", color: "#e2e8f0", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none", textAlign: "center", border: "1px solid rgba(255,255,255,0.08)" }}>Open Tear Sheet →</Link>
+                  <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/client/${drawerClient.id}`); }} style={{ background: "#1a2f50", border: "1px solid rgba(255,255,255,0.08)", color: "#e2e8f0", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Copy Client Portal Link</button>
+                  <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/tearsheet/${drawerClient.id}`); }} style={{ background: "#1a2f50", border: "1px solid rgba(255,255,255,0.08)", color: "#e2e8f0", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Copy Tear Sheet Link</button>
                   {gcalConnected && (
-                    <button onClick={() => addToCalendar(`Follow up: ${drawerClient.business_name}`, `Check in on ${drawerClient.business_name} build status. Stage: ${STAGE_LABELS[drawerClient.stage]}`)} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", color: "#0d1a2e", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>📅 Add Calendar Reminder</button>
+                    <button onClick={() => addToCalendar(`Follow up: ${drawerClient.business_name}`, `Check in on ${drawerClient.business_name} build status. Stage: ${STAGE_LABELS[drawerClient.stage]}`)} style={{ background: "#1a2f50", border: "1px solid rgba(255,255,255,0.08)", color: "#e2e8f0", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>📅 Add Calendar Reminder</button>
                   )}
-                  <Link href={`/qa?clientId=${drawerClient.id}`} style={{ display: "block", background: "#f8fafc", color: "#0d1a2e", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none", textAlign: "center", border: "1px solid #e2e8f0" }}>Run QA</Link>
+                  <Link href={`/qa?clientId=${drawerClient.id}`} style={{ display: "block", background: "#1a2f50", color: "#e2e8f0", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none", textAlign: "center", border: "1px solid rgba(255,255,255,0.08)" }}>Run QA</Link>
                 </div>
               )}
             </div>
 
             {/* Message input for comm tab */}
             {drawerTab === "comm" && (
-              <div style={{ padding: "12px 20px", borderTop: "1px solid #e2e8f0", display: "flex", gap: 8 }}>
-                <input type="text" value={msgInput} onChange={(e) => setMsgInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendMessage()} placeholder="Send message to client..." style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 13, outline: "none" }} />
-                <button onClick={sendMessage} disabled={msgSending || !msgInput.trim()} style={{ background: "#F5C842", color: "#0d1a2e", border: "none", padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: msgSending ? 0.5 : 1 }}>Send</button>
+              <div style={{ padding: "12px 20px", borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", gap: 8 }}>
+                <input type="text" value={msgInput} onChange={(e) => setMsgInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendMessage()} placeholder="Send message to client..." style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)", fontSize: 13, outline: "none" }} />
+                <button onClick={sendMessage} disabled={msgSending || !msgInput.trim()} style={{ background: "#F5C842", color: "#e2e8f0", border: "none", padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: msgSending ? 0.5 : 1 }}>Send</button>
               </div>
             )}
           </div>
