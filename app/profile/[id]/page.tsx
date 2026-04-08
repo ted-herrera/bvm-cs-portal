@@ -572,83 +572,51 @@ export default function ProfilePage() {
                   )}
                 </div>
 
-                {/* Campaign Preview */}
+                {/* Campaign Preview — locked panels */}
                 <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 12, padding: 24 }}>
-                  <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, fontWeight: 700, color: "#0d1a2e", margin: "0 0 4px", textAlign: "center" }}>Campaign Preview</h3>
-                  <p style={{ fontSize: 11, color: "#94a3b8", fontStyle: "italic", textAlign: "center", margin: "0 0 20px" }}>Client sees this same preview in their portal.</p>
+                  <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, fontWeight: 700, color: "#0d1a2e", margin: "0 0 4px", textAlign: "center" }}>Campaign Assets</h3>
+                  <p style={{ fontSize: 11, color: "#94a3b8", fontStyle: "italic", textAlign: "center", margin: "0 0 20px" }}>Look: {CAMPAIGN_LOOK_LABELS[client.selectedLook || "professional"] || "Professional"}</p>
 
-                  <div style={{ display: "flex", gap: 20, justifyContent: "center", alignItems: "flex-start" }}>
-                    {/* Laptop */}
-                    <div>
-                      <div style={{ background: "#374151", borderRadius: "10px 10px 0 0", padding: "6px 10px 0" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+                    {/* Website — live */}
+                    <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, overflow: "hidden" }}>
+                      <div style={{ background: "#374151", borderRadius: "12px 12px 0 0", padding: "6px 10px 0" }}>
                         <div style={{ display: "flex", gap: 3, marginBottom: 4 }}>
                           <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#ef4444" }} />
                           <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#f59e0b" }} />
                           <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e" }} />
                         </div>
-                        <div style={{ background: "#fff", borderRadius: "3px 3px 0 0", width: 320, height: 200, overflow: "hidden", position: "relative" }}>
+                        <div style={{ background: "#fff", height: 140, overflow: "hidden", position: "relative" }}>
                           <iframe
-                            src={`/api/site/generate?clientId=${client.id}&lookKey=${campaignLook}`}
-                            style={{ width: 1300, height: 850, border: "none", transform: "scale(0.246)", transformOrigin: "top left", pointerEvents: "none" }}
+                            src={`/api/site/generate?clientId=${client.id}&lookKey=${client.selectedLook || "professional"}`}
+                            style={{ width: 1300, height: 850, border: "none", transform: "scale(0.18)", transformOrigin: "top left", pointerEvents: "none" }}
                             title="Website preview"
                           />
                         </div>
                       </div>
-                      <div style={{ background: "#4b5563", height: 12, borderRadius: "0 0 3px 3px" }} />
-                      <div style={{ background: "#6b7280", height: 4, width: "60%", margin: "0 auto", borderRadius: "0 0 6px 6px" }} />
-                      <p style={{ fontSize: 11, color: "#94a3b8", textAlign: "center", marginTop: 6 }}>Website</p>
-                    </div>
-
-                    {/* Print Ad */}
-                    <div>
-                      <div style={{ background: "#374151", borderRadius: 10, padding: 10, width: 180 }}>
-                        <div style={{ background: "#fff", borderRadius: 6, width: 160, height: 220, overflow: "hidden", padding: 14, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", transition: "all 0.4s" }}>
-                          <div style={{ height: 3, width: 40, background: CAMPAIGN_LOOK_STYLES[campaignLook]?.accent || "#1a5276", margin: "0 auto 10px", transition: "background 0.4s" }} />
-                          <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 14, fontWeight: 700, color: "#0d1a2e", margin: 0 }}>{client.business_name}</p>
-                          <p style={{ fontSize: 9, color: "#64748b", marginTop: 3 }}>{(client.sbrData as Record<string, unknown>)?.suggestedTagline as string || ""}</p>
-                          {client.intakeAnswers?.q3?.split(",").slice(0, 3).map((s: string, i: number) => (
-                            <p key={i} style={{ fontSize: 8, color: CAMPAIGN_LOOK_STYLES[campaignLook]?.accent || "#1a5276", margin: "1px 0 0", transition: "color 0.4s" }}>{s.trim()}</p>
-                          ))}
-                          <p style={{ fontSize: 9, color: "#94a3b8", marginTop: 6 }}>{client.phone}</p>
-                          <div style={{ height: 1, width: 30, background: "#F5C842", margin: "6px auto" }} />
-                          <p style={{ fontSize: 7, color: "#94a3b8" }}>BVM Studio</p>
-                        </div>
+                      <div style={{ padding: "8px 12px", textAlign: "center" }}>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: "#0d1a2e", margin: 0 }}>Your Website</p>
+                        <span style={{ fontSize: 10, color: "#22c55e" }}>✓ Live</span>
                       </div>
-                      <p style={{ fontSize: 11, color: "#94a3b8", textAlign: "center", marginTop: 6 }}>Print Ad</p>
                     </div>
 
-                    {/* Digital Ad */}
-                    <div>
-                      <div style={{ background: "#374151", borderRadius: 16, padding: 6, width: 130 }}>
-                        <div style={{ width: 24, height: 3, background: "#4b5563", borderRadius: 2, margin: "0 auto 4px" }} />
-                        <div style={{ background: "#fff", borderRadius: 10, width: 118, height: 210, overflow: "hidden", display: "flex", flexDirection: "column", transition: "all 0.4s" }}>
-                          <div style={{ height: 36, background: CAMPAIGN_LOOK_STYLES[campaignLook]?.accent || "#1a5276", display: "flex", alignItems: "center", justifyContent: "center", transition: "background 0.4s" }}>
-                            <span style={{ fontSize: 9, fontWeight: 700, color: "#fff" }}>{client.business_name}</span>
-                          </div>
-                          <div style={{ flex: 1, padding: 8, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
-                            <div style={{ width: 80, height: 48, borderRadius: 6, background: `${CAMPAIGN_LOOK_STYLES[campaignLook]?.accent || "#1a5276"}22`, transition: "background 0.4s" }} />
-                            <p style={{ fontSize: 9, color: "#0d1a2e", marginTop: 6, fontWeight: 600 }}>{client.intakeAnswers?.q3?.split(",")[0]?.trim() || ""}</p>
-                            <div style={{ background: CAMPAIGN_LOOK_STYLES[campaignLook]?.accent || "#1a5276", color: "#fff", fontSize: 8, padding: "3px 10px", borderRadius: 3, marginTop: 6, fontWeight: 600, transition: "background 0.4s" }}>
-                              {client.intakeAnswers?.q4 || "Contact Us"}
-                            </div>
-                          </div>
-                        </div>
-                        <div style={{ width: 22, height: 22, borderRadius: "50%", border: "2px solid #4b5563", margin: "4px auto 2px" }} />
+                    {/* Print — locked */}
+                    <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, minHeight: 200, position: "relative", overflow: "hidden" }}>
+                      <div style={{ position: "absolute", inset: 0, background: "rgba(248,250,252,0.8)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
+                        <span style={{ fontSize: 28, marginBottom: 8 }}>🔒</span>
+                        <p style={{ fontSize: 13, fontWeight: 700, color: "#0d1a2e", margin: "0 0 2px" }}>Print Campaign</p>
+                        <p style={{ fontSize: 11, color: "#94a3b8", margin: 0 }}>Available via tear sheet</p>
                       </div>
-                      <p style={{ fontSize: 11, color: "#94a3b8", textAlign: "center", marginTop: 6 }}>Digital Ad</p>
                     </div>
-                  </div>
 
-                  <div style={{ textAlign: "center", marginTop: 16 }}>
-                    <button
-                      onClick={cycleCampaignLook}
-                      style={{ background: "#F5C842", color: "#0d1a2e", border: "none", padding: "10px 28px", borderRadius: 50, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
-                    >
-                      ✨ {CAMPAIGN_LOOK_LABELS[campaignLook] || "Professional"}
-                    </button>
-                    <p style={{ fontSize: 11, color: "#94a3b8", fontStyle: "italic", marginTop: 8 }}>
-                      Click to cycle through campaign looks
-                    </p>
+                    {/* Digital — locked */}
+                    <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, minHeight: 200, position: "relative", overflow: "hidden" }}>
+                      <div style={{ position: "absolute", inset: 0, background: "rgba(248,250,252,0.8)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
+                        <span style={{ fontSize: 28, marginBottom: 8 }}>🔒</span>
+                        <p style={{ fontSize: 13, fontWeight: 700, color: "#0d1a2e", margin: "0 0 2px" }}>Digital Ad Suite</p>
+                        <p style={{ fontSize: 11, color: "#94a3b8", margin: 0 }}>Available via tear sheet</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
 

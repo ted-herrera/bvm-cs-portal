@@ -41,7 +41,7 @@ function IntakeInner() {
   const urlName = params.get("name") || "";
   const urlCity = params.get("city") || "";
 
-  type Step = "q1" | "q2" | "q3_name" | "q3_desc" | "q3_confirm" | "q4" | "q5" | "q6" | "q7" | "q8" | "q9" | "q10" | "finish";
+  type Step = "q1" | "q2" | "q3_name" | "q3_desc" | "q3_confirm" | "q4" | "q5" | "q6" | "q7" | "q8" | "q9" | "finish";
 
   const [step, setStep] = useState<Step>("q1");
   const [chat, setChat] = useState<Msg[]>([{
@@ -148,7 +148,7 @@ function IntakeInner() {
     switch (step) {
       // Q1: Business name
       case "q1": {
-        const name = ans.trim().replace(/\b\w/g, (c) => c.toUpperCase());
+        const name = ans.trim().replace(/(?<!['\u2019])\b\w/g, (c) => c.toUpperCase());
         if (name.length < 2) { addMsg("bruno", "I need at least a business name — what is it?"); return; }
         setBizName(name);
         await delay(400);
@@ -178,10 +178,21 @@ function IntakeInner() {
       // Q3: Services — name
       case "q3_name": {
         const svcName = ans.trim();
+        // Allow skipping service 3
+        if (currentServiceIdx >= 2 && /^(none|skip|no|nah|only 2|just 2|no third|that's it|thats it)$/i.test(svcName)) {
+          await delay(300);
+          addMsg("bruno", "No problem — two services is perfect.\n\nGenerating tagline options...");
+          const taglines = await generateTaglines(0);
+          setTaglineAttempt(0);
+          await delay(300);
+          addMsg("bruno", "Here are three tagline options — tap the one you like:", taglines.map((t) => ({ label: t, value: t })));
+          setStep("q4");
+          return;
+        }
         if (svcName.length < 2) { addMsg("bruno", "What service does the business offer?"); return; }
         setCurrentServiceName(svcName);
         await delay(300);
-        addMsg("bruno", `Perfect. Finish this sentence in your own words:\n\n"Our ${svcName} is special because..."`);
+        addMsg("bruno", `What makes your ${svcName} stand out?`);
         setStep("q3_desc");
         break;
       }
@@ -192,6 +203,13 @@ function IntakeInner() {
         let desc = ans.trim();
         if (isSkip) {
           desc = `Professional ${currentServiceName} services for ${city} — built around quality and care.`;
+        } else if (desc.split(/\s+/).length < 6) {
+          // Clean up weak/vague answers
+          const weak = desc.toLowerCase();
+          if (weak.match(/fresh|ingredi/)) desc = `Made with fresh ingredients daily — the way ${currentServiceName} should be.`;
+          else if (weak.match(/good|great|best|awesome/)) desc = `Crafted to be ${city}'s best — every single time.`;
+          else if (weak.match(/fast|quick/)) desc = `Fast, reliable ${currentServiceName} — built for ${city}'s pace.`;
+          else desc = `${desc.charAt(0).toUpperCase() + desc.slice(1)} — proudly serving ${city}.`;
         }
         const cleaned = desc.charAt(0).toUpperCase() + desc.slice(1);
         await delay(300);
@@ -219,7 +237,9 @@ function IntakeInner() {
 
         if (idx < 3) {
           await delay(300);
-          addMsg("bruno", `Got it. What's service #${idx + 1}?`);
+          const acks = ["Solid.", "Love it.", "That works.", "Good one.", "Nice."];
+          const ack = acks[idx % acks.length];
+          addMsg("bruno", `${ack} What's service #${idx + 1}?${idx === 2 ? ' (or say "skip" if two is enough)' : ""}`);
           setStep("q3_name");
         } else {
           // Move to Q4 — Taglines
@@ -279,7 +299,7 @@ function IntakeInner() {
         setYearsOpen(years);
         const bt = classifyBusinessType(bizName, services.map((s) => s.name).join(" "));
         const dailyAvg = DAILY_AVG[bt] || 8;
-        const projected = Math.round(parseInt(years) * dailyAvg * 365);
+        const projected = Math.round(parseInt(years) * dailyAvg * 365 / 10); // conservative estimate
         const rounded = projected > 1000 ? `${Math.round(projected / 1000) * 1000}+` : `${projected}+`;
         setCustomerCount(rounded);
         const sbr = sbrRef.current;
@@ -308,6 +328,11 @@ function IntakeInner() {
         }
         // This is the actual quote response
         const isSkip = /^(skip|no|pass|nothing)$/i.test(ans.trim());
+        const isNotReview = /^(i wish|lol|haha|sure|ok|idk|hmm|meh|nah|ha|yea)$/i.test(ans.trim());
+        if (isNotReview) {
+          addMsg("bruno", "Ha — give me something a real customer actually said, even just a few words.");
+          return;
+        }
         if (isSkip) {
           const generic = `Outstanding ${classifyBusinessType(bizName, "")} service — exactly what ${city} needed.`;
           setCustomerQuote(generic);
@@ -347,7 +372,7 @@ function IntakeInner() {
 
       // Q8: CTA
       case "q8": {
-        const cleaned = ans.split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+        const cleaned = ans.split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
         setCta(cleaned);
         await delay(300);
         addMsg("bruno", `Last thing — choose your site style:`);
@@ -365,35 +390,22 @@ function IntakeInner() {
         if (!lookId) { addMsg("bruno", "Pick one — click a card or type Local, Community, or Premier."); return; }
         setLook(lookId);
         const label = LOOK_OPTIONS.find((l) => l.id === lookId)?.label || lookId;
+        // Auto-generate domain silently
+        const slug = bizName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "");
+        setSuggestedDomain(`${slug}.com`);
+
         if (lookId === "bold_modern") {
           import("canvas-confetti").then((mod) => mod.default({ particleCount: 120, spread: 80, colors: ["#F5C842", "#0d1a2e", "#ffffff"] }));
           await delay(300);
-          addMsg("bruno", `⭐ Premier selected! Your site will include our featured business badge, live review ticker, and animated stats.\n\nChecking domain availability...`);
+          addMsg("bruno", `⭐ Premier selected! Your site will include our featured business badge, live review ticker, and animated stats.`);
         } else {
           await delay(300);
-          addMsg("bruno", `${label} — great choice.\n\nChecking domain availability...`);
+          addMsg("bruno", `${label} — great choice.`);
         }
-        // Domain check
-        const slug = bizName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "");
-        const domain = `${slug}.com`;
-        setSuggestedDomain(domain);
-        await delay(1000);
-        addMsg("bruno", `Checking ${domain}...\n\n✓ ${domain} — looks available!\n\nWant to use this domain?`);
-        setStep("q10");
-        break;
-      }
-
-      // Q10: Domain confirm
-      case "q10": {
-        const isYes = /^(yes|yeah|yep|sure|ok|good|perfect|use it|use that)$/i.test(ans.trim());
-        if (!isYes && ans.length > 3) {
-          const custom = ans.toLowerCase().replace(/[^a-z0-9.-]/g, "");
-          setSuggestedDomain(custom.includes(".") ? custom : custom + ".com");
-        }
-        await delay(400);
-        // Show summary
+        await delay(500);
+        // Go straight to summary
         const svcList = services.map((s) => `• ${s.name}: ${s.description}`).join("\n");
-        addMsg("bruno", `Everything looks good!\n\n📋 **${bizName}**\n${city}, ${zip}\n${phone}\n\nServices:\n${svcList}\n\nTagline: "${tagline}"\nLook: ${LOOK_OPTIONS.find((l) => l.id === look)?.label || look}\nDomain: ${suggestedDomain}\n\nCreating your site...`);
+        addMsg("bruno", `That's everything!\n\n📋 ${bizName}\n${city}, ${zip}\n${phone}\n\nServices:\n${svcList}\n\nTagline: "${tagline}"\nLook: ${label}\n\nCreating your site...`);
         setStep("finish");
         await doFinish();
         break;

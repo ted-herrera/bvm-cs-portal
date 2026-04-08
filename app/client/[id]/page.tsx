@@ -169,9 +169,29 @@ export default function ClientPortalPage() {
         <img src="/bvm_logo.png" alt="BVM" style={{ height: 32, width: "auto" }} />
       </nav>
 
+      {/* Welcome Header */}
+      <section style={{ padding: "40px 48px 0", textAlign: "center" }}>
+        <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 32, fontWeight: 900, color: "#0d1a2e", margin: "0 0 8px" }}>
+          Welcome to BVM, {client.business_name}! 🎉
+        </h1>
+        <p style={{ fontSize: 16, color: "#64748b", margin: "0 0 24px" }}>Your site is being built. Here&apos;s what happens next.</p>
+        <div style={{ display: "flex", justifyContent: "center", gap: 32, marginBottom: 32 }}>
+          {[
+            { num: "1", label: "Rep reviews your brief" },
+            { num: "2", label: "Bruno builds your site" },
+            { num: "3", label: "You go live" },
+          ].map((s) => (
+            <div key={s.num} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#F5C842", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: "#0d1a2e" }}>{s.num}</div>
+              <span style={{ fontSize: 14, color: "#334155", fontWeight: 600 }}>{s.label}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* Progress Bar */}
-      <section style={{ padding: "32px 48px", background: "#fff" }}>
-        <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#94a3b8", marginBottom: 20 }}>
+      <section style={{ padding: "0 48px 32px", background: "#fff" }}>
+        <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#94a3b8", marginBottom: 20, textAlign: "center" }}>
           Your Build Progress
         </p>
 

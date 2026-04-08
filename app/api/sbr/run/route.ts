@@ -9,6 +9,7 @@ const EMPTY_SBR = {
 };
 
 export async function POST(request: Request) {
+  console.log("SBR Run: API KEY LENGTH:", process.env.ANTHROPIC_API_KEY?.length ?? 0);
   const body = (await request.json()) as {
     businessType?: string;
     zip?: string;

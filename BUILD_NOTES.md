@@ -117,6 +117,17 @@ Reputation: focus on Google rating impact on local search, review response strat
 Email Marketing: focus on repeat business, staying top of mind in local market
 Site Refresh: focus on keeping competitive, seasonal campaigns, market changes
 
+## Google Drive File Management
+To use Google Drive for build file storage:
+1. Go to drive.google.com → create folder "BVM Design Center Builds"
+2. Install Google Drive desktop app: drive.google.com/drive/downloads
+3. Once installed: ~/Google Drive/My Drive/ is mounted locally
+4. Move completed build files: cp ~/Desktop/bvm-design-center ~/Google\ Drive/My\ Drive/BVM\ Design\ Center\ Builds/
+5. For large files use: rsync -av ~/Desktop/bvm-design-center/ ~/Google\ Drive/My\ Drive/BVM\ Design\ Center\ Builds/bvm-design-center/
+6. Google Drive will sync automatically — 5TB available
+7. Old project folders to archive: csops_gatekeeper, fieldops_gatekeeper, bvm_poc, trackb, purple-rain, coach-bruno-next
+8. Keep active on Desktop: bvm-design-center, bvm-studio-app
+
 ## QA Engine — Pressure Test Results (April 8, 2026)
 
 ### What the QA Engine Catches Automatically:
