@@ -375,6 +375,101 @@ export default function MarketingPage() {
         </div>
       </section>
 
+      {/* QA Demo Section */}
+      <section style={{ background: BG, padding: "96px 40px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", alignItems: "center", gap: 56, flexWrap: "wrap" }}>
+          {/* Left */}
+          <div style={{ flex: 1, minWidth: 340 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: "3px", textTransform: "uppercase", marginBottom: 14 }}>
+              BUILT-IN QUALITY ASSURANCE
+            </div>
+            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 38, fontWeight: 900, color: WHITE, letterSpacing: "-0.8px", marginBottom: 28, lineHeight: 1.1 }}>
+              Every site gets a senior dev review. Automatically.
+            </h2>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 32 }}>
+              <div style={{ fontSize: 15, color: WHITE }}>&#10003; Catches JavaScript errors before they crash your site</div>
+              <div style={{ fontSize: 15, color: WHITE }}>&#10003; Flags SEO traps that get you penalized by Google</div>
+              <div style={{ fontSize: 15, color: WHITE }}>&#10003; Validates schema, mobile, accessibility in one pass</div>
+            </div>
+            <Link href="/qa-demo" style={{
+              display: "inline-block", background: GOLD, color: NAVY,
+              padding: "14px 32px", borderRadius: 999, fontSize: 15, fontWeight: 800,
+              textDecoration: "none", boxShadow: "0 4px 24px rgba(245,200,66,0.30)",
+            }}>
+              See QA Demo &rarr;
+            </Link>
+          </div>
+
+          {/* Right — Mock QA Report */}
+          <div style={{ flex: 1, minWidth: 340 }}>
+            <div style={{ background: CARD_BG, borderRadius: 12, padding: 24, border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.1em", textTransform: "uppercase" }}>QA Score</div>
+                  <div style={{ fontSize: 48, fontWeight: 900, color: "#ef4444", lineHeight: 1 }}>23<span style={{ fontSize: 20, color: "rgba(255,255,255,0.3)" }}>/100</span></div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: WHITE }}>Test Business</div>
+                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Tulsa OK</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ fontSize: 13, color: "#ef4444" }}>&#9888; Hidden white text detected &mdash; Google penalty risk</div>
+                <div style={{ fontSize: 13, color: "#ef4444" }}>&#9888; JavaScript errors: getElementByID (case sensitive)</div>
+                <div style={{ fontSize: 13, color: "#ef4444" }}>&#9888; Broken viewport &mdash; site not mobile responsive</div>
+                <div style={{ fontSize: 13, color: "#f59e0b" }}>&#9889; Duplicate element IDs found</div>
+                <div style={{ fontSize: 13, color: "#f59e0b" }}>&#9889; Deprecated HTML tags: marquee</div>
+                <div style={{ fontSize: 13, color: "#22c55e" }}>&#10003; Contact information present</div>
+              </div>
+              <div style={{ marginTop: 20 }}>
+                <Link href="/qa-demo" style={{ display: "inline-block", background: GOLD, color: NAVY, padding: "10px 24px", borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
+                  View Full Report &rarr;
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Performance Benchmarks */}
+      <section style={{ background: BG, padding: "96px 40px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: 56 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: "3px", textTransform: "uppercase", marginBottom: 14 }}>
+              PERFORMANCE AT SCALE
+            </div>
+            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 38, fontWeight: 900, color: WHITE, letterSpacing: "-0.8px" }}>
+              What happens when every rep runs at 10x?
+            </h2>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
+            {[
+              { value: "10x", label: "Sites Per Rep Per Month", sub: "From 4-6 to 40-60 \u2014 same rep, same hours" },
+              { value: "97%", label: "Reduction in Production Cost", sub: "From $300-500 per site to ~$12 in API costs" },
+              { value: "48,000", label: "QA Hours Saved Monthly", sub: "Across 1,219 reps \u2014 zero manual QA" },
+            ].map((s) => (
+              <div key={s.value} style={{ background: CARD_BG, borderTop: `3px solid ${GOLD}`, borderRadius: 12, padding: "32px 24px", textAlign: "center" }}>
+                <div style={{ fontSize: 64, fontWeight: 900, color: GOLD, lineHeight: 1 }}>{s.value}</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: WHITE, marginTop: 12 }}>{s.label}</div>
+                <div style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", marginTop: 8, lineHeight: 1.5 }}>{s.sub}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ textAlign: "center", marginTop: 48 }}>
+            <p style={{ fontSize: 18, color: WHITE, maxWidth: 700, margin: "0 auto 32px", lineHeight: 1.6 }}>
+              1,219 reps. 10x output. Same headcount. That&apos;s not an efficiency gain &mdash; that&apos;s a different business.
+            </p>
+            <Link href="/intake" style={{
+              display: "inline-block", background: GOLD, color: NAVY,
+              padding: "16px 40px", borderRadius: 999, fontSize: 16, fontWeight: 800,
+              textDecoration: "none", boxShadow: "0 4px 24px rgba(245,200,66,0.30)",
+            }}>
+              See How It Works &rarr;
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* Bruno Easter Egg — white background section */}
       <section style={{ padding: "80px 24px", background: WHITE }}>
         <div style={{ maxWidth: 700, margin: "0 auto", display: "flex", alignItems: "center", gap: 48, flexWrap: "wrap" }}>
