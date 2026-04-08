@@ -33,9 +33,11 @@ export default function ProfilePage() {
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    console.log("Profile page: Looking up client:", id);
     fetch(`/api/profile/${id}`)
       .then((r) => r.json())
       .then((data) => {
+        console.log("Profile page: Found:", !!data.client, "for id:", id);
         setClient(data.client || null);
         setLoading(false);
       })
@@ -182,7 +184,7 @@ export default function ProfilePage() {
       <div style={{ minHeight: "100vh", background: "#0d1a2e" }}>
         <TopNav activePage="dashboard" />
         <div style={{ display: "flex", justifyContent: "center", paddingTop: 120 }}>
-          <p style={{ color: "#94a3b8" }}>Client not found.</p>
+          <p style={{ color: "#94a3b8" }}>Client not found: <code style={{ color: "#F5C842" }}>{id}</code></p>
         </div>
       </div>
     );

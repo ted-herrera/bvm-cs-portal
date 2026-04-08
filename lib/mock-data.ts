@@ -385,11 +385,13 @@ declare global {
 
 function getStore(): Map<string, ClientProfile> {
   if (!globalThis.__bvm_client_store__) {
-    const map = new Map<string, ClientProfile>();
-    for (const c of mockClients) {
-      map.set(c.id, c);
+    globalThis.__bvm_client_store__ = new Map<string, ClientProfile>();
+  }
+  // Always ensure static mock clients are present (handles hot-reload + new entries)
+  for (const c of mockClients) {
+    if (!globalThis.__bvm_client_store__.has(c.id)) {
+      globalThis.__bvm_client_store__.set(c.id, c);
     }
-    globalThis.__bvm_client_store__ = map;
   }
   return globalThis.__bvm_client_store__;
 }
