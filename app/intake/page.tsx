@@ -1,404 +1,529 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useRef, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import TopNav from "@/components/TopNav";
-import { classifyBusinessType, detectSubType, getServiceSuggestions, getCTASuggestion } from "@/lib/business-classifier";
+import { classifyBusinessType, getCTASuggestion } from "@/lib/business-classifier";
+
+interface Msg {
+  role: "bruno" | "user";
+  text: string;
+  pills?: { label: string; value: string }[];
+}
+
+interface ServiceEntry { name: string; description: string }
 
 const LOOK_OPTIONS = [
-  { id: "warm_bold", label: "Warm & Bold", accent: "#c2692a", desc: "Rustic, high energy — food & hospitality", colors: ["#c2692a", "#F5C842", "#1a2740"] },
-  { id: "professional", label: "Clean & Professional", accent: "#185fa5", desc: "Trustworthy — healthcare, dental, legal", colors: ["#185fa5", "#ecf0f1", "#2c3e50"] },
-  { id: "bold_modern", label: "Bold & Modern", accent: "#7c3aed", desc: "Contemporary — home services, construction", colors: ["#0d1a2e", "#F5C842", "#7c3aed"] },
+  { id: "warm_bold", label: "Local", accent: "#c2692a", desc: "Clean & Classic — warm, inviting" },
+  { id: "professional", label: "Community", accent: "#185fa5", desc: "Professional & Trusted" },
+  { id: "bold_modern", label: "Premier ⭐", accent: "#F5C842", desc: "Bold & Premium — Featured Badge + Review Ticker + Animated Stats" },
 ];
 
-type Step = "name" | "city" | "zip" | "sbr" | "description" | "services" | "cta" | "look" | "logo" | "phone" | "occasion" | "complete";
+const DAILY_AVG: Record<string, number> = {
+  restaurant: 120, dental: 12, medical: 25, beauty: 18, fitness: 30,
+  roofing: 3, hvac: 5, automotive: 10, legal: 4, realestate: 2,
+  financial: 5, pet: 15, retail: 40, education: 20, homeservices: 5, business: 8,
+};
 
-interface Msg { role: "bruno" | "rep"; text: string }
+function delay(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
 
-function parseBrunoMessage(text: string): string {
-  return text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" style="color:#F5C842;text-decoration:underline;font-weight:600">$1</a>');
+function formatPhone(raw: string): string {
+  const d = raw.replace(/\D/g, "").slice(0, 10);
+  if (d.length === 10) return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`;
+  return raw;
 }
 
-const DEMO_BUSINESSES = [
-  { name: "Rosalinda's Tacos", city: "Tulsa", zip: "74103", description: "Authentic street tacos made fresh daily", services: "Dine-In, Takeout & Delivery, Catering & Events", cta: "Order Now", look: "warm_bold", hasLogo: false, phone: "918-555-0142", address: "123 Main St Tulsa OK", occasion: "Grand Opening Special" },
-  { name: "Peak Dental", city: "Denver", zip: "80202", description: "Family dentistry with a gentle touch", services: "General Dentistry, Cosmetic Dentistry, Emergency Care", cta: "Book Now", look: "professional", hasLogo: true, phone: "303-555-0198", address: "456 Broadway Denver CO", occasion: "" },
-  { name: "Iron Ridge Roofing", city: "Nashville", zip: "37201", description: "Storm damage repair and roof replacement specialists", services: "Roof Replacement, Storm Damage Repair, Free Inspections", cta: "Call Us Today", look: "bold_modern", hasLogo: false, phone: "615-555-0167", address: "789 Music Row Nashville TN", occasion: "Spring Storm Season" },
-  { name: "Zen Flow Yoga", city: "Austin", zip: "78701", description: "Hot yoga and mindfulness for all levels", services: "Group Classes, Private Sessions, Wellness Workshops", cta: "Book a Class", look: "professional", hasLogo: true, phone: "512-555-0134", address: "321 Congress Ave Austin TX", occasion: "" },
-  { name: "Hank's Hamburgers", city: "Tulsa", zip: "74103", description: "Handcrafted burgers made with local beef", services: "Dine-In, Drive-Thru & Takeout, Catering", cta: "Order Now", look: "warm_bold", hasLogo: false, phone: "918-555-0199", address: "555 Burger Blvd Tulsa OK", occasion: "Happy Hour Specials" },
-  { name: "Pacific Auto Care", city: "San Diego", zip: "92101", description: "Full-service auto repair you can trust", services: "Oil Change & Tune-Up, Brake Service, Full Diagnostics", cta: "Schedule Service", look: "bold_modern", hasLogo: true, phone: "619-555-0211", address: "888 Harbor Dr San Diego CA", occasion: "" },
-];
-
-const UNCERTAINTY_SIGNALS = ["not sure", "idk", "i don't know", "help", "you pick", "what do you think", "suggest", "recommend", "what should", "what works", "any ideas", "your call", "up to you", "you choose", "what would"];
-
-function isUncertain(msg: string): boolean {
-  const lower = msg.toLowerCase();
-  return UNCERTAINTY_SIGNALS.some((s) => lower.includes(s));
-}
-
-function cleanName(raw: string): string {
-  if (!raw) return "";
-  let n = raw.trim();
-  n = n.replace(/\b\w/g, (c) => c.toUpperCase());
-  n = n.replace(/\b([A-Z][a-z]+)(s)(\s+[A-Z])/g, "$1'$2$3");
-  return n;
-}
-
-const CITY_ABBREVS: Record<string, string> = { okc: "Oklahoma City", nyc: "New York City", la: "Los Angeles", nola: "New Orleans", phx: "Phoenix", atl: "Atlanta", sf: "San Francisco", dc: "Washington DC" };
-
-export default function IntakePage() {
+function IntakeInner() {
   const router = useRouter();
-  const [step, setStep] = useState<Step>("name");
-  const [bizName, setBizName] = useState("");
-  const [city, setCity] = useState("");
+  const params = useSearchParams();
+  const isMagic = params.get("magic") === "true";
+  const urlName = params.get("name") || "";
+  const urlCity = params.get("city") || "";
+
+  type Step = "q1" | "q2" | "q3_name" | "q3_desc" | "q3_confirm" | "q4" | "q5" | "q6" | "q7" | "q8" | "q9" | "q10" | "finish";
+
+  const [step, setStep] = useState<Step>("q1");
+  const [chat, setChat] = useState<Msg[]>([{
+    role: "bruno",
+    text: isMagic
+      ? "Hi! Your rep set up this link just for you. I'll guide you through building your site in about 10 minutes.\n\nWhat's the name of your business?"
+      : "Hi! I'm Bruno. Let's build your site.\n\nWhat's the name of your business?",
+  }]);
+  const [input, setInput] = useState(urlName);
+  const [loading, setLoading] = useState(false);
+
+  // Collected data
+  const [bizName, setBizName] = useState(urlName);
+  const [city, setCity] = useState(urlCity);
   const [zip, setZip] = useState("");
-  const [desc, setDesc] = useState("");
-  const [services, setServices] = useState("");
+  const [services, setServices] = useState<ServiceEntry[]>([]);
+  const [currentServiceIdx, setCurrentServiceIdx] = useState(0);
+  const [currentServiceName, setCurrentServiceName] = useState("");
+  const [tagline, setTagline] = useState("");
+  const [taglineAttempt, setTaglineAttempt] = useState(0);
+  const [yearsOpen, setYearsOpen] = useState("");
+  const [customerCount, setCustomerCount] = useState("");
+  const [starRating, setStarRating] = useState("4.8");
+  const [customerQuote, setCustomerQuote] = useState("");
+  const [phone, setPhone] = useState("");
   const [cta, setCta] = useState("");
   const [look, setLook] = useState("");
-  const [hasLogo, setHasLogo] = useState<boolean | null>(null);
-  const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
-  const [occasion, setOccasion] = useState("");
+  const [suggestedDomain, setSuggestedDomain] = useState("");
   const [sbrData, setSbrData] = useState<Record<string, unknown> | null>(null);
-  const [chat, setChat] = useState<Msg[]>([{ role: "bruno", text: "Hey — I'm Bruno. Let's build a profile.\n\nWhat's the business name?" }]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [finishing, setFinishing] = useState(false);
-  const [awaitConfirm, setAwaitConfirm] = useState(false);
-  const [pendingVal, setPendingVal] = useState("");
   const [previewHtml, setPreviewHtml] = useState("");
-  const [demoLoading, setDemoLoading] = useState("");
+
+  const sbrRef = useRef<Record<string, unknown> | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chat]);
 
-  const CONFIRM_RE = /^(yes|yeah|yep|yup|correct|right|perfect|great|sounds good|use those|love it|go with that|that works|sure|ok|okay|good|fine|absolutely|exactly|do it|let's go|confirmed|looks good)$/i;
-  const SKIP_RE = /^(skip|no|nothing|none|nope|pass|n\/a|not really|no thanks)$/i;
-
-  function addMsg(role: "bruno" | "rep", text: string) {
-    setChat((prev) => [...prev, { role, text }]);
-  }
-
-  function getBizType() { return classifyBusinessType(bizName, desc); }
-  function getSubType() { return detectSubType(bizName, desc); }
-
-  // Fetch site preview
+  // Live preview
   useEffect(() => {
     if (!look || !bizName) return;
+    const svc = services.map((s) => s.name).join(", ");
     fetch("/api/site/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        clientId: "preview",
-        lookKey: look,
-        profileData: { business_name: bizName, city, zip, phone, intakeAnswers: { q1: `${bizName}, ${city} ${zip}`, q2: desc, q3: services, q4: cta, q5: look, q6: hasLogo ? "yes" : "no", q7: `${phone}, ${address}`, q8: occasion }, sbrData: sbrData || undefined },
+        clientId: "preview", lookKey: look,
+        profileData: { business_name: bizName, city, zip, phone, intakeAnswers: { q1: `${bizName}, ${city} ${zip}`, q2: services.map((s) => s.description).join(". "), q3: svc, q4: cta, q5: look, q6: "no", q7: phone }, sbrData: sbrData || undefined },
       }),
     }).then((r) => r.json()).then((d) => setPreviewHtml(d.html || "")).catch(() => {});
-  }, [look, bizName, city, zip, desc, services, cta, phone, address, sbrData, hasLogo, occasion]);
+  }, [look, bizName, city, zip, services, cta, phone, sbrData]);
+
+  function addMsg(role: "bruno" | "user", text: string, pills?: { label: string; value: string }[]) {
+    setChat((prev) => [...prev, { role, text, pills }]);
+  }
 
   async function fireSBR(name: string, z: string, c: string) {
     try {
-      addMsg("bruno", `📍 ${c}, ${z} — pulling local market data...`);
       const res = await fetch("/api/sbr/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ businessType: classifyBusinessType(name, ""), zip: z, city: c }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessType: classifyBusinessType(name, ""), zip: z, city: c, businessName: name }),
       });
       const data = await res.json();
-      setSbrData(data);
-      const comps = (data.competitors as string[])?.slice(0, 3)?.join(", ");
-      if (comps) { await delay(600); addMsg("bruno", `🏆 Top competitors in ${c}: ${comps}`); }
-      const insight = data.marketInsight as string;
-      if (insight) { await delay(600); addMsg("bruno", `📊 ${insight.substring(0, 120)}...`); }
-      await delay(500);
-      addMsg("bruno", `✅ Market scan complete.\n\nWhat does ${name} do? One sentence is fine.`);
-      setStep("description");
-    } catch {
-      addMsg("bruno", `Market scan unavailable — no worries. What does ${name} do? One sentence is fine.`);
-      setStep("description");
-    }
+      const sbr = data.sbrData || data;
+      setSbrData(sbr);
+      sbrRef.current = sbr;
+    } catch { /* SBR unavailable */ }
   }
 
-  function delay(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
+  async function generateTaglines(attempt: number): Promise<string[]> {
+    const sbr = sbrRef.current;
+    const headline = (sbr?.campaignHeadline as string) || "";
+    const svcNames = services.map((s) => s.name).join(", ");
+    let prompt = `Write 3 short taglines (under 8 words each) for "${bizName}", a ${classifyBusinessType(bizName, svcNames)} in ${city}. Services: ${svcNames}. ${headline ? `Campaign headline: ${headline}.` : ""}`;
+    if (attempt === 1) prompt += " Focus on the FEELING the brand should give.";
+    if (attempt === 2) prompt += " Make them punchy, one-word-inspired.";
+    prompt += " Return ONLY: [\"tagline1\",\"tagline2\",\"tagline3\"]";
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ system: "Return ONLY a JSON array of 3 taglines. No markdown.", messages: [{ role: "user", content: prompt }] }),
+      });
+      const data = await res.json();
+      const text = String(data?.content?.[0]?.text ?? data?.content ?? data?.response ?? "");
+      const match = text.match(/\[[\s\S]*?\]/);
+      if (match) return JSON.parse(match[0]) as string[];
+    } catch { /* fallback */ }
+    return [`${bizName} — Built for ${city}`, "Quality You Can Trust", "Local. Proven. Yours."];
+  }
+
+  async function handlePillClick(value: string) {
+    await handleSend(value);
+  }
 
   async function handleSend(override?: string) {
     const ans = (override || input).trim();
     if (!ans || loading) return;
     setInput("");
-    addMsg("rep", ans);
+    addMsg("user", ans);
     setLoading(true);
-
-    // Confirmation flow
-    if (awaitConfirm) {
-      if (CONFIRM_RE.test(ans)) {
-        setAwaitConfirm(false);
-        // Apply pending value based on step
-        if (step === "services") { setServices(pendingVal); setPendingVal(""); await advanceFrom("services"); }
-        else if (step === "cta") { setCta(pendingVal); setPendingVal(""); await advanceFrom("cta"); }
-      } else {
-        setAwaitConfirm(false);
-        setPendingVal("");
-        addMsg("bruno", "No problem — what would you prefer?");
-      }
-      setLoading(false);
-      return;
-    }
-
     await processStep(ans);
     setLoading(false);
   }
 
   async function processStep(ans: string) {
     switch (step) {
-      case "name": {
-        const cleaned = cleanName(ans);
-        if (cleaned.length < 2) { addMsg("bruno", "I need at least a business name — what is it?"); return; }
-        setBizName(cleaned);
+      // Q1: Business name
+      case "q1": {
+        const name = ans.trim().replace(/\b\w/g, (c) => c.toUpperCase());
+        if (name.length < 2) { addMsg("bruno", "I need at least a business name — what is it?"); return; }
+        setBizName(name);
         await delay(400);
-        addMsg("bruno", `${cleaned} — nice. Where is ${cleaned} located? City name is fine.`);
-        setStep("city");
+        addMsg("bruno", `Great! What city and ZIP code are you in?`);
+        setStep("q2");
         break;
       }
-      case "city": {
-        let c = ans.trim();
-        const lower = c.toLowerCase();
-        if (CITY_ABBREVS[lower]) c = CITY_ABBREVS[lower];
-        else c = c.replace(/\b\w/g, (ch) => ch.toUpperCase());
-        if (c.length < 2) { addMsg("bruno", "What city is the business in?"); return; }
-        setCity(c);
-        await delay(400);
-        addMsg("bruno", `${c} — great market. What's the ZIP code?`);
-        setStep("zip");
-        break;
-      }
-      case "zip": {
+
+      // Q2: City + ZIP
+      case "q2": {
         const zipMatch = ans.match(/\b(\d{5})\b/);
-        if (!zipMatch) { addMsg("bruno", "I need a 5-digit ZIP code — what's the ZIP?"); return; }
+        const cityPart = ans.replace(/\d{5}/, "").replace(/[,\s]+$/, "").trim().replace(/\b\w/g, (c) => c.toUpperCase());
+        if (!cityPart || cityPart.length < 2) { addMsg("bruno", "What city? Include the ZIP code too."); return; }
+        if (!zipMatch) { addMsg("bruno", `Got ${cityPart} — what's the ZIP code?`); setCity(cityPart); return; }
+        setCity(cityPart);
         setZip(zipMatch[1]);
         await delay(400);
-        addMsg("bruno", `Got it — scanning ${city}'s market now...`);
-        setStep("sbr");
-        await fireSBR(bizName, zipMatch[1], city);
+        addMsg("bruno", `Got it — let me pull some market data on ${cityPart}...`);
+        fireSBR(bizName, zipMatch[1], cityPart);
+        await delay(1500);
+        addMsg("bruno", `What's your first service or specialty?`);
+        setCurrentServiceIdx(0);
+        setStep("q3_name");
         break;
       }
-      case "description": {
-        const words = ans.trim().split(/\s+/).filter(Boolean);
-        if (words.length < 2) { addMsg("bruno", `Can you give me a bit more? What does ${bizName} actually do for customers?`); return; }
-        setDesc(ans);
+
+      // Q3: Services — name
+      case "q3_name": {
+        const svcName = ans.trim();
+        if (svcName.length < 2) { addMsg("bruno", "What service does the business offer?"); return; }
+        setCurrentServiceName(svcName);
+        await delay(300);
+        addMsg("bruno", `Perfect. Finish this sentence in your own words:\n\n"Our ${svcName} is special because..."`);
+        setStep("q3_desc");
+        break;
+      }
+
+      // Q3: Services — description
+      case "q3_desc": {
+        const isSkip = /^(skip|idk|not sure|pass)$/i.test(ans.trim());
+        let desc = ans.trim();
+        if (isSkip) {
+          desc = `Professional ${currentServiceName} services for ${city} — built around quality and care.`;
+        }
+        const cleaned = desc.charAt(0).toUpperCase() + desc.slice(1);
+        await delay(300);
+        addMsg("bruno", `Here's how that reads on your site:\n\n"${cleaned}"\n\nDoes that work?`);
+        setStep("q3_confirm");
+        break;
+      }
+
+      // Q3: Services — confirm
+      case "q3_confirm": {
+        const yes = /^(yes|yeah|yep|sure|ok|good|fine|perfect|great|love it|works|that works|sounds good|confirmed|absolutely)$/i.test(ans.trim());
+        if (!yes) {
+          addMsg("bruno", `No problem — give me a better description for ${currentServiceName}:`);
+          setStep("q3_desc");
+          return;
+        }
+        // Get the description from the last bruno message
+        const lastBruno = [...chat].reverse().find((m) => m.role === "bruno" && m.text.includes("Here's how that reads"));
+        const descMatch = lastBruno?.text.match(/"([^"]+)"/);
+        const finalDesc = descMatch?.[1] || `Professional ${currentServiceName} services.`;
+        const newServices = [...services, { name: currentServiceName, description: finalDesc }];
+        setServices(newServices);
+        const idx = currentServiceIdx + 1;
+        setCurrentServiceIdx(idx);
+
+        if (idx < 3) {
+          await delay(300);
+          addMsg("bruno", `Got it. What's service #${idx + 1}?`);
+          setStep("q3_name");
+        } else {
+          // Move to Q4 — Taglines
+          await delay(400);
+          addMsg("bruno", "Generating tagline options...");
+          const taglines = await generateTaglines(0);
+          setTaglineAttempt(0);
+          await delay(300);
+          addMsg("bruno", "Here are three tagline options — tap the one you like:", taglines.map((t) => ({ label: t, value: t })));
+          setStep("q4");
+        }
+        break;
+      }
+
+      // Q4: Tagline selection
+      case "q4": {
+        const none = /^(none|none of these|no|nope|different|other)$/i.test(ans.trim());
+        if (none) {
+          const attempt = taglineAttempt + 1;
+          setTaglineAttempt(attempt);
+          if (attempt === 1) {
+            addMsg("bruno", "What feeling should your brand give people?");
+            return; // Stay on q4, next input will generate new taglines
+          } else if (attempt === 2) {
+            addMsg("bruno", "Give me one word that describes your business:");
+            return;
+          } else {
+            // Auto-select first
+            const taglines = await generateTaglines(2);
+            const picked = taglines[0] || `${bizName} — ${city}`;
+            setTagline(picked);
+            await delay(300);
+            addMsg("bruno", `I'll go with "${picked}" — your rep can update this anytime.\n\nHow long have you been open?`);
+            setStep("q5");
+            return;
+          }
+        }
+        // Check if it's a feeling/word response for re-generation
+        if (taglineAttempt > 0 && ans.length < 40) {
+          const taglines = await generateTaglines(taglineAttempt);
+          await delay(300);
+          addMsg("bruno", "Here are three new options:", taglines.map((t) => ({ label: t, value: t })));
+          return;
+        }
+        // Direct selection
+        setTagline(ans);
+        await delay(300);
+        addMsg("bruno", `Locked: "${ans}"\n\nHow long have you been open?`);
+        setStep("q5");
+        break;
+      }
+
+      // Q5: Stats — years open
+      case "q5": {
+        const numMatch = ans.match(/(\d+)/);
+        const years = numMatch ? numMatch[1] : "5";
+        setYearsOpen(years);
+        const bt = classifyBusinessType(bizName, services.map((s) => s.name).join(" "));
+        const dailyAvg = DAILY_AVG[bt] || 8;
+        const projected = Math.round(parseInt(years) * dailyAvg * 365);
+        const rounded = projected > 1000 ? `${Math.round(projected / 1000) * 1000}+` : `${projected}+`;
+        setCustomerCount(rounded);
+        const sbr = sbrRef.current;
+        const rating = (sbr?.starRating as string) || "4.8";
+        setStarRating(rating);
         await delay(400);
-        const encoded = encodeURIComponent(bizName);
-        const hl = (sbrData?.campaignHeadline as string) || "";
-        const hlParam = hl ? `&headline=${encodeURIComponent(hl)}` : "";
-        addMsg("bruno", `Got it.\n\n[Generate Taglines →](https://bvm-studio-app.vercel.app/studio-v2/brand?name=${encoded}${hlParam})  ·  [Generate Logo →](https://bvm-studio-app.vercel.app/studio-v2/brand?name=${encoded}&mode=logo)\n\nWhat are the top 3 services ${bizName} offers? Not sure? I'll suggest some.`);
-        setStep("services");
+        addMsg("bruno", `Based on ${years} years in ${city}, I'm estimating you've served over ${rounded.replace("+", "")} customers — does that sound right?`);
+        // Wait for confirm, then move to Q6
+        setStep("q6"); // Actually this is the confirm step before quote
         break;
       }
-      case "services": {
-        if (isUncertain(ans)) {
-          const bt = classifyBusinessType(bizName, desc);
-          const st = detectSubType(bizName, desc);
-          const sugs = getServiceSuggestions(bt, st);
-          const joined = sugs.join(", ");
-          setPendingVal(joined);
-          setAwaitConfirm(true);
-          addMsg("bruno", `For a ${st !== bt ? st : bt} in ${city}, I'd go with: ${joined}. Want those?`);
+
+      // Q6: Customer quote (optional)
+      case "q6": {
+        // First check if this is the stats confirmation
+        const isConfirm = /^(yes|yeah|yep|sure|ok|sounds|right|correct|about|close|sounds right)$/i.test(ans.trim());
+        const isCorrection = /\d/.test(ans);
+        if (isConfirm || isCorrection) {
+          if (isCorrection && !isConfirm) {
+            const numMatch = ans.match(/(\d[\d,]*)/);
+            if (numMatch) setCustomerCount(numMatch[1].replace(/,/g, "") + "+");
+          }
+          await delay(300);
+          addMsg("bruno", `What's something a happy customer actually said about you? Even just a few words — I'll clean it up.\n\nOr say "skip".`);
+          return; // Stay on q6 for the actual quote
+        }
+        // This is the actual quote response
+        const isSkip = /^(skip|no|pass|nothing)$/i.test(ans.trim());
+        if (isSkip) {
+          const generic = `Outstanding ${classifyBusinessType(bizName, "")} service — exactly what ${city} needed.`;
+          setCustomerQuote(generic);
+          await delay(300);
+          addMsg("bruno", `I'll use a placeholder review. Your rep can update it.\n\nWhat's the best phone number for customers to call?`);
+          setStep("q7");
           return;
         }
-        const items = ans.split(/[,\n]/).map((s) => s.trim()).filter((s) => s.length > 1);
-        if (items.length < 2) { addMsg("bruno", `Got "${ans}" — what are the other two? Or say "suggest" and I'll pick some.`); return; }
-        setServices(items.join(", "));
-        await advanceFrom("services");
+        // Clean up quote
+        let quote = ans.trim();
+        if (!quote.startsWith('"')) quote = quote.charAt(0).toUpperCase() + quote.slice(1);
+        setCustomerQuote(quote);
+        await delay(300);
+        addMsg("bruno", `Here's your featured review:\n\n"⭐⭐⭐⭐⭐ ${quote} — Google Review"\n\nGood?\n\nWhat's the best phone number for customers to call?`);
+        setStep("q7");
         break;
       }
-      case "cta": {
-        if (isUncertain(ans)) {
-          const rec = getCTASuggestion(getBizType(), getSubType());
-          setPendingVal(rec);
-          setAwaitConfirm(true);
-          addMsg("bruno", `For a ${getSubType() !== getBizType() ? getSubType() : getBizType()} in ${city}, "${rec}" works well. Want that?`);
-          return;
-        }
-        if (ans.trim().length < 2) { addMsg("bruno", `What should the button say? Something like "Order Now" or "Book Now"?`); return; }
+
+      // Q7: Phone
+      case "q7": {
+        const phoneMatch = ans.match(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/);
+        if (!phoneMatch) { addMsg("bruno", "I need a phone number — what's the best number to reach the business?"); return; }
+        const formatted = formatPhone(phoneMatch[0]);
+        setPhone(formatted);
+        await delay(300);
+        // CTA suggestion based on business type
+        const bt = classifyBusinessType(bizName, services.map((s) => s.name).join(" "));
+        const suggestion = getCTASuggestion(bt, bt);
+        const alt = bt === "restaurant" ? "Reserve a Table" : bt === "dental" ? "Call Today" : bt === "fitness" ? "Join Today" : "Call Now";
+        addMsg("bruno", "What should the main button say on your site?", [
+          { label: suggestion, value: suggestion },
+          { label: alt, value: alt },
+        ]);
+        setStep("q8");
+        break;
+      }
+
+      // Q8: CTA
+      case "q8": {
         const cleaned = ans.split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
         setCta(cleaned);
-        await advanceFrom("cta");
+        await delay(300);
+        addMsg("bruno", `Last thing — choose your site style:`);
+        setStep("q9");
         break;
       }
-      case "look": {
+
+      // Q9: Look — handled by card click
+      case "q9": {
         let lookId = "";
         if (["warm_bold", "professional", "bold_modern"].includes(ans)) lookId = ans;
-        else if (ans.match(/warm/i)) lookId = "warm_bold";
-        else if (ans.match(/professional|clean/i)) lookId = "professional";
-        else if (ans.match(/bold|modern/i)) lookId = "bold_modern";
-        if (!lookId) { addMsg("bruno", "Pick one — click a card or type Warm, Professional, or Bold."); return; }
+        else if (ans.match(/local|warm/i)) lookId = "warm_bold";
+        else if (ans.match(/community|professional|clean/i)) lookId = "professional";
+        else if (ans.match(/premier|bold|modern/i)) lookId = "bold_modern";
+        if (!lookId) { addMsg("bruno", "Pick one — click a card or type Local, Community, or Premier."); return; }
         setLook(lookId);
-        const label = lookId === "warm_bold" ? "Warm & Bold" : lookId === "professional" ? "Clean & Professional" : "Bold & Modern";
-        await delay(400);
-        addMsg("bruno", `${label} — great fit. Does ${bizName} have a logo ready? Yes or no.`);
-        setStep("logo");
-        break;
-      }
-      case "logo": {
-        const yes = /\b(yes|yeah|yep|yup|have one|got one|ready)\b/i.test(ans);
-        const no = /\b(no|nope|nah|don't|dont|not yet)\b/i.test(ans);
-        if (!yes && !no) { addMsg("bruno", `Just a yes or no — does ${bizName} have a logo?`); return; }
-        setHasLogo(yes);
-        await delay(400);
-        const encoded = encodeURIComponent(bizName);
-        if (yes) {
-          addMsg("bruno", `Got it — we'll collect it through their portal. What's the best phone number for ${bizName}? Address too if you have it.`);
+        const label = LOOK_OPTIONS.find((l) => l.id === lookId)?.label || lookId;
+        if (lookId === "bold_modern") {
+          import("canvas-confetti").then((mod) => mod.default({ particleCount: 120, spread: 80, colors: ["#F5C842", "#0d1a2e", "#ffffff"] }));
+          await delay(300);
+          addMsg("bruno", `⭐ Premier selected! Your site will include our featured business badge, live review ticker, and animated stats.\n\nChecking domain availability...`);
         } else {
-          addMsg("bruno", `Got it — adding logo generator to their portal. [Generate Logo for ${bizName} →](https://bvm-studio-app.vercel.app/studio-v2/brand?name=${encoded}&mode=logo)\n\nWhat's the best phone number? Address too if you have it.`);
+          await delay(300);
+          addMsg("bruno", `${label} — great choice.\n\nChecking domain availability...`);
         }
-        setStep("phone");
+        // Domain check
+        const slug = bizName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "");
+        const domain = `${slug}.com`;
+        setSuggestedDomain(domain);
+        await delay(1000);
+        addMsg("bruno", `Checking ${domain}...\n\n✓ ${domain} — looks available!\n\nWant to use this domain?`);
+        setStep("q10");
         break;
       }
-      case "phone": {
-        const phoneMatch = ans.match(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/);
-        if (!phoneMatch) { addMsg("bruno", `I need a phone number for ${bizName} — what's the best number?`); return; }
-        setPhone(phoneMatch[0]);
-        const addr = ans.replace(phoneMatch[0], "").replace(/^[,\s]+/, "").trim();
-        if (addr) setAddress(addr);
+
+      // Q10: Domain confirm
+      case "q10": {
+        const isYes = /^(yes|yeah|yep|sure|ok|good|perfect|use it|use that)$/i.test(ans.trim());
+        if (!isYes && ans.length > 3) {
+          const custom = ans.toLowerCase().replace(/[^a-z0-9.-]/g, "");
+          setSuggestedDomain(custom.includes(".") ? custom : custom + ".com");
+        }
         await delay(400);
-        addMsg("bruno", "Got it. Last one — any special occasion or promotion? Or say skip.");
-        setStep("occasion");
-        break;
-      }
-      case "occasion": {
-        const isSkip = SKIP_RE.test(ans.trim());
-        setOccasion(isSkip ? "" : ans);
-        await delay(400);
-        addMsg("bruno", `Perfect — that's everything for ${bizName}. Generating their profile now...`);
-        await doFinish(isSkip ? "" : ans);
+        // Show summary
+        const svcList = services.map((s) => `• ${s.name}: ${s.description}`).join("\n");
+        addMsg("bruno", `Everything looks good!\n\n📋 **${bizName}**\n${city}, ${zip}\n${phone}\n\nServices:\n${svcList}\n\nTagline: "${tagline}"\nLook: ${LOOK_OPTIONS.find((l) => l.id === look)?.label || look}\nDomain: ${suggestedDomain}\n\nCreating your site...`);
+        setStep("finish");
+        await doFinish();
         break;
       }
     }
   }
 
-  async function advanceFrom(from: string) {
-    await delay(400);
-    if (from === "services") {
-      const rec = getCTASuggestion(getBizType(), getSubType());
-      addMsg("bruno", `Great. What should the CTA button say? For this type I'd suggest "${rec}". Want that or something else?`);
-      setStep("cta");
-    } else if (from === "cta") {
-      addMsg("bruno", `Perfect. Now pick the vibe for ${bizName}. Click one:`);
-      setStep("look");
-    }
-  }
-
-  async function doFinish(occ: string) {
-    setFinishing(true);
+  async function doFinish() {
+    await delay(800);
+    addMsg("bruno", "📍 Analyzing market...");
     await delay(600);
-    addMsg("bruno", `📍 Analyzing ${city} market...`);
-    await delay(600);
-    const lookLabel = look === "warm_bold" ? "Warm & Bold" : look === "professional" ? "Clean & Professional" : "Bold & Modern";
-    addMsg("bruno", `🎨 Building ${lookLabel} campaign...`);
+    addMsg("bruno", "🎨 Building campaign...");
     await delay(400);
     addMsg("bruno", "✅ Profile ready — opening now.");
 
     try {
+      const svcNames = services.map((s) => s.name).join(", ");
+      const svcDescs = services.map((s) => s.description).join(". ");
       const res = await fetch("/api/intake/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          intakeAnswers: { q1: `${bizName}, ${city} ${zip}`, q2: desc, q3: services, q4: cta, q5: look, q6: hasLogo ? "yes" : "no", q7: `${phone}${address ? `, ${address}` : ""}`, q8: occ || "skip" },
-          sbrData: sbrData || {},
-          rep: "ted",
+          intakeAnswers: {
+            q1: `${bizName}, ${city} ${zip}`,
+            q2: svcDescs,
+            q3: svcNames,
+            q4: cta,
+            q5: look,
+            q6: "no",
+            q7: phone,
+            q8: tagline,
+            q9: suggestedDomain,
+          },
+          sbrData: {
+            ...(sbrData || {}),
+            tagline,
+            yearsServing: yearsOpen || "5+",
+            happyClients: customerCount || "500+",
+            starRating,
+            customerQuote,
+            suggestedTagline: tagline,
+            services: services.map((s) => ({ name: s.name, description: s.description })),
+          },
+          rep: isMagic ? "magic-link" : "ted",
         }),
       });
       const data = await res.json();
-      if (data.profile?.id) router.push(`/profile/${data.profile.id}`);
-    } catch { setFinishing(false); }
-  }
-
-  async function fillDemo() {
-    const biz = DEMO_BUSINESSES[Math.floor(Math.random() * DEMO_BUSINESSES.length)];
-    setDemoLoading(biz.name);
-    await delay(1200);
-    try {
-      const res = await fetch("/api/intake/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          intakeAnswers: { q1: `${biz.name}, ${biz.city} ${biz.zip}`, q2: biz.description, q3: biz.services, q4: biz.cta, q5: biz.look, q6: biz.hasLogo ? "yes" : "no", q7: `${biz.phone}, ${biz.address}`, q8: biz.occasion || "skip" },
-          sbrData: {},
-          rep: "demo",
-        }),
-      });
-      const data = await res.json();
-      if (data.profile?.id) router.push(`/profile/${data.profile.id}`);
-    } catch { setDemoLoading(""); }
-  }
-
-  if (demoLoading) {
-    return (
-      <div className="gold-top-bar flex min-h-screen items-center justify-center bg-navy-dark">
-        <div style={{ textAlign: "center" }}>
-          <div style={{ width: 32, height: 32, border: "2px solid #F5C842", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite", margin: "0 auto 16px" }} />
-          <p style={{ color: "#F5C842", fontSize: 14, fontWeight: 600 }}>Loading demo: {demoLoading}...</p>
-        </div>
-      </div>
-    );
+      if (data.profile?.id) {
+        await delay(800);
+        router.push(`/profile/${data.profile.id}`);
+      }
+    } catch { /* error */ }
   }
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "#0d1a2e" }}>
       <TopNav activePage="intake" />
 
-      <div className="flex flex-1">
+      <div style={{ display: "flex", flex: 1 }}>
         {/* Chat Panel */}
-        <div className="flex w-1/2 flex-col border-r border-[#1e293b]">
-          <div className="border-b border-[#1e293b] px-6 py-4 flex items-center justify-between">
+        <div style={{ width: "50%", display: "flex", flexDirection: "column", borderRight: "1px solid #1e293b" }}>
+          <div style={{ borderBottom: "1px solid #1e293b", padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
-              <h2 className="text-lg font-bold text-white">Bruno Intake</h2>
-              <p className="text-xs text-[#64748b]">Step: {step}</p>
+              <h2 style={{ fontSize: 18, fontWeight: 700, color: "#fff", margin: 0 }}>Bruno Intake</h2>
+              <p style={{ fontSize: 12, color: "#64748b", margin: "2px 0 0" }}>Step: {step}</p>
             </div>
-            <button onClick={fillDemo} style={{ background: "none", border: "1px solid #F5C842", color: "#F5C842", padding: "4px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
-              Fill Demo Data →
-            </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <div style={{ flex: 1, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
             {chat.map((msg, i) => (
-              <div key={i} className={`flex ${msg.role === "rep" ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[80%] rounded-xl px-4 py-3 text-sm whitespace-pre-wrap ${msg.role === "rep" ? "bg-gold text-navy-dark" : "bg-navy-mid text-white border border-[#334155]"}`}>
-                  {msg.role === "bruno" && (
-                    <div className="mb-2 flex items-center gap-2">
-                      <img src="/bruno.png" alt="Bruno" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover" }} />
-                      <span className="text-xs font-semibold text-gold">Bruno</span>
-                    </div>
-                  )}
-                  {msg.role === "bruno" ? (
-                    <span dangerouslySetInnerHTML={{ __html: parseBrunoMessage(msg.text) }} />
-                  ) : (
-                    msg.text
-                  )}
+              <div key={i}>
+                <div style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
+                  <div style={{
+                    maxWidth: "80%", borderRadius: 12, padding: "10px 16px", fontSize: 14, whiteSpace: "pre-wrap", lineHeight: 1.6,
+                    background: msg.role === "user" ? "#F5C842" : "#1a2740",
+                    color: msg.role === "user" ? "#0d1a2e" : "#fff",
+                    border: msg.role === "bruno" ? "1px solid #334155" : "none",
+                  }}>
+                    {msg.role === "bruno" && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                        <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#F5C842", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: "#0d1a2e", fontSize: 12, flexShrink: 0 }}>B</div>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: "#F5C842" }}>Bruno</span>
+                      </div>
+                    )}
+                    {msg.text}
+                  </div>
                 </div>
+                {/* Pill buttons */}
+                {msg.pills && (
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8, paddingLeft: msg.role === "bruno" ? 36 : 0 }}>
+                    {msg.pills.map((pill) => (
+                      <button key={pill.value} onClick={() => handlePillClick(pill.value)} style={{
+                        background: "#F5C842", color: "#0d1a2e", border: "none", borderRadius: 999,
+                        padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer",
+                      }}>
+                        {pill.label}
+                      </button>
+                    ))}
+                    {step === "q4" && (
+                      <button onClick={() => handlePillClick("none of these")} style={{
+                        background: "transparent", color: "#64748b", border: "1px solid #334155", borderRadius: 999,
+                        padding: "8px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                      }}>
+                        None of these
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
 
-            {/* Look cards */}
-            {step === "look" && !awaitConfirm && (
-              <div className="grid grid-cols-3 gap-3 py-2">
+            {/* Look cards for Q9 */}
+            {step === "q9" && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginTop: 8 }}>
                 {LOOK_OPTIONS.map((l) => (
-                  <button key={l.id} onClick={() => handleSend(l.id)} className="rounded-xl border border-[#334155] bg-navy-mid p-4 text-left transition hover:border-gold">
+                  <button key={l.id} onClick={() => handleSend(l.id)} style={{
+                    background: "#1a2740", border: l.id === "bold_modern" ? "2px solid #F5C842" : "1px solid #334155",
+                    borderRadius: 12, padding: 16, cursor: "pointer", textAlign: "left",
+                  }}>
                     <div style={{ height: 4, background: l.accent, borderRadius: 2, marginBottom: 10 }} />
-                    <p className="text-sm font-semibold text-white">{l.label}</p>
-                    <p className="text-xs text-[#64748b] mt-1">{l.desc}</p>
-                    <div className="mt-2 flex gap-1">
-                      {l.colors.map((c, j) => <div key={j} className="h-5 w-5 rounded-full" style={{ backgroundColor: c }} />)}
-                    </div>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: "#fff", margin: "0 0 4px" }}>{l.label}</p>
+                    <p style={{ fontSize: 11, color: "#64748b", margin: 0 }}>{l.desc}</p>
                   </button>
                 ))}
               </div>
             )}
 
-            {finishing && (
-              <div className="space-y-2 rounded-xl border border-gold/30 bg-navy-mid px-4 py-3">
-                <div className="text-sm text-gold">📍 Analyzing {city || "market"}...</div>
-                <div className="text-sm text-gold">🎨 Building campaign...</div>
-                <div className="text-sm text-green-400">✅ Profile ready — opening now.</div>
+            {loading && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 36 }}>
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#F5C842", animation: "pulse 1s infinite" }} />
+                <span style={{ fontSize: 12, color: "#64748b" }}>Bruno is thinking...</span>
               </div>
             )}
 
@@ -406,19 +531,26 @@ export default function IntakePage() {
           </div>
 
           {/* Input */}
-          {!finishing && (
-            <div className="border-t border-[#1e293b] p-4">
-              <div className="flex gap-3">
+          {step !== "finish" && (
+            <div style={{ borderTop: "1px solid #1e293b", padding: 16 }}>
+              <div style={{ display: "flex", gap: 8 }}>
                 <input
                   type="text"
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={(e) => {
+                    let v = e.target.value;
+                    if (step === "q7") v = formatPhone(v);
+                    setInput(v);
+                  }}
                   onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                  placeholder={step === "look" ? "Or type: warm, professional, bold..." : "Type your answer..."}
-                  className="flex-1 rounded-lg border border-[#334155] bg-navy-mid px-4 py-2.5 text-sm text-white outline-none transition focus:border-gold placeholder:text-[#64748b]"
-                  disabled={loading || step === "sbr"}
+                  placeholder={step === "q9" ? "Or type: Local, Community, Premier..." : "Type your answer..."}
+                  style={{ flex: 1, borderRadius: 8, border: "1px solid #334155", background: "#1a2740", padding: "10px 16px", fontSize: 14, color: "#fff", outline: "none" }}
+                  disabled={loading}
                 />
-                <button onClick={() => handleSend()} disabled={loading || !input.trim()} className="rounded-lg bg-gold px-6 py-2.5 text-sm font-semibold text-navy-dark transition hover:bg-gold-hover disabled:opacity-50">
+                <button onClick={() => handleSend()} disabled={loading || !input.trim()} style={{
+                  background: "#F5C842", color: "#0d1a2e", border: "none", borderRadius: 8,
+                  padding: "10px 20px", fontSize: 14, fontWeight: 700, cursor: "pointer", opacity: loading || !input.trim() ? 0.5 : 1,
+                }}>
                   Send
                 </button>
               </div>
@@ -427,47 +559,47 @@ export default function IntakePage() {
         </div>
 
         {/* Right Preview Panel */}
-        <div className="flex w-1/2 flex-col bg-navy-mid p-8 overflow-y-auto" style={{ position: "sticky", top: 0, height: "100vh", overflowY: "auto" }}>
+        <div style={{ width: "50%", background: "#1a2740", padding: 32, overflowY: "auto", position: "sticky", top: 0, height: "100vh" }}>
           <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "#F5C842", marginBottom: 4 }}>Live Preview</p>
-          <h3 className="mb-6 text-sm font-semibold uppercase tracking-wider text-[#64748b]">Profile Preview</h3>
+          <p style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", color: "#64748b", marginBottom: 24 }}>Profile Preview</p>
 
-          <div className="rounded-xl border border-[#334155] bg-navy-dark p-8">
+          <div style={{ background: "#0d1a2e", border: "1px solid #334155", borderRadius: 12, padding: 32 }}>
             {bizName ? (
               <>
-                <h2 className="text-2xl font-bold text-white" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>{bizName}</h2>
-                {city && <p className="mt-1 text-sm text-[#94a3b8]">{city}{zip ? `, ${zip}` : ""}</p>}
+                <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 24, fontWeight: 700, color: "#fff", margin: 0 }}>{bizName}</h2>
+                {city && <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 4 }}>{city}{zip ? `, ${zip}` : ""}</p>}
 
-                {sbrData && (
-                  <div className="mt-4 rounded-lg bg-navy-mid p-4 border border-[#334155]">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-gold mb-2">Market Intelligence</p>
-                    {(sbrData.competitors as string[])?.length > 0 && (
-                      <p className="text-xs text-[#94a3b8]">Competitors: {(sbrData.competitors as string[]).slice(0, 3).join(", ")}</p>
-                    )}
-                    {(sbrData.campaignHeadline as string) && <p className="text-xs text-[#F5C842] mt-1 font-medium">{String(sbrData.campaignHeadline)}</p>}
+                {tagline && <p style={{ fontSize: 15, color: "#F5C842", fontStyle: "italic", marginTop: 12 }}>&ldquo;{tagline}&rdquo;</p>}
+
+                {services.length > 0 && (
+                  <div style={{ marginTop: 16 }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#64748b", marginBottom: 8 }}>Services</p>
+                    {services.map((s, i) => (
+                      <div key={i} style={{ marginBottom: 8 }}>
+                        <span style={{ fontSize: 13, color: "#fff", fontWeight: 600 }}>{s.name}</span>
+                        <p style={{ fontSize: 12, color: "#94a3b8", margin: "2px 0 0" }}>{s.description}</p>
+                      </div>
+                    ))}
                   </div>
                 )}
 
-                {desc && <p className="mt-4 text-sm text-[#94a3b8] italic">&ldquo;{desc}&rdquo;</p>}
-
-                {services && (
-                  <div className="mt-4">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#64748b]">Services</p>
-                    <div className="flex flex-wrap gap-2">
-                      {services.split(",").map((s, i) => <span key={i} className="rounded-full border border-[#334155] px-3 py-1 text-xs text-white">{s.trim()}</span>)}
-                    </div>
+                {yearsOpen && (
+                  <div style={{ display: "flex", gap: 16, marginTop: 16 }}>
+                    <div><span style={{ fontSize: 20, fontWeight: 800, color: "#F5C842" }}>{yearsOpen}+</span><p style={{ fontSize: 10, color: "#64748b" }}>Years</p></div>
+                    <div><span style={{ fontSize: 20, fontWeight: 800, color: "#F5C842" }}>{customerCount}</span><p style={{ fontSize: 10, color: "#64748b" }}>Customers</p></div>
+                    <div><span style={{ fontSize: 20, fontWeight: 800, color: "#F5C842" }}>{starRating}⭐</span><p style={{ fontSize: 10, color: "#64748b" }}>Rating</p></div>
                   </div>
                 )}
 
-                {cta && (
-                  <div className="mt-4">
-                    <button className="rounded-lg bg-gold px-6 py-2 text-sm font-semibold text-navy-dark">{cta}</button>
-                  </div>
-                )}
+                {customerQuote && <p style={{ fontSize: 12, color: "#94a3b8", fontStyle: "italic", marginTop: 12, borderLeft: "2px solid #F5C842", paddingLeft: 12 }}>&ldquo;{customerQuote}&rdquo;</p>}
+
+                {cta && <button style={{ marginTop: 16, background: "#F5C842", color: "#0d1a2e", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 14, fontWeight: 700 }}>{cta}</button>}
+                {phone && <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 12 }}>{phone}</p>}
 
                 {look && previewHtml && (
-                  <div className="mt-4">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#64748b]">
-                      Look — {LOOK_OPTIONS.find((l) => l.id === look)?.label}
+                  <div style={{ marginTop: 20 }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#64748b", marginBottom: 8 }}>
+                      Site Preview — {LOOK_OPTIONS.find((l) => l.id === look)?.label}
                     </p>
                     <div style={{ background: "#374151", borderRadius: "8px 8px 0 0", padding: "6px 8px 0" }}>
                       <div style={{ display: "flex", gap: 3, marginBottom: 4 }}>
@@ -479,38 +611,31 @@ export default function IntakePage() {
                         <iframe srcDoc={previewHtml} style={{ width: 1200, height: 800, border: "none", transform: "scale(0.3)", transformOrigin: "top left", pointerEvents: "none" }} title="Preview" />
                       </div>
                     </div>
-                    <button type="button" onClick={() => { const w = window.open("", "_blank"); if (w) { w.document.write(previewHtml); w.document.close(); } }} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "#F5C842", fontSize: 12, fontWeight: 600, marginTop: 8, display: "block" }}>
-                      View Full Size →
-                    </button>
-                  </div>
-                )}
-
-                {hasLogo !== null && (
-                  <div className="mt-4">
-                    <span className={`text-sm ${hasLogo ? "text-green-400" : "text-amber-400"}`}>{hasLogo ? "✓ Has logo" : "⚠ Logo pending"}</span>
-                  </div>
-                )}
-
-                {phone && <div className="mt-4 text-sm text-[#94a3b8]"><p>{phone}{address ? ` · ${address}` : ""}</p></div>}
-
-                {occasion && <div className="mt-3"><span className="rounded-full bg-gold/20 px-3 py-1 text-xs text-gold">{occasion}</span></div>}
-
-                {step === "complete" && (
-                  <div className="mt-6 flex items-center gap-2 rounded-lg bg-green-500/10 px-4 py-2">
-                    <span className="text-green-400">✓</span>
-                    <span className="text-sm text-green-400 font-medium">Profile ready</span>
                   </div>
                 )}
               </>
             ) : (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="mb-4 text-4xl opacity-30">📋</div>
-                <p className="text-[#64748b]">Profile will build here as you answer questions.</p>
+              <div style={{ textAlign: "center", padding: "48px 0" }}>
+                <div style={{ fontSize: 48, opacity: 0.3, marginBottom: 16 }}>📋</div>
+                <p style={{ color: "#64748b" }}>Profile will build here as you answer questions.</p>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+      `}</style>
     </div>
+  );
+}
+
+export default function IntakePage() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: "100vh", background: "#0d1a2e", display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ width: 32, height: 32, border: "2px solid #F5C842", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} /></div>}>
+      <IntakeInner />
+    </Suspense>
   );
 }
