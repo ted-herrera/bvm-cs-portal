@@ -550,6 +550,23 @@ export default function DashboardPage() {
             ))}
           </div>
 
+          {/* Featured Placement Urgent Banner */}
+          {(() => {
+            const featured = clients.filter((c) => c.interests?.featured_placement);
+            if (featured.length === 0) return null;
+            return (
+              <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderLeft: "4px solid #ef4444", borderRadius: 12, padding: "14px 20px", marginBottom: 12, display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontSize: 20 }}>👑</span>
+                <div>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: "#b91c1c" }}>Featured Placement Requests — Call These Clients Now</span>
+                  <div style={{ fontSize: 12, color: "#dc2626", marginTop: 4 }}>
+                    {featured.map((c) => c.business_name).join(", ")}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Interest Notifications */}
           {(() => {
             const interested = clients.filter((c) => c.interests && (c.interests.print || c.interests.digital || c.interests.premier));
@@ -622,6 +639,7 @@ export default function DashboardPage() {
                         {c.interests?.print && <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 9999, background: "#fffbeb", color: "#92400e", fontWeight: 700 }}>📰 Print</span>}
                         {c.interests?.digital && <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 9999, background: "#fffbeb", color: "#92400e", fontWeight: 700 }}>📱 Digital</span>}
                         {c.interests?.premier && <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 9999, background: "#fffbeb", color: "#92400e", fontWeight: 700 }}>⭐ Premier</span>}
+                        {c.interests?.featured_placement && <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 9999, background: "#fef2f2", color: "#dc2626", fontWeight: 700 }}>👑 Featured</span>}
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
                         <span style={{ fontSize: 12, color: "#94a3b8" }}>{c.city}</span>

@@ -48,6 +48,8 @@ export default function TearSheetPage() {
   const [digitalInterest, setDigitalInterest] = useState(false);
   const [premierStamp, setPremierStamp] = useState(false);
   const [shareMsg, setShareMsg] = useState("");
+  const [selectedPrintSize, setSelectedPrintSize] = useState<string | null>(null);
+  const [printSent, setPrintSent] = useState(false);
 
   // Initialize selectedLook from client data
   useEffect(() => {
@@ -157,6 +159,7 @@ export default function TearSheetPage() {
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
         @keyframes premierIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+        @keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
       `}</style>
       {/* Gold top bar */}
       <div style={{ height: 4, background: "#F5C842", flexShrink: 0 }} />
@@ -472,6 +475,102 @@ export default function TearSheetPage() {
           </div>
         )}
 
+        {/* ── Print Asset Builder ────────────────────────────────────── */}
+        <div style={{ maxWidth: 900, margin: "32px auto 0", padding: "0 40px" }}>
+          <h3 style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#64748b", marginBottom: 16, textAlign: "center" }}>Your Print Ad</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>
+            {[
+              { id: "eighth", label: '1/8 Page', dim: '2.625" × 3.75"', desc: "Brand Awareness", tier: "standard" },
+              { id: "quarter", label: '1/4 Page', dim: '5.25" × 3.75"', desc: "Most Popular", tier: "popular" },
+              { id: "half", label: '1/2 Page', dim: '5.25" × 7.75"', desc: "Dominant Presence", tier: "standard" },
+              { id: "full_page", label: 'Full Page', dim: '8.5" × 11"', desc: "Maximum Impact", tier: "standard" },
+              { id: "front_cover", label: 'Front Cover', dim: '8.5" × 11"', desc: "Most Exclusive", tier: "exclusive" },
+            ].map((sz) => {
+              const isSelected = selectedPrintSize === sz.id;
+              const isExclusive = sz.tier === "exclusive";
+              const isPopular = sz.tier === "popular";
+              return (
+                <button key={sz.id} onClick={() => { setSelectedPrintSize(sz.id); setPrintSent(false); }}
+                  style={{
+                    background: isSelected ? "#fffbeb" : "#fff",
+                    border: isExclusive ? "2px solid #F5C842" : isSelected ? "2px solid #F5C842" : "2px solid #e2e8f0",
+                    borderRadius: 12, padding: "16px 10px", cursor: "pointer", textAlign: "center",
+                    position: "relative", transition: "all 0.2s",
+                    boxShadow: isSelected ? "0 4px 16px rgba(245,200,66,0.25)" : "none",
+                  }}>
+                  {isExclusive && <span style={{ position: "absolute", top: -8, left: "50%", transform: "translateX(-50%)", fontSize: 16 }}>👑</span>}
+                  {isPopular && <span style={{ position: "absolute", top: -8, left: "50%", transform: "translateX(-50%)", background: "#F5C842", color: "#0d1a2e", fontSize: 8, fontWeight: 800, padding: "2px 8px", borderRadius: 999 }}>Most Popular</span>}
+                  <p style={{ fontSize: 13, fontWeight: 700, color: "#0d1a2e", margin: "4px 0 2px" }}>{sz.label}</p>
+                  <p style={{ fontSize: 10, color: "#94a3b8", margin: "0 0 4px" }}>{sz.dim}</p>
+                  <p style={{ fontSize: 10, color: isExclusive ? "#F5C842" : "#64748b", fontWeight: 600, margin: 0 }}>{sz.desc}</p>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Print Preview */}
+          {selectedPrintSize && (() => {
+            const sizes: Record<string, { w: number; h: number }> = {
+              eighth: { w: 140, h: 200 }, quarter: { w: 200, h: 142 },
+              half: { w: 200, h: 296 }, full_page: { w: 200, h: 260 }, front_cover: { w: 200, h: 260 },
+            };
+            const sz = sizes[selectedPrintSize] || sizes.quarter;
+            const accent = LOOK_STYLES[selectedLook || client.selectedLook || "professional"]?.accent || "#1a5276";
+            return (
+              <div style={{ marginTop: 24, display: "flex", flexDirection: "column", alignItems: "center" }}>
+                <div style={{ width: sz.w, height: sz.h, border: "1px solid #e2e8f0", borderRadius: 8, overflow: "hidden", background: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 16, boxShadow: "0 4px 20px rgba(0,0,0,0.08)" }}>
+                  <div style={{ height: 3, width: 40, background: accent, margin: "0 auto 8px" }} />
+                  <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: sz.w > 160 ? 14 : 11, fontWeight: 700, color: "#0d1a2e", margin: "0 0 4px" }}>{client.business_name}</p>
+                  <p style={{ fontSize: 8, color: "#64748b", margin: "0 0 6px" }}>{tagline}</p>
+                  {services.slice(0, 2).map((s: string, i: number) => (
+                    <p key={i} style={{ fontSize: 7, color: accent, margin: "1px 0" }}>{s}</p>
+                  ))}
+                  <p style={{ fontSize: 8, color: "#94a3b8", marginTop: 6 }}>{client.phone}</p>
+                  <p style={{ fontSize: 6, color: "#c4c4c4", marginTop: 4 }}>BVM Studio</p>
+                </div>
+
+                {/* CTA */}
+                {!printSent ? (
+                  <button onClick={async () => {
+                    const isFrontCover = selectedPrintSize === "front_cover";
+                    await fetch("/api/upsell/interest", {
+                      method: "POST", headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ clientId: client.id, type: isFrontCover ? "featured_placement" : "print", size: selectedPrintSize }),
+                    });
+                    setPrintSent(true);
+                  }} style={{ marginTop: 16, background: "#F5C842", color: "#0d1a2e", border: "none", padding: "12px 28px", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+                    {selectedPrintSize === "front_cover" ? "👑 Request Featured Placement →" : "Send to My Rep →"}
+                  </button>
+                ) : (
+                  <div style={{ marginTop: 16, textAlign: "center", maxWidth: 400 }}>
+                    {selectedPrintSize === "front_cover" ? (
+                      <p style={{ fontSize: 13, color: "#0d1a2e", lineHeight: 1.6 }}>👑 Featured placement is our most exclusive offering. Limited availability per market. Your rep will contact you within 24 hours to confirm availability in your area.</p>
+                    ) : (
+                      <p style={{ fontSize: 13, color: "#22c55e", fontWeight: 600 }}>✅ Your rep has been notified. They&apos;ll reach out to confirm your placement.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* Premier review ticker */}
+        {(selectedLook === "bold_modern") && (
+          <div style={{ maxWidth: 900, margin: "24px auto 0", padding: "0 40px" }}>
+            <div style={{ background: "#0d1a2e", borderRadius: 10, padding: "12px 0", overflow: "hidden" }}>
+              <div style={{ display: "flex", animation: "ticker 25s linear infinite", whiteSpace: "nowrap" }}>
+                {["Best business in " + client.city + "!", "Highly recommend!", "My go-to in " + client.city, "Incredible service every time!", "5 stars all the way!", "Best business in " + client.city + "!", "Highly recommend!", "My go-to in " + client.city].map((r, i) => (
+                  <span key={i} style={{ fontSize: 12, color: "#F5C842", fontWeight: 600, paddingRight: 40 }}>⭐⭐⭐⭐⭐ {r}</span>
+                ))}
+              </div>
+            </div>
+            <p style={{ fontSize: 11, color: "#94a3b8", textAlign: "center", marginTop: 8, fontStyle: "italic" }}>
+              Premier includes: Live review ticker · Featured badge · Animated stats · Social share
+            </p>
+          </div>
+        )}
+
         {/* Logo Section — only if hasLogo is false AND tear-sheet */}
         {!client.hasLogo && isTearSheet && (
           <div style={{ maxWidth: 600, margin: "32px auto 0", padding: "0 40px" }}>
@@ -487,7 +586,7 @@ export default function TearSheetPage() {
                 </div>
                 <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: "20px 12px", textAlign: "center" }}>
                   <a
-                    href={`https://bvm-studio-app.vercel.app/studio-v2/brand?name=${encodedName}&mode=logo`}
+                    href={`https://bvm-studio-app.vercel.app/studio-v2/brand?name=${encodedName}&mode=logo&returnUrl=${encodeURIComponent(window.location.href)}`}
                     target="_blank"
                     style={{ fontSize: 13, fontWeight: 700, color: "#F5C842", textDecoration: "none", display: "block", marginBottom: 4 }}
                   >

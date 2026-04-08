@@ -88,6 +88,8 @@ export default function ClientPortalPage() {
   const [showWelcome, setShowWelcome] = useState(false);
   const [campaignLook, setCampaignLook] = useState("professional");
   const [customInterested, setCustomInterested] = useState(false);
+  const [selectedPrintSize, setSelectedPrintSize] = useState<string | null>(null);
+  const [printSent, setPrintSent] = useState(false);
 
   useEffect(() => {
     fetch(`/api/profile/${id}`)
@@ -106,12 +108,8 @@ export default function ClientPortalPage() {
     if (!localStorage.getItem(key)) setShowWelcome(true);
   }, [client, id]);
 
-  function cycleLook() {
-    setCampaignLook((prev) => {
-      const idx = LOOK_CYCLE.indexOf(prev);
-      return LOOK_CYCLE[(idx + 1) % LOOK_CYCLE.length];
-    });
-  }
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _campaignLook = campaignLook; // used for display
 
   if (loading) {
     return (
@@ -325,15 +323,10 @@ export default function ClientPortalPage() {
           </div>
 
           <div style={{ textAlign: "center", marginTop: 24 }}>
-            <button
-              onClick={cycleLook}
-              style={{ background: "#F5C842", color: "#0d1a2e", border: "none", padding: "12px 32px", borderRadius: 50, fontSize: 14, fontWeight: 700, cursor: "pointer" }}
-            >
-              ✨ {LOOK_LABELS[campaignLook] || "Professional"}
-            </button>
-            <p style={{ fontSize: 11, color: "#94a3b8", fontStyle: "italic", marginTop: 12 }}>
-              Your final site will match the direction you approved. Print and digital assets are available through your BVM rep.
-            </p>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 999, padding: "10px 24px" }}>
+              <div style={{ width: 12, height: 12, borderRadius: "50%", background: LOOK_STYLES[campaignLook]?.accent || "#1a5276" }} />
+              <span style={{ fontSize: 14, fontWeight: 700, color: "#0d1a2e" }}>Your Campaign Look: {LOOK_LABELS[campaignLook] || "Professional"}</span>
+            </div>
           </div>
         </div>
       </section>
@@ -388,7 +381,7 @@ export default function ClientPortalPage() {
                 <input type="file" accept=".png,.jpg,.jpeg" style={{ display: "none" }} />
               </label>
             </div>
-            <a href={`https://bvm-studio-app.vercel.app/studio-v2/brand?name=${encodedName}&mode=logo`} target="_blank" style={{ fontSize: 13, color: "#F5C842", fontWeight: 600, textDecoration: "none" }}>
+            <a href={`https://bvm-studio-app.vercel.app/studio-v2/brand?name=${encodedName}&mode=logo&returnUrl=${encodeURIComponent(typeof window !== 'undefined' ? window.location.href : '')}`} target="_blank" style={{ fontSize: 13, color: "#F5C842", fontWeight: 600, textDecoration: "none" }}>
               Generate a logo instead →
             </a>
           </div>
@@ -432,6 +425,67 @@ export default function ClientPortalPage() {
             </div>
           </div>
         </div>
+      </section>
+
+      {/* Print Size Selector */}
+      <section style={{ padding: "40px 48px", borderTop: "1px solid #f1f5f9" }}>
+        <div style={{ maxWidth: 700, margin: "0 auto" }}>
+          <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, fontWeight: 700, color: "#0d1a2e", margin: "0 0 6px", textAlign: "center" }}>Choose Your Print Ad Size</h2>
+          <p style={{ fontSize: 13, color: "#64748b", textAlign: "center", marginBottom: 24 }}>Select a size and your rep will confirm placement in your local BVM magazine.</p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
+            {[
+              { id: "eighth", label: '1/8 Page', desc: "Brand Awareness" },
+              { id: "quarter", label: '1/4 Page', desc: "Most Popular" },
+              { id: "half", label: '1/2 Page', desc: "Dominant" },
+              { id: "full_page", label: 'Full Page', desc: "Max Impact" },
+              { id: "front_cover", label: 'Front Cover', desc: "Exclusive 👑" },
+            ].map((sz) => (
+              <button key={sz.id} onClick={() => { setSelectedPrintSize(sz.id); setPrintSent(false); }}
+                style={{
+                  background: selectedPrintSize === sz.id ? "#fffbeb" : "#fff",
+                  border: selectedPrintSize === sz.id ? "2px solid #F5C842" : "2px solid #e2e8f0",
+                  borderRadius: 10, padding: "12px 8px", cursor: "pointer", textAlign: "center",
+                }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: "#0d1a2e", margin: "0 0 2px" }}>{sz.label}</p>
+                <p style={{ fontSize: 9, color: "#64748b", margin: 0 }}>{sz.desc}</p>
+              </button>
+            ))}
+          </div>
+          {selectedPrintSize && !printSent && (
+            <div style={{ textAlign: "center", marginTop: 16 }}>
+              <button onClick={async () => {
+                await fetch("/api/upsell/interest", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clientId: client.id, type: selectedPrintSize === "front_cover" ? "featured_placement" : "print", size: selectedPrintSize }) });
+                setPrintSent(true);
+              }} style={{ background: "#F5C842", color: "#0d1a2e", border: "none", padding: "12px 28px", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+                {selectedPrintSize === "front_cover" ? "👑 Request Featured Placement →" : "Send to My Rep →"}
+              </button>
+            </div>
+          )}
+          {printSent && (
+            <p style={{ textAlign: "center", marginTop: 16, fontSize: 13, color: "#22c55e", fontWeight: 600 }}>✅ Your rep has been notified!</p>
+          )}
+        </div>
+      </section>
+
+      {/* Your Rep */}
+      <section style={{ padding: "40px 48px", borderTop: "1px solid #f1f5f9" }}>
+        <div style={{ maxWidth: 500, margin: "0 auto", textAlign: "center" }}>
+          <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, fontWeight: 700, color: "#0d1a2e", margin: "0 0 12px" }}>Your Rep</h2>
+          <p style={{ fontSize: 15, fontWeight: 600, color: "#0d1a2e", margin: "0 0 4px", textTransform: "capitalize" }}>{client.assigned_rep}</p>
+          <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 20px" }}>Questions? Your rep is {client.assigned_rep}. They&apos;re here to help with anything about your campaign.</p>
+          <a href={`mailto:therrera@bestversionmedia.com?subject=${encodeURIComponent(`Question from ${client.business_name}`)}`}
+            style={{ display: "inline-block", background: "#0d1a2e", color: "#fff", padding: "12px 28px", borderRadius: 10, fontSize: 14, fontWeight: 700, textDecoration: "none" }}>
+            Contact Your Rep →
+          </a>
+        </div>
+      </section>
+
+      {/* Create Account */}
+      <section style={{ padding: "40px 48px", borderTop: "1px solid #f1f5f9", textAlign: "center" }}>
+        <a href="/login" style={{ display: "inline-block", background: "#F5C842", color: "#0d1a2e", padding: "14px 36px", borderRadius: 10, fontSize: 15, fontWeight: 700, textDecoration: "none" }}>
+          Create your BVM account →
+        </a>
+        <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 8, fontStyle: "italic" }}>Account creation coming soon</p>
       </section>
 
       {/* Footer with Contact CTA */}
