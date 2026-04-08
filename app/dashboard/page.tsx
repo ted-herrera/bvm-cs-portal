@@ -550,6 +550,20 @@ export default function DashboardPage() {
             ))}
           </div>
 
+          {/* Interest Notifications */}
+          {(() => {
+            const interested = clients.filter((c) => c.interests && (c.interests.print || c.interests.digital || c.interests.premier));
+            if (interested.length === 0) return null;
+            return (
+              <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderLeft: "4px solid #F5C842", borderRadius: 12, padding: "14px 20px", marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontSize: 20 }}>🔔</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: "#92400e" }}>
+                  {interested.length} client{interested.length !== 1 ? "s" : ""} expressed campaign interest
+                </span>
+              </div>
+            );
+          })()}
+
           {/* Today's Focus */}
           {focus && (
             <div style={{
@@ -603,7 +617,12 @@ export default function DashboardPage() {
                   {/* Content */}
                   <div style={{ flex: 1, padding: 16, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div style={{ flex: 1 }}>
-                      <p style={{ fontSize: 15, fontWeight: 700, color: "#0d1a2e", margin: 0 }}>{c.business_name}</p>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                        <p style={{ fontSize: 15, fontWeight: 700, color: "#0d1a2e", margin: 0 }}>{c.business_name}</p>
+                        {c.interests?.print && <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 9999, background: "#fffbeb", color: "#92400e", fontWeight: 700 }}>📰 Print</span>}
+                        {c.interests?.digital && <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 9999, background: "#fffbeb", color: "#92400e", fontWeight: 700 }}>📱 Digital</span>}
+                        {c.interests?.premier && <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 9999, background: "#fffbeb", color: "#92400e", fontWeight: 700 }}>⭐ Premier</span>}
+                      </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
                         <span style={{ fontSize: 12, color: "#94a3b8" }}>{c.city}</span>
                         <div style={{

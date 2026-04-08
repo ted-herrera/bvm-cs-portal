@@ -44,6 +44,10 @@ export default function TearSheetPage() {
   const [checks, setChecks] = useState([false, false, false, false]);
   const [selectedLook, setSelectedLook] = useState<string | null>(null);
   const [logoSkipped, setLogoSkipped] = useState(false);
+  const [printInterest, setPrintInterest] = useState(false);
+  const [digitalInterest, setDigitalInterest] = useState(false);
+  const [premierStamp, setPremierStamp] = useState(false);
+  const [shareMsg, setShareMsg] = useState("");
 
   // Initialize selectedLook from client data
   useEffect(() => {
@@ -57,18 +61,8 @@ export default function TearSheetPage() {
       .catch(() => setLoading(false));
   }, [id]);
 
-  const [siteHtml, setSiteHtml] = useState<string>("");
-  const [previewLoading, setPreviewLoading] = useState(false);
-
-  // Fetch site preview when look changes
-  useEffect(() => {
-    if (!client || !selectedLook) return;
-    setPreviewLoading(true);
-    fetch(`/api/site/generate?clientId=${client.id}&lookKey=${selectedLook}`)
-      .then((r) => r.text())
-      .then((html) => { setSiteHtml(html); setPreviewLoading(false); })
-      .catch(() => setPreviewLoading(false));
-  }, [client?.id, selectedLook]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _selectedLookTrigger = selectedLook; // triggers re-render for iframe src
 
   const allChecked = checks.every(Boolean);
   const lookSelected = selectedLook !== null;
@@ -159,6 +153,11 @@ export default function TearSheetPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#ffffff", display: "flex", flexDirection: "column" }}>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+        @keyframes premierIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+      `}</style>
       {/* Gold top bar */}
       <div style={{ height: 4, background: "#F5C842", flexShrink: 0 }} />
 
@@ -313,57 +312,123 @@ export default function TearSheetPage() {
           </div>
         </div>
 
-        {/* Campaign Preview Button */}
-        <div style={{ maxWidth: 600, margin: "32px auto 0", padding: "0 40px", textAlign: "center" }}>
-          <a
-            href={`/api/site/generate?clientId=${client.id}&lookKey=${selectedLook || client.selectedLook || "warm_bold"}`}
-            target="_blank"
-            style={{
-              display: "inline-block",
-              background: "#F5C842",
-              color: "#0d1a2e",
-              padding: "14px 36px",
-              borderRadius: 10,
-              fontSize: 15,
-              fontWeight: 700,
-              textDecoration: "none",
-              boxShadow: "0 4px 16px rgba(245,200,66,0.25)",
-            }}
-          >
-            View Full Campaign Preview →
-          </a>
-          <p style={{ fontSize: 12, color: "#94a3b8", marginTop: 8 }}>Opens your full site preview in a new tab</p>
+        {/* ── Campaign Reveal — 3 Panels ──────────────────────────────────── */}
+        <div style={{ maxWidth: 900, margin: "32px auto 0", padding: "0 40px" }}>
+          <h3 style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#64748b", marginBottom: 20, textAlign: "center" }}>Your Complete Campaign</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20 }}>
+            {/* Panel 1: Website LIVE */}
+            <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, overflow: "hidden", position: "relative" }}>
+              <div style={{ position: "absolute", top: 12, right: 12, zIndex: 2, background: "#22c55e", color: "#fff", fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 999 }}>Live Preview</div>
+              <div style={{ background: "#374151", borderRadius: "12px 12px 0 0", padding: "6px 10px 0" }}>
+                <div style={{ display: "flex", gap: 3, marginBottom: 4 }}>
+                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#ef4444" }} />
+                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#f59e0b" }} />
+                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e" }} />
+                </div>
+                <div style={{ background: "#fff", width: "100%", height: 180, overflow: "hidden", position: "relative" }}>
+                  <iframe
+                    src={`/api/site/generate?clientId=${client.id}&lookKey=${selectedLook || client.selectedLook || "warm_bold"}`}
+                    style={{ width: 1300, height: 850, border: "none", transform: "scale(0.21)", transformOrigin: "top left", pointerEvents: "none" }}
+                    title="Website preview"
+                  />
+                </div>
+              </div>
+              <div style={{ padding: "12px 16px", textAlign: "center" }}>
+                <p style={{ fontSize: 14, fontWeight: 700, color: "#0d1a2e", margin: "0 0 4px" }}>Your Website</p>
+                <a href={`/api/site/generate?clientId=${client.id}&lookKey=${selectedLook || client.selectedLook || "warm_bold"}`} target="_blank" style={{ fontSize: 12, color: "#F5C842", fontWeight: 600, textDecoration: "none" }}>View Full Size →</a>
+              </div>
+            </div>
+
+            {/* Panel 2: Print Ad LOCKED */}
+            <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, overflow: "hidden", position: "relative", minHeight: 280 }}>
+              <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.6)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
+                {!printInterest ? (
+                  <>
+                    <span style={{ fontSize: 36, marginBottom: 8 }}>🔒</span>
+                    <p style={{ fontSize: 15, fontWeight: 700, color: "#0d1a2e", margin: "0 0 4px" }}>Print Campaign</p>
+                    <p style={{ fontSize: 12, color: "#64748b", margin: "0 0 16px" }}>Your neighborhood magazine ad.</p>
+                    <button onClick={async () => {
+                      await fetch("/api/upsell/interest", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clientId: client.id, type: "print" }) });
+                      setPrintInterest(true);
+                    }} style={{ background: "#F5C842", color: "#0d1a2e", border: "none", padding: "10px 24px", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                      I&apos;m Interested →
+                    </button>
+                  </>
+                ) : (
+                  <p style={{ fontSize: 14, fontWeight: 700, color: "#22c55e" }}>✅ Your rep has been notified</p>
+                )}
+              </div>
+            </div>
+
+            {/* Panel 3: Digital Ad LOCKED */}
+            <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, overflow: "hidden", position: "relative", minHeight: 280 }}>
+              <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.6)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
+                {!digitalInterest ? (
+                  <>
+                    <span style={{ fontSize: 36, marginBottom: 8 }}>🔒</span>
+                    <p style={{ fontSize: 15, fontWeight: 700, color: "#0d1a2e", margin: "0 0 4px" }}>Digital Ad Suite</p>
+                    <p style={{ fontSize: 12, color: "#64748b", margin: "0 0 16px" }}>Social, display, and search ads.</p>
+                    <button onClick={async () => {
+                      await fetch("/api/upsell/interest", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clientId: client.id, type: "digital" }) });
+                      setDigitalInterest(true);
+                    }} style={{ background: "#F5C842", color: "#0d1a2e", border: "none", padding: "10px 24px", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                      I&apos;m Interested →
+                    </button>
+                  </>
+                ) : (
+                  <p style={{ fontSize: 14, fontWeight: 700, color: "#22c55e" }}>✅ Your rep has been notified</p>
+                )}
+              </div>
+            </div>
+          </div>
+          <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: "12px 20px", marginTop: 20, textAlign: "center" }}>
+            <p style={{ fontSize: 13, color: "#92400e", fontWeight: 600, margin: 0 }}>Your BVM rep will walk you through your complete campaign package.</p>
+          </div>
         </div>
 
-        {/* Look Selector — only for tear-sheet */}
+        {/* ── Look Selector — three tiers ─────────────────────────────────── */}
         {isTearSheet && (
           <div style={{ maxWidth: 900, margin: "32px auto 0", padding: "0 40px" }}>
             <h3 style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#64748b", marginBottom: 16, textAlign: "center" }}>Choose Your Campaign Direction</h3>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
               {[
-                { id: "warm_bold", label: "Warm & Bold", accent: "#c2692a", desc: "Rustic, high energy — built for food and hospitality" },
-                { id: "professional", label: "Clean & Professional", accent: "#185fa5", desc: "Trustworthy and modern — perfect for healthcare, dental, legal" },
-                { id: "bold_modern", label: "Bold & Modern", accent: "#7c3aed", desc: "Contemporary and strong — great for home services and construction" },
+                { id: "warm_bold", label: "Local", accent: "#c2692a", desc: "Warm, inviting — built for food and hospitality", tier: "standard" },
+                { id: "professional", label: "Community", accent: "#185fa5", desc: "Trustworthy and modern — healthcare, dental, legal", tier: "standard" },
+                { id: "bold_modern", label: "Premier ⭐", accent: "#F5C842", desc: "Contemporary and strong — home services and construction", tier: "premier" },
               ].map((l) => {
                 const isSelected = selectedLook === l.id;
+                const isPremier = l.tier === "premier";
                 return (
                   <button
                     key={l.id}
-                    onClick={() => setSelectedLook(l.id)}
+                    onClick={async () => {
+                      setSelectedLook(l.id);
+                      if (isPremier) {
+                        const confetti = (await import("canvas-confetti")).default;
+                        confetti({ particleCount: 120, spread: 80, colors: ["#F5C842", "#0d1a2e", "#ffffff"] });
+                        setPremierStamp(true);
+                        fetch("/api/upsell/interest", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clientId: client.id, type: "premier" }) });
+                      } else {
+                        setPremierStamp(false);
+                      }
+                    }}
                     style={{
                       background: isSelected ? "#fffbeb" : "#fff",
-                      border: isSelected ? "2px solid #F5C842" : "2px solid #e2e8f0",
+                      border: isPremier ? "2px solid #F5C842" : isSelected ? "2px solid #F5C842" : "2px solid #e2e8f0",
                       borderRadius: 16, padding: 0, cursor: "pointer",
                       textAlign: "left", position: "relative", transition: "all 0.2s",
                       overflow: "hidden",
-                      boxShadow: isSelected ? "0 4px 20px rgba(245,200,66,0.3)" : "none",
+                      boxShadow: isSelected ? "0 4px 20px rgba(245,200,66,0.3)" : isPremier ? "0 2px 12px rgba(245,200,66,0.15)" : "none",
                       transform: isSelected ? "scale(1.03)" : "scale(1)",
                     }}
                   >
+                    {isPremier && (
+                      <div style={{ position: "absolute", top: 10, right: 10, background: "#F5C842", color: "#0d1a2e", fontSize: 9, fontWeight: 800, padding: "3px 10px", borderRadius: 999, zIndex: 2 }}>Most Popular</div>
+                    )}
                     <div style={{ height: 6, background: l.accent }} />
                     <div style={{ padding: "20px 16px" }}>
                       {isSelected && (
-                        <span style={{ position: "absolute", top: 16, right: 12, width: 24, height: 24, borderRadius: "50%", background: "#F5C842", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#0d1a2e" }}>✓</span>
+                        <span style={{ position: "absolute", top: 16, left: 12, width: 24, height: 24, borderRadius: "50%", background: "#F5C842", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#0d1a2e" }}>✓</span>
                       )}
                       <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, fontWeight: 700, color: "#0d1a2e", margin: "0 0 4px" }}>{l.label}</p>
                       <p style={{ fontSize: 12, color: "#64748b", margin: 0 }}>{l.desc}</p>
@@ -380,6 +445,30 @@ export default function TearSheetPage() {
                 );
               })}
             </div>
+
+            {/* Premier Stamp */}
+            {premierStamp && (
+              <div style={{ textAlign: "center", marginTop: 24, animation: "premierIn 0.5s ease forwards" }}>
+                <div style={{ display: "inline-block", background: "#fffbeb", border: "2px solid #F5C842", borderRadius: 12, padding: "16px 32px" }}>
+                  <p style={{ fontSize: 16, fontWeight: 800, color: "#0d1a2e", margin: "0 0 4px" }}>⭐ You&apos;ve Been Featured as a Premier Local Business</p>
+                  <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 12px" }}>{client.city} · 2026</p>
+                  <button onClick={() => {
+                    const url = client.published_url || window.location.href;
+                    navigator.clipboard.writeText(`🎉 Our new website is live! Check it out: ${url} #${client.city.replace(/\s+/g, "")} #localbusiness`);
+                    setShareMsg("Copied!");
+                    setTimeout(() => setShareMsg(""), 3000);
+                  }} style={{ background: "#F5C842", color: "#0d1a2e", border: "none", padding: "10px 24px", borderRadius: 999, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                    {shareMsg || "Share Your Site →"}
+                  </button>
+                  {shareMsg && (
+                    <div style={{ marginTop: 8, fontSize: 12, color: "#64748b" }}>
+                      <a href="https://facebook.com" target="_blank" style={{ color: "#3b82f6", marginRight: 12, textDecoration: "none", fontWeight: 600 }}>→ Facebook</a>
+                      <a href="https://instagram.com" target="_blank" style={{ color: "#e11d48", textDecoration: "none", fontWeight: 600 }}>→ Instagram</a>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

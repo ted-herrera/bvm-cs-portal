@@ -526,9 +526,49 @@ export default function ProfilePage() {
                       ))}
                     </div>
                   ) : (
-                    <p style={{ fontSize: 13, color: "#94a3b8", fontStyle: "italic", margin: 0 }}>
-                      SBR runs automatically during Bruno intake — requires Anthropic API key
-                    </p>
+                    <div>
+                      <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "14px 16px", marginBottom: 12 }}>
+                        <p style={{ fontSize: 13, color: "#92400e", fontWeight: 600, margin: "0 0 4px" }}>
+                          ⚠️ SBR Analysis Unavailable
+                        </p>
+                        <p style={{ fontSize: 12, color: "#a16207", margin: 0, lineHeight: 1.5 }}>
+                          The Anthropic API key is not configured in Vercel. Go to Vercel dashboard → Settings → Environment Variables → add ANTHROPIC_API_KEY.
+                        </p>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const res = await fetch("/api/sbr/run", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                businessName: client.business_name,
+                                businessType: client.intakeAnswers?.q2 || client.business_name,
+                                city: client.city,
+                                zip: client.zip,
+                                description: client.intakeAnswers?.q2 || "",
+                              }),
+                            });
+                            const data = await res.json();
+                            if (data.success && data.sbrData) {
+                              await fetch(`/api/profile/update/${client.id}`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ sbrData: data.sbrData }),
+                              });
+                              window.location.reload();
+                            } else {
+                              alert(data.error || "SBR run failed — check API key");
+                            }
+                          } catch {
+                            alert("SBR run failed — check connection");
+                          }
+                        }}
+                        style={{ background: "#F5C842", color: "#0d1a2e", border: "none", padding: "10px 20px", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+                      >
+                        Re-run SBR →
+                      </button>
+                    </div>
                   )}
                 </div>
 

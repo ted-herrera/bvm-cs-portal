@@ -69,6 +69,7 @@ export interface ClientProfile {
   assignedDev: string | null;
   hasLogo: boolean;
   logoUrl: string | null;
+  interests?: Record<string, boolean | string>;
 }
 
 export const STAGE_ORDER: PipelineStage[] = [
