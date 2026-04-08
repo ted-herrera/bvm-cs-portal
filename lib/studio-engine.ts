@@ -337,7 +337,12 @@ footer{background:#080f1a;padding:24px 48px;display:flex;justify-content:space-b
 .review-item .src{color:rgba(255,255,255,.35);font-size:11px;margin-left:6px}
 @keyframes reviewTicker{from{transform:translateX(0)}to{transform:translateX(-50%)}}
 .featured-badge{position:absolute;top:24px;right:24px;background:#F5C842;color:#0d1a2e;padding:8px 16px;border-radius:6px;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;display:flex;align-items:center;gap:6px;z-index:10}
-.share-btn{position:fixed;bottom:24px;right:24px;z-index:999;background:#F5C842;color:#0d1a2e;border:none;border-radius:50px;padding:12px 20px;font-weight:800;font-size:14px;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,.3)}
+.share-wrap{position:fixed;bottom:24px;right:24px;z-index:999;text-align:center}
+.share-btn{background:#F5C842;color:#0d1a2e;border:none;border-radius:50px;padding:12px 20px;font-weight:800;font-size:14px;cursor:pointer;box-shadow:0 4px 20px rgba(245,200,66,.3);animation:goldPulse 2s ease-in-out infinite}
+.share-links{margin-top:8px;font-size:12px;font-weight:600;opacity:0;transition:opacity .3s}
+.share-links.visible{opacity:1}
+.share-links a{color:#F5C842;text-decoration:none;margin:0 6px}
+@keyframes goldPulse{0%{box-shadow:0 4px 20px rgba(245,200,66,.3)}50%{box-shadow:0 4px 32px rgba(245,200,66,.7)}100%{box-shadow:0 4px 20px rgba(245,200,66,.3)}}
 </style>
 </head>
 <body>
@@ -397,7 +402,10 @@ footer{background:#080f1a;padding:24px 48px;display:flex;justify-content:space-b
 <div><div class="google-badge">&#127760; <span>Google Business Profile Optimized</span></div></div>
 </div>
 <footer><span class="footer-name">{{business_name}}</span><span class="footer-mono">&copy; 2026 &middot; {{city}} &middot; BVM Studio</span></footer>
-<button class="share-btn" onclick="navigator.clipboard.writeText('\\u{1F389} Check out {{business_name}}! {{published_url}} #{{city_slug}} #localbusiness').then(function(){var b=document.querySelector('.share-btn');b.textContent='Copied! \\u2713';setTimeout(function(){b.textContent='Share \\u2192'},2000)})">Share &rarr;</button>
+<div class="share-wrap">
+<button class="share-btn" onclick="var w=this.parentElement;navigator.clipboard.writeText('\\u{1F389} Check out {{business_name}}! {{published_url}} #{{city_slug}} #localbusiness').then(function(){w.querySelector('.share-btn').textContent='Copied! \\u2713';var lnk=w.querySelector('.share-links');lnk.classList.add('visible');setTimeout(function(){lnk.classList.remove('visible');w.querySelector('.share-btn').textContent='Share Your Site \\u2192'},4000)})">Share Your Site &rarr;</button>
+<div class="share-links"><a href="https://facebook.com" target="_blank">&rarr; Facebook</a><a href="https://instagram.com" target="_blank">&rarr; Instagram</a></div>
+</div>
 <script>
 document.addEventListener('DOMContentLoaded',function(){
 var observer=new IntersectionObserver(function(entries){
