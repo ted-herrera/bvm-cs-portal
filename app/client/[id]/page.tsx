@@ -288,8 +288,11 @@ export default function ClientPortalPage() {
         <span style={{ fontSize: 13, color: "#94a3b8" }}>{client.business_name}</span>
       </nav>
 
+      {/* Centered container */}
+      <div style={{ maxWidth: 896, margin: "0 auto", padding: "0 24px", width: "100%" }}>
+
       {/* Progress */}
-      <section style={{ padding: "32px 48px" }}>
+      <section style={{ padding: "32px 0" }}>
         <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 28, fontWeight: 900, color: "#0d1a2e", margin: "0 0 4px" }}>{client.business_name}</h1>
         <div style={{ maxWidth: 500, margin: "20px 0", display: "flex", alignItems: "center" }}>
           {PORTAL_STAGES.map((_, i) => (
@@ -305,12 +308,12 @@ export default function ClientPortalPage() {
       </section>
 
       {/* Welcome video */}
-      <section style={{ padding: "0 48px 40px" }}>
+      <section style={{ paddingBottom: 40 }}>
         <video src="/claire-onboarding.mp4" controls preload="metadata" style={{ borderRadius: 12, boxShadow: "0 4px 20px rgba(0,0,0,0.1)", maxWidth: 700, width: "100%", display: "block" }} />
       </section>
 
       {/* Site Preview */}
-      <section style={{ padding: "0 48px 40px" }}>
+      <section style={{ paddingBottom: 40 }}>
         <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#94a3b8", marginBottom: 16 }}>Your Site</p>
         <div style={{ background: "#374151", borderRadius: "12px 12px 0 0", padding: "8px 12px 0", maxWidth: 800 }}>
           <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>{["#ef4444", "#f59e0b", "#22c55e"].map((c) => <div key={c} style={{ width: 8, height: 8, borderRadius: "50%", background: c }} />)}</div>
@@ -323,7 +326,7 @@ export default function ClientPortalPage() {
       </section>
 
       {/* Edit Requests */}
-      <section style={{ padding: "0 48px 40px" }}>
+      <section style={{ paddingBottom: 40 }}>
         <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#94a3b8", marginBottom: 16 }}>Request a Change</p>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, maxWidth: 700 }}>
           <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 12, padding: 20 }}>
@@ -347,7 +350,7 @@ export default function ClientPortalPage() {
       </section>
 
       {/* Print Builder */}
-      <section style={{ padding: "0 48px 40px" }}>
+      <section style={{ paddingBottom: 40 }}>
         <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#94a3b8", marginBottom: 16 }}>Your Print Campaign</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, maxWidth: 700 }}>
           {[{ id: "eighth", label: "1/8 Page", desc: "Brand Awareness" }, { id: "quarter", label: "1/4 Page", desc: "Most Popular" }, { id: "half", label: "1/2 Page", desc: "Dominant" }, { id: "full_page", label: "Full Page", desc: "Max Impact" }, { id: "front_cover", label: "Front Cover", desc: "Exclusive" }].map((s) => (
@@ -364,7 +367,7 @@ export default function ClientPortalPage() {
       </section>
 
       {/* Upsell Ladder */}
-      <section style={{ padding: "0 48px 40px", borderTop: "1px solid #f1f5f9", paddingTop: 40 }}>
+      <section style={{ paddingBottom: 40, borderTop: "1px solid #f1f5f9", paddingTop: 40 }}>
         <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#94a3b8", marginBottom: 16 }}>Grow Your Campaign</p>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
           {UPSELLS.map((u) => (
@@ -380,9 +383,13 @@ export default function ClientPortalPage() {
         </div>
       </section>
 
-      {/* ── LMS — Windows 95 Style ───────────────────────────────────────── */}
-      <section style={{ padding: "0 48px 40px" }}>
-        <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#94a3b8", marginBottom: 16 }}>Get the Most From Your Site</p>
+      </div>{/* end centered container */}
+
+      {/* ── LMS — Windows 95 Style (full-bleed navy) ─────────────────────── */}
+      <div style={{ borderTop: "3px solid #F5C842" }} />
+      <section style={{ background: "#1a2e3b", padding: "48px 24px" }}>
+        <div style={{ maxWidth: 896, margin: "0 auto" }}>
+        <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#F5C842", marginBottom: 16 }}>Get the Most From Your Site</p>
 
         {/* Windows 95 Frame */}
         <div style={{ maxWidth: 380, background: "#c0c0c0", border: "2px solid #fff", borderRightColor: "#808080", borderBottomColor: "#808080", boxShadow: "inset 1px 1px 0 #dfdfdf, inset -1px -1px 0 #808080, 2px 2px 8px rgba(0,0,0,0.15)", fontFamily: "'MS Sans Serif', 'Segoe UI', Tahoma, sans-serif" }}>
@@ -437,18 +444,22 @@ export default function ClientPortalPage() {
         {/* Other LMS module cards */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginTop: 20 }}>
           {[{ title: "How to Share Your Site", desc: "Facebook, Instagram, Google — where to post and what to say." }, { title: "Getting Found on Google", desc: "Simple steps to make sure customers find you first." }, { title: "Tracking Your Results", desc: "Understanding your dashboard analytics and traffic." }].map((m) => (
-            <div key={m.title} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 12, padding: 20 }}>
-              <h3 style={{ fontSize: 15, fontWeight: 700, color: "#0d1a2e", margin: "0 0 8px" }}>{m.title}</h3>
-              <p style={{ fontSize: 13, color: "#64748b", lineHeight: 1.5, margin: "0 0 12px" }}>{m.desc}</p>
+            <div key={m.title} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, padding: 20 }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: "#fff", margin: "0 0 8px" }}>{m.title}</h3>
+              <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", lineHeight: 1.5, margin: "0 0 12px" }}>{m.desc}</p>
               <span style={{ fontSize: 13, color: "#F5C842", fontWeight: 600 }}>Start Module →</span>
             </div>
           ))}
         </div>
+        </div>{/* end inner centered container */}
       </section>
+
+      {/* Centered container for remaining sections */}
+      <div style={{ maxWidth: 896, margin: "0 auto", padding: "0 24px", width: "100%" }}>
 
       {/* Messages */}
       {client.messages.length > 0 && (
-        <section style={{ padding: "0 48px 40px" }}>
+        <section style={{ paddingTop: 40, paddingBottom: 40 }}>
           <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#94a3b8", marginBottom: 16 }}>Messages</p>
           {client.messages.map((m, i) => (
             <div key={i} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: 14, marginBottom: 8 }}>
@@ -465,6 +476,8 @@ export default function ClientPortalPage() {
           </div>
         </section>
       )}
+
+      </div>{/* end centered container */}
 
       {/* Contact */}
       <footer style={{ borderTop: "1px solid #e2e8f0", padding: "24px 48px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
