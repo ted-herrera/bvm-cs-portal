@@ -175,6 +175,7 @@ export default function BuildQueuePage() {
   const [clock, setClock] = useState(new Date());
   const [selectedBuild, setSelectedBuild] = useState<ClientProfile | null>(null);
   const [msgInput, setMsgInput] = useState("");
+  const [claimToast, setClaimToast] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   async function load() {
@@ -182,7 +183,11 @@ export default function BuildQueuePage() {
       const res = await fetch("/api/clients");
       const data = await res.json();
       const real = (data.clients || []) as ClientProfile[];
-      setClients([...MOCK_BUILDS, ...real.filter((c) => !MOCK_BUILDS.some((m) => m.id === c.id))]);
+      setClients((prev) => {
+        const localClaims = new Map(prev.filter((c) => c.assignedDev === DEV_USERNAME).map((c) => [c.id, c.assignedDev]));
+        const merged = [...MOCK_BUILDS, ...real.filter((c) => !MOCK_BUILDS.some((m) => m.id === c.id))];
+        return merged.map((c) => localClaims.has(c.id) ? { ...c, assignedDev: localClaims.get(c.id) as string } : c);
+      });
     } catch { /* ignore */ }
     setLoading(false);
   }
@@ -193,7 +198,12 @@ export default function BuildQueuePage() {
     const poll = setInterval(() => {
       fetch("/api/clients").then((r) => r.json()).then((d) => {
         const real = (d.clients || []) as ClientProfile[];
-        setClients([...MOCK_BUILDS, ...real.filter((c) => !MOCK_BUILDS.some((m) => m.id === c.id))]);
+        setClients((prev) => {
+          // Preserve local assignedDev overrides from optimistic claims
+          const localClaims = new Map(prev.filter((c) => c.assignedDev === DEV_USERNAME).map((c) => [c.id, c.assignedDev]));
+          const merged = [...MOCK_BUILDS, ...real.filter((c) => !MOCK_BUILDS.some((m) => m.id === c.id))];
+          return merged.map((c) => localClaims.has(c.id) ? { ...c, assignedDev: localClaims.get(c.id) as string } : c);
+        });
       }).catch(() => {});
     }, 10000);
     return () => { clearInterval(i); clearInterval(poll); };
@@ -213,12 +223,22 @@ export default function BuildQueuePage() {
   const avgQA = qaClients.length ? Math.round(qaClients.reduce((s, c) => s + (c.qaReport?.score || 0), 0) / qaClients.length) : 0;
 
   async function claimBuild(clientId: string) {
-    await fetch("/api/build/claim", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clientId, devUsername: DEV_USERNAME }),
-    });
-    load();
+    // Optimistically update local state so the build moves to My Builds immediately
+    setClients((prev) => prev.map((c) => c.id === clientId ? { ...c, assignedDev: DEV_USERNAME } : c));
+    const claimed = clients.find((c) => c.id === clientId);
+    if (claimed) {
+      setSelectedBuild({ ...claimed, assignedDev: DEV_USERNAME });
+      setClaimToast(`Build claimed — ${claimed.business_name}`);
+      setTimeout(() => setClaimToast(""), 3000);
+    }
+    // Fire and forget the backend call — don't reload to preserve local state
+    try {
+      await fetch("/api/build/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId, devUsername: DEV_USERNAME }),
+      });
+    } catch { /* ignore — optimistic update already applied */ }
   }
 
   async function markReady(clientId: string) {
@@ -288,6 +308,13 @@ export default function BuildQueuePage() {
           <button onClick={handleSignOut} style={{ background: "none", border: "1px solid #ff3b3b40", borderRadius: 4, padding: "2px 10px", fontSize: 11, color: "#ff3b3b", cursor: "pointer", fontFamily: mono }}>LOGOUT</button>
         </div>
       </nav>
+
+      {/* Claim toast */}
+      {claimToast && (
+        <div style={{ position: "fixed", top: 60, left: "50%", transform: "translateX(-50%)", background: "#00d4ff", color: "#000", padding: "8px 20px", borderRadius: 4, fontSize: 12, fontWeight: 500, letterSpacing: "0.06em", zIndex: 500, fontFamily: mono, boxShadow: "0 4px 20px rgba(0,212,255,0.4)" }}>
+          ✓ {claimToast}
+        </div>
+      )}
 
       {/* ── THREE COLUMNS ────────────────────────────────────────────────── */}
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>

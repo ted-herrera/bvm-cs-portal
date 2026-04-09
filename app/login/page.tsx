@@ -22,10 +22,10 @@ export default function LoginPage() {
         body: JSON.stringify({ username, password }),
       });
 
+      const data = await res.json();
       if (res.ok) {
-        router.push("/dashboard");
+        router.push(data.role === "dev" ? "/build-queue" : "/dashboard");
       } else {
-        const data = await res.json();
         setError(data.error || "Invalid credentials");
       }
     } catch {
@@ -43,8 +43,9 @@ export default function LoginPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username: "demo", password: "demo" }),
-    }).then((res) => {
-      if (res.ok) router.push("/dashboard");
+    }).then(async (res) => {
+      const data = await res.json();
+      if (res.ok) router.push(data.role === "dev" ? "/build-queue" : "/dashboard");
       else setError("Demo login failed");
       setLoading(false);
     }).catch(() => { setError("Something went wrong"); setLoading(false); });
