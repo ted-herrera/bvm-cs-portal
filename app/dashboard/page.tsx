@@ -87,7 +87,8 @@ export default function DashboardPage() {
   const [bellOpen, setBellOpen] = useState(false);
   const [readNotifs, setReadNotifs] = useState<Set<string>>(new Set());
   const [affIdx, setAffIdx] = useState(Math.floor(new Date().getTime() / 86400000) % AFFIRMATIONS.length);
-  const [drawerClient, setDrawerClient] = useState<ClientProfile | null>(null);
+  const [selectedClient, setSelectedClient] = useState<ClientProfile | null>(null);
+  const [slideOutOpen, setSlideOutOpen] = useState(false);
   const [drawerTab, setDrawerTab] = useState<"overview" | "comm" | "actions">("overview");
   const [msgInput, setMsgInput] = useState("");
   const [msgSending, setMsgSending] = useState(false);
@@ -126,7 +127,7 @@ export default function DashboardPage() {
     return () => { clearInterval(i); clearInterval(clockInterval); };
   }, []);
 
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [drawerClient]);
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [slideOutOpen, selectedClient]);
 
   // Notifications
   const notifications = clients.flatMap((c) =>
@@ -157,16 +158,16 @@ export default function DashboardPage() {
   const avgQA = qaClients.length ? Math.round(qaClients.reduce((s, c) => s + (c.qaReport?.score || 0), 0) / qaClients.length) : 0;
 
   async function sendMessage() {
-    if (!msgInput.trim() || !drawerClient || msgSending) return;
+    if (!msgInput.trim() || !selectedClient || msgSending) return;
     setMsgSending(true);
     try {
-      await fetch(`/api/profile/message/${drawerClient.id}`, {
+      await fetch(`/api/profile/message/${selectedClient.id}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: msgInput, from: "rep", repName: "Ted" }),
       });
       const newMsg = { from: "rep", text: msgInput, timestamp: new Date().toISOString() };
-      const updated = { ...drawerClient, messages: [...drawerClient.messages, newMsg] };
-      setDrawerClient(updated);
+      const updated = { ...selectedClient, messages: [...selectedClient.messages, newMsg] };
+      setSelectedClient(updated);
       setClients((prev) => prev.map((c) => c.id === updated.id ? updated : c));
       setMsgInput("");
     } catch { /* ignore */ }
@@ -181,22 +182,22 @@ export default function DashboardPage() {
   const [interestsOpen, setInterestsOpen] = useState(true);
 
   // ── Left panel: selected client info ────────────────────────────────────────
-  const leftInitials = drawerClient
-    ? drawerClient.business_name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
+  const leftInitials = selectedClient
+    ? selectedClient.business_name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
     : "";
-  const leftName = drawerClient ? drawerClient.business_name : "";
-  const leftSub = drawerClient ? `${drawerClient.city}${drawerClient.zip ? `, ${drawerClient.zip}` : ""}` : "";
+  const leftName = selectedClient ? selectedClient.business_name : "";
+  const leftSub = selectedClient ? `${selectedClient.city}${selectedClient.zip ? `, ${selectedClient.zip}` : ""}` : "";
 
   // ── Communications: merge real messages + mock dev/client messages ─────────
   const ROLE_COLORS: Record<string, string> = { rep: "#2d3e50", dev: "#7c3aed", client: "#0891b2" };
   const ROLE_LABELS: Record<string, string> = { rep: "REP", dev: "DEV", client: "CLIENT" };
-  const mockCommsMessages = drawerClient ? [
-    ...(drawerClient.messages.length > 0 ? drawerClient.messages : []),
-    ...(!drawerClient.messages.some((m) => m.from === "dev") ? [
-      { from: "dev", text: `Site build started for ${drawerClient.business_name}. Hero section done, working on services.`, timestamp: new Date(Date.now() - 7200000).toISOString() },
+  const mockCommsMessages = selectedClient ? [
+    ...(selectedClient.messages.length > 0 ? selectedClient.messages : []),
+    ...(!selectedClient.messages.some((m) => m.from === "dev") ? [
+      { from: "dev", text: `Site build started for ${selectedClient.business_name}. Hero section done, working on services.`, timestamp: new Date(Date.now() - 7200000).toISOString() },
       { from: "dev", text: "QA passed — ready for rep review.", timestamp: new Date(Date.now() - 3600000).toISOString() },
     ] : []),
-    ...(!drawerClient.messages.some((m) => m.from === "client") ? [
+    ...(!selectedClient.messages.some((m) => m.from === "client") ? [
       { from: "client", text: "Looks great! Can we change the phone number though?", timestamp: new Date(Date.now() - 1800000).toISOString() },
     ] : []),
   ].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()) : [];
@@ -323,7 +324,7 @@ export default function DashboardPage() {
         }}>
           {/* Contact card */}
           <div style={{ padding: "28px 20px 20px", borderBottom: "1px solid #e5e9ef", textAlign: "center" }}>
-            {drawerClient ? (
+            {selectedClient ? (
               <>
                 <div style={{
                   width: 72, height: 72, borderRadius: "50%",
@@ -375,15 +376,15 @@ export default function DashboardPage() {
           </div>
 
           {/* Property rows */}
-          {drawerClient && (
+          {selectedClient && (
           <div style={{ padding: "4px 0", borderBottom: "1px solid #e5e9ef" }}>
             {[
-              { label: "Stage", value: STAGE_LABELS[drawerClient.stage], highlight: true },
-              { label: "Last Contacted", value: timeAgo(drawerClient.buildLog[drawerClient.buildLog.length - 1]?.timestamp || drawerClient.created_at) },
+              { label: "Stage", value: STAGE_LABELS[selectedClient.stage], highlight: true },
+              { label: "Last Contacted", value: timeAgo(selectedClient.buildLog[selectedClient.buildLog.length - 1]?.timestamp || selectedClient.created_at) },
               { label: "Agreement #", value: "Pull from Close CRM" },
-              { label: "Look", value: drawerClient.selectedLook?.replace(/_/g, " ") || "—" },
-              { label: "Phone", value: drawerClient.phone || "—" },
-              { label: "City", value: drawerClient.city || "—" },
+              { label: "Look", value: selectedClient.selectedLook?.replace(/_/g, " ") || "—" },
+              { label: "Phone", value: selectedClient.phone || "—" },
+              { label: "City", value: selectedClient.city || "—" },
             ].map((row) => (
               <div key={row.label} style={{
                 display: "flex", justifyContent: "space-between", alignItems: "flex-start",
@@ -515,7 +516,7 @@ export default function DashboardPage() {
                     return (
                       <div
                         key={c.id}
-                        onClick={() => { setDrawerClient(c); setDrawerTab("overview"); }}
+                        onClick={() => { setSelectedClient(c); setSlideOutOpen(true); setDrawerTab("overview"); }}
                         style={{
                           display: "flex", alignItems: "center", gap: 14,
                           background: "#fff", border: "1px solid #e5e9ef",
@@ -596,7 +597,7 @@ export default function DashboardPage() {
                           return (
                             <div
                               key={c.id}
-                              onClick={() => { setDrawerClient(c); setDrawerTab("overview"); }}
+                              onClick={() => { setSelectedClient(c); setSlideOutOpen(true); setDrawerTab("overview"); }}
                               style={{
                                 background: "#fff", border: "1px solid #e5e9ef",
                                 borderRadius: 8, padding: "10px 12px", marginBottom: 6,
@@ -675,14 +676,14 @@ export default function DashboardPage() {
             <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#2d3e50", margin: 0 }}>
               Communications
             </p>
-            {drawerClient && (
-              <p style={{ fontSize: 12, color: "#7a8a9a", margin: "2px 0 0" }}>{drawerClient.business_name}</p>
+            {selectedClient && (
+              <p style={{ fontSize: 12, color: "#7a8a9a", margin: "2px 0 0" }}>{selectedClient.business_name}</p>
             )}
           </div>
 
           {/* Thread */}
           <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px" }}>
-            {!drawerClient ? (
+            {!selectedClient ? (
               <div style={{ textAlign: "center", padding: "40px 16px" }}>
                 <p style={{ fontSize: 13, color: "#7a8a9a" }}>Select a client to view thread</p>
               </div>
@@ -713,7 +714,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Message input */}
-          {drawerClient && (
+          {selectedClient && (
             <div style={{ padding: "10px 14px", borderTop: "1px solid #e5e9ef", background: "#f8fafc", display: "flex", gap: 8 }}>
               <input
                 type="text"
@@ -847,11 +848,11 @@ export default function DashboardPage() {
       )}
 
       {/* ── SLIDE-OUT PANEL ──────────────────────────────────────────────────── */}
-      {drawerClient && (
+      {slideOutOpen && selectedClient && (
         <>
-          <div onClick={() => setDrawerClient(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 49 }} />
+          <div onClick={() => setSlideOutOpen(false)} style={{ position: "fixed", top: 0, left: 280, right: 0, bottom: 0, background: "rgba(0,0,0,0.3)", zIndex: 49 }} />
           <div style={{
-            position: "fixed", top: 0, right: 0, width: 400, height: "100vh",
+            position: "fixed", top: 56, right: 0, width: 420, maxWidth: "calc(100vw - 280px)", height: "calc(100vh - 56px)",
             background: "#fff", boxShadow: "-8px 0 32px rgba(0,0,0,0.12)",
             zIndex: 50, display: "flex", flexDirection: "column",
             animation: "slideIn 0.25s ease-out",
@@ -863,14 +864,14 @@ export default function DashboardPage() {
             }}>
               <div>
                 <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, fontWeight: 700, color: "#1a2332", margin: 0 }}>
-                  {drawerClient.business_name}
+                  {selectedClient.business_name}
                 </h2>
                 <p style={{ fontSize: 12, color: "#7a8a9a", margin: "2px 0 0" }}>
-                  {drawerClient.city} · {STAGE_LABELS[drawerClient.stage]}
+                  {selectedClient.city} · {STAGE_LABELS[selectedClient.stage]}
                 </p>
               </div>
               <button
-                onClick={() => setDrawerClient(null)}
+                onClick={() => setSlideOutOpen(false)}
                 style={{ background: "none", border: "none", fontSize: 22, color: "#7a8a9a", cursor: "pointer" }}
               >
                 ×
@@ -899,22 +900,22 @@ export default function DashboardPage() {
             <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
               {drawerTab === "overview" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12, fontSize: 13 }}>
-                  <div><span style={{ color: "#7a8a9a" }}>Phone: </span><span style={{ color: "#1a2332", fontWeight: 600 }}>{drawerClient.phone || "—"}</span></div>
-                  <div><span style={{ color: "#7a8a9a" }}>Look: </span><span style={{ color: "#1a2332", fontWeight: 600, textTransform: "capitalize" }}>{drawerClient.selectedLook?.replace(/_/g, " ") || "—"}</span></div>
-                  <div><span style={{ color: "#7a8a9a" }}>Services: </span><span style={{ color: "#1a2332" }}>{drawerClient.intakeAnswers?.q3 || "—"}</span></div>
-                  <div><span style={{ color: "#7a8a9a" }}>CTA: </span><span style={{ color: "#1a2332" }}>{drawerClient.intakeAnswers?.q4 || "—"}</span></div>
-                  <div><span style={{ color: "#7a8a9a" }}>Stage: </span><span style={{ color: "#F5C842", fontWeight: 600 }}>{STAGE_LABELS[drawerClient.stage]}</span></div>
-                  <div><span style={{ color: "#7a8a9a" }}>Created: </span><span style={{ color: "#1a2332" }}>{new Date(drawerClient.created_at).toLocaleDateString()}</span></div>
-                  {drawerClient.interests && Object.keys(drawerClient.interests).filter((k) => !k.endsWith("_at") && drawerClient.interests?.[k]).length > 0 && (
-                    <div><span style={{ color: "#7a8a9a" }}>Interests: </span><span style={{ color: "#F5C842", fontWeight: 600 }}>{Object.keys(drawerClient.interests).filter((k) => !k.endsWith("_at") && drawerClient.interests?.[k]).join(", ")}</span></div>
+                  <div><span style={{ color: "#7a8a9a" }}>Phone: </span><span style={{ color: "#1a2332", fontWeight: 600 }}>{selectedClient.phone || "—"}</span></div>
+                  <div><span style={{ color: "#7a8a9a" }}>Look: </span><span style={{ color: "#1a2332", fontWeight: 600, textTransform: "capitalize" }}>{selectedClient.selectedLook?.replace(/_/g, " ") || "—"}</span></div>
+                  <div><span style={{ color: "#7a8a9a" }}>Services: </span><span style={{ color: "#1a2332" }}>{selectedClient.intakeAnswers?.q3 || "—"}</span></div>
+                  <div><span style={{ color: "#7a8a9a" }}>CTA: </span><span style={{ color: "#1a2332" }}>{selectedClient.intakeAnswers?.q4 || "—"}</span></div>
+                  <div><span style={{ color: "#7a8a9a" }}>Stage: </span><span style={{ color: "#F5C842", fontWeight: 600 }}>{STAGE_LABELS[selectedClient.stage]}</span></div>
+                  <div><span style={{ color: "#7a8a9a" }}>Created: </span><span style={{ color: "#1a2332" }}>{new Date(selectedClient.created_at).toLocaleDateString()}</span></div>
+                  {selectedClient.interests && Object.keys(selectedClient.interests).filter((k) => !k.endsWith("_at") && selectedClient.interests?.[k]).length > 0 && (
+                    <div><span style={{ color: "#7a8a9a" }}>Interests: </span><span style={{ color: "#F5C842", fontWeight: 600 }}>{Object.keys(selectedClient.interests).filter((k) => !k.endsWith("_at") && selectedClient.interests?.[k]).join(", ")}</span></div>
                   )}
                 </div>
               )}
 
               {drawerTab === "comm" && (
                 <div>
-                  {drawerClient.messages.length === 0 && <p style={{ color: "#7a8a9a", fontSize: 13, textAlign: "center", padding: "20px 0" }}>No messages yet.</p>}
-                  {drawerClient.messages.map((m, i) => (
+                  {selectedClient.messages.length === 0 && <p style={{ color: "#7a8a9a", fontSize: 13, textAlign: "center", padding: "20px 0" }}>No messages yet.</p>}
+                  {selectedClient.messages.map((m, i) => (
                     <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid #f0f2f5" }}>
                       <div style={{ display: "flex", justifyContent: "space-between" }}>
                         <span style={{ fontSize: 12, fontWeight: 600, color: "#1a2332" }}>{m.from}</span>
@@ -929,14 +930,14 @@ export default function DashboardPage() {
 
               {drawerTab === "actions" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <Link href={`/tearsheet/${drawerClient.id}`} style={{ display: "block", background: "#F5C842", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: "none", textAlign: "center" }}>Open Full Profile →</Link>
-                  <Link href={`/tearsheet/${drawerClient.id}`} style={{ display: "block", background: "#f8fafc", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none", textAlign: "center", border: "1px solid #e5e9ef" }}>Open Tear Sheet →</Link>
-                  <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/client/${drawerClient.id}`); }} style={{ background: "#f8fafc", border: "1px solid #e5e9ef", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Copy Client Portal Link</button>
-                  <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/tearsheet/${drawerClient.id}`); }} style={{ background: "#f8fafc", border: "1px solid #e5e9ef", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Copy Tear Sheet Link</button>
+                  <Link href={`/tearsheet/${selectedClient.id}`} style={{ display: "block", background: "#F5C842", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: "none", textAlign: "center" }}>Open Full Profile →</Link>
+                  <Link href={`/tearsheet/${selectedClient.id}`} style={{ display: "block", background: "#f8fafc", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none", textAlign: "center", border: "1px solid #e5e9ef" }}>Open Tear Sheet →</Link>
+                  <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/client/${selectedClient.id}`); }} style={{ background: "#f8fafc", border: "1px solid #e5e9ef", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Copy Client Portal Link</button>
+                  <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/tearsheet/${selectedClient.id}`); }} style={{ background: "#f8fafc", border: "1px solid #e5e9ef", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Copy Tear Sheet Link</button>
                   {gcalConnected && (
-                    <button onClick={() => addToCalendar(`Follow up: ${drawerClient.business_name}`, `Check in on ${drawerClient.business_name} build status. Stage: ${STAGE_LABELS[drawerClient.stage]}`)} style={{ background: "#f8fafc", border: "1px solid #e5e9ef", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>📅 Add Calendar Reminder</button>
+                    <button onClick={() => addToCalendar(`Follow up: ${selectedClient.business_name}`, `Check in on ${selectedClient.business_name} build status. Stage: ${STAGE_LABELS[selectedClient.stage]}`)} style={{ background: "#f8fafc", border: "1px solid #e5e9ef", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>📅 Add Calendar Reminder</button>
                   )}
-                  <Link href={`/qa?clientId=${drawerClient.id}`} style={{ display: "block", background: "#f8fafc", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none", textAlign: "center", border: "1px solid #e5e9ef" }}>Run QA</Link>
+                  <Link href={`/qa?clientId=${selectedClient.id}`} style={{ display: "block", background: "#f8fafc", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none", textAlign: "center", border: "1px solid #e5e9ef" }}>Run QA</Link>
                 </div>
               )}
             </div>
