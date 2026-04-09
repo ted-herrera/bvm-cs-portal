@@ -209,7 +209,7 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: "100vh", background: "#f0f2f5", display: "flex", flexDirection: "column" }}>
+      <div style={{ minHeight: "100vh", background: "#1B2A4A", display: "flex", flexDirection: "column" }}>
         {/* HubSpot-style top nav */}
         <nav style={{ background: "#2d3e50", height: 56, display: "flex", alignItems: "center", padding: "0 20px", gap: 16, flexShrink: 0 }}>
           <img src="/bvm_logo.png" alt="BVM" style={{ height: 32, objectFit: "contain" }} />
@@ -223,7 +223,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f0f2f5", display: "flex", flexDirection: "column" }}>
+    <div style={{ minHeight: "100vh", background: "#1B2A4A", display: "flex", flexDirection: "column" }}>
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -461,7 +461,7 @@ export default function DashboardPage() {
 
         {/* ── CENTER PANEL ─────────────────────────────────────────────────── */}
         <main style={{
-          flex: 1, background: "#f0f2f5", overflowY: "auto",
+          flex: 1, background: "#1B2A4A", overflowY: "auto",
           display: "flex", flexDirection: "column", minWidth: 0,
         }}>
           {/* Featured Placement urgent alert */}
