@@ -8,6 +8,158 @@ import { STAGE_LABELS } from "@/lib/pipeline";
 
 const DEV_USERNAME = "dev";
 
+function daysAgo(n: number): string {
+  return new Date(Date.now() - n * 86400000).toISOString();
+}
+
+function hoursAgo(n: number): string {
+  return new Date(Date.now() - n * 3600000).toISOString();
+}
+
+const MOCK_BUILDS: ClientProfile[] = [
+  {
+    id: "mock-rosalinda",
+    business_name: "Rosalinda's Tacos",
+    contact_name: "Rosalinda Garcia",
+    contact_email: "rosalinda@example.com",
+    phone: "(918) 555-0142",
+    city: "Tulsa, OK",
+    zip: "74103",
+    assigned_rep: "Ted Herrera",
+    stage: "building",
+    created_at: daysAgo(5),
+    approved_at: daysAgo(2),
+    qa_passed_at: null,
+    delivered_at: null,
+    published_url: null,
+    sbrData: { suggestedTagline: "Tulsa's Taco Revolution Starts Here" },
+    selectedLook: "warm_bold",
+    intakeAnswers: { q1: "Rosalinda's Tacos, Tulsa 74103", q3: "Street Tacos, Catering, Late Night", q4: "Order Now" },
+    tearSheetUrl: null,
+    buildNotes: [],
+    qaReport: null,
+    messages: [
+      { from: "rep", text: "New build approved — client picked Warm Bold. Logo attached in dev pack.", timestamp: daysAgo(2) },
+      { from: "rep", text: "Hey heads up — they want the menu front and center.", timestamp: hoursAgo(18) },
+    ],
+    internalNotes: [],
+    buildLog: [
+      { from: "tear-sheet", to: "building", timestamp: daysAgo(2), triggeredBy: "client" },
+    ],
+    assignedDev: null,
+    hasLogo: true,
+    logoUrl: null,
+  },
+  {
+    id: "mock-peak-dental",
+    business_name: "Peak Dental",
+    contact_name: "Dr. James Peak",
+    contact_email: "james@peakdental.com",
+    phone: "(303) 555-0188",
+    city: "Denver, CO",
+    zip: "80202",
+    assigned_rep: "Ted Herrera",
+    stage: "building",
+    created_at: daysAgo(8),
+    approved_at: daysAgo(4),
+    qa_passed_at: null,
+    delivered_at: null,
+    published_url: null,
+    sbrData: { suggestedTagline: "Denver's Trusted Smile Experts" },
+    selectedLook: "professional",
+    intakeAnswers: { q1: "Peak Dental, Denver 80202", q3: "Cleanings, Whitening, Implants", q4: "Book Now" },
+    tearSheetUrl: null,
+    buildNotes: [],
+    qaReport: null,
+    messages: [
+      { from: "rep", text: "This is featured placement — client already paid. High priority.", timestamp: daysAgo(4) },
+      { from: "rep", text: "Dr. Peak called — wants an emphasis on implant financing. Add a callout box.", timestamp: daysAgo(2) },
+      { from: "rep", text: "Any ETA? Client is asking.", timestamp: hoursAgo(6) },
+    ],
+    internalNotes: [],
+    buildLog: [
+      { from: "tear-sheet", to: "building", timestamp: daysAgo(4), triggeredBy: "client" },
+    ],
+    assignedDev: null,
+    hasLogo: true,
+    logoUrl: null,
+    interests: { featured_placement: true },
+  },
+  {
+    id: "mock-iron-ridge",
+    business_name: "Iron Ridge Roofing",
+    contact_name: "Mike Callahan",
+    contact_email: "mike@ironridge.com",
+    phone: "(615) 555-0177",
+    city: "Nashville, TN",
+    zip: "37203",
+    assigned_rep: "Ted Herrera",
+    stage: "building",
+    created_at: daysAgo(3),
+    approved_at: daysAgo(1),
+    qa_passed_at: null,
+    delivered_at: null,
+    published_url: null,
+    sbrData: { suggestedTagline: "Nashville's Storm-Ready Roofers" },
+    selectedLook: "bold_modern",
+    intakeAnswers: { q1: "Iron Ridge Roofing, Nashville 37203", q3: "Roof Repair, New Roofs, Storm Damage", q4: "Get Free Estimate" },
+    tearSheetUrl: null,
+    buildNotes: [],
+    qaReport: {
+      passed: true,
+      score: 94,
+      passes: [],
+      runAt: hoursAgo(12),
+    },
+    messages: [
+      { from: "rep", text: "Initial QA run came back at 94 — just a few minor things to polish.", timestamp: hoursAgo(12) },
+      { from: "rep", text: "Should be a quick turnaround. Client is expecting it by Friday.", timestamp: hoursAgo(8) },
+    ],
+    internalNotes: [],
+    buildLog: [
+      { from: "tear-sheet", to: "building", timestamp: daysAgo(1), triggeredBy: "client" },
+    ],
+    assignedDev: null,
+    hasLogo: true,
+    logoUrl: null,
+  },
+  {
+    id: "mock-hanks",
+    business_name: "Hanks Hamburgers",
+    contact_name: "Hank Morrison",
+    contact_email: "hank@hanksburgers.com",
+    phone: "(918) 555-0123",
+    city: "Tulsa, OK",
+    zip: "74104",
+    assigned_rep: "Ted Herrera",
+    stage: "building",
+    created_at: daysAgo(10),
+    approved_at: daysAgo(6),
+    qa_passed_at: null,
+    delivered_at: null,
+    published_url: null,
+    sbrData: { suggestedTagline: "The Burger Tulsa Grew Up On" },
+    selectedLook: "professional",
+    intakeAnswers: { q1: "Hanks Hamburgers, Tulsa 74104", q3: "Burgers, Shakes, Catering", q4: "Order Now" },
+    tearSheetUrl: null,
+    buildNotes: [],
+    qaReport: null,
+    messages: [
+      { from: "rep", text: "This one's been sitting for 6 days — client is getting antsy.", timestamp: daysAgo(6) },
+      { from: "rep", text: "Hank called again. Can someone PLEASE pick this up?", timestamp: hoursAgo(26) },
+      { from: "rep", text: "Bumping priority to urgent.", timestamp: hoursAgo(4) },
+    ],
+    internalNotes: [],
+    buildLog: [
+      { from: "tear-sheet", to: "building", timestamp: daysAgo(6), triggeredBy: "client" },
+    ],
+    assignedDev: null,
+    hasLogo: true,
+    logoUrl: null,
+    interests: { featured_placement: true },
+  },
+];
+
 function daysSince(dateStr: string): number {
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
 }
@@ -18,7 +170,7 @@ function hoursSince(dateStr: string): number {
 
 export default function BuildQueuePage() {
   const router = useRouter();
-  const [clients, setClients] = useState<ClientProfile[]>([]);
+  const [clients, setClients] = useState<ClientProfile[]>(MOCK_BUILDS);
   const [loading, setLoading] = useState(true);
   const [clock, setClock] = useState(new Date());
   const [selectedBuild, setSelectedBuild] = useState<ClientProfile | null>(null);
@@ -29,7 +181,8 @@ export default function BuildQueuePage() {
     try {
       const res = await fetch("/api/clients");
       const data = await res.json();
-      setClients(data.clients || []);
+      const real = (data.clients || []) as ClientProfile[];
+      setClients([...MOCK_BUILDS, ...real.filter((c) => !MOCK_BUILDS.some((m) => m.id === c.id))]);
     } catch { /* ignore */ }
     setLoading(false);
   }
@@ -37,7 +190,12 @@ export default function BuildQueuePage() {
   useEffect(() => { load(); }, []);
   useEffect(() => {
     const i = setInterval(() => setClock(new Date()), 1000);
-    const poll = setInterval(() => { fetch("/api/clients").then((r) => r.json()).then((d) => setClients(d.clients || [])).catch(() => {}); }, 10000);
+    const poll = setInterval(() => {
+      fetch("/api/clients").then((r) => r.json()).then((d) => {
+        const real = (d.clients || []) as ClientProfile[];
+        setClients([...MOCK_BUILDS, ...real.filter((c) => !MOCK_BUILDS.some((m) => m.id === c.id))]);
+      }).catch(() => {});
+    }, 10000);
     return () => { clearInterval(i); clearInterval(poll); };
   }, []);
 

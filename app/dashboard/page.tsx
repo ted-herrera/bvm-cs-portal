@@ -94,6 +94,8 @@ export default function DashboardPage() {
   const [msgSending, setMsgSending] = useState(false);
   const [weather, setWeather] = useState<{ temp: string; icon: string } | null>(null);
   const [clock, setClock] = useState(new Date());
+  const [clientWeather, setClientWeather] = useState<string>("");
+  const [clientTz, setClientTz] = useState<string>("");
   const [gcalConnected, setGcalConnected] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [actionPopover, setActionPopover] = useState<"note" | "task" | null>(null);
@@ -137,6 +139,25 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [slideOutOpen, selectedClient]);
+
+  // Fetch client local weather + derive timezone
+  useEffect(() => {
+    if (!selectedClient?.city) { setClientWeather(""); setClientTz(""); return; }
+    const cityClean = selectedClient.city.split(",")[0].trim();
+    fetch(`https://wttr.in/${encodeURIComponent(cityClean)}?format=3`)
+      .then((r) => r.text())
+      .then((t) => setClientWeather(t.trim()))
+      .catch(() => setClientWeather(""));
+    // Naive timezone from common US cities
+    const tzMap: Record<string, string> = {
+      tulsa: "America/Chicago", denver: "America/Denver", nashville: "America/Chicago",
+      "new york": "America/New_York", "los angeles": "America/Los_Angeles",
+      chicago: "America/Chicago", houston: "America/Chicago", phoenix: "America/Phoenix",
+      miami: "America/New_York", seattle: "America/Los_Angeles", boston: "America/New_York",
+      atlanta: "America/New_York", dallas: "America/Chicago", austin: "America/Chicago",
+    };
+    setClientTz(tzMap[cityClean.toLowerCase()] || "America/Chicago");
+  }, [selectedClient?.city]);
 
   // Close Bruno panel on outside click
   useEffect(() => {
@@ -1054,6 +1075,19 @@ export default function DashboardPage() {
             <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
               {drawerTab === "overview" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12, fontSize: 13 }}>
+                  {/* Client local time + weather */}
+                  <div style={{ background: "#f8fafc", border: "1px solid #e5e9ef", borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div>
+                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#7a8a9a", margin: "0 0 4px" }}>Client Local Time</p>
+                      <p style={{ fontSize: 16, fontWeight: 700, color: "#1a2332", margin: 0, fontVariantNumeric: "tabular-nums" }}>
+                        {clientTz ? clock.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: clientTz }) : "—"}
+                      </p>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#7a8a9a", margin: "0 0 4px" }}>Weather</p>
+                      <p style={{ fontSize: 13, color: "#1a2332", margin: 0, fontWeight: 600 }}>{clientWeather || "Loading..."}</p>
+                    </div>
+                  </div>
                   <div><span style={{ color: "#7a8a9a" }}>Phone: </span><span style={{ color: "#1a2332", fontWeight: 600 }}>{selectedClient.phone || "—"}</span></div>
                   <div><span style={{ color: "#7a8a9a" }}>Look: </span><span style={{ color: "#1a2332", fontWeight: 600, textTransform: "capitalize" }}>{selectedClient.selectedLook?.replace(/_/g, " ") || "—"}</span></div>
                   <div><span style={{ color: "#7a8a9a" }}>Services: </span><span style={{ color: "#1a2332" }}>{selectedClient.intakeAnswers?.q3 || "—"}</span></div>
