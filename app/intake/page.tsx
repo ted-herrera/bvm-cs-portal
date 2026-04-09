@@ -19,6 +19,7 @@ interface IntakeFields {
   cta: string;
   look: string;
   tagline: string;
+  domain: string;
 }
 
 const LOOK_OPTIONS = [
@@ -91,7 +92,7 @@ function IntakeInner() {
 
   const [fields, setFields] = useState<IntakeFields>({
     bizName: "", city: "", zip: "", desc: "",
-    services: [], cta: "", look: "", tagline: "",
+    services: [], cta: "", look: "", tagline: "", domain: "",
   });
 
   const [previewHtml, setPreviewHtml] = useState("");
@@ -106,6 +107,7 @@ function IntakeInner() {
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const sbrFiredRef = useRef(false);
+  const domainCheckedRef = useRef(false);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chat]);
 
@@ -196,6 +198,24 @@ function IntakeInner() {
         if (newFields.tagline) updated.tagline = newFields.tagline;
         return updated;
       });
+
+      // Silent domain check when bizName + city first collected
+      if (newFields.bizName && newFields.city && !domainCheckedRef.current) {
+        domainCheckedRef.current = true;
+        const slug = newFields.bizName.toLowerCase().replace(/[^a-z0-9]+/g, "");
+        fetch("/api/domain/check", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ businessName: newFields.bizName, domain: `${slug}.com` }),
+        }).then((r) => r.json()).then((d) => {
+          if (d.available) {
+            addMsg("bruno", `${slug}.com is available ✓`);
+          } else {
+            const alts = d.alternatives?.join(", ") || `${slug}local.com, ${slug}city.com, my${slug}.com`;
+            addMsg("bruno", `${slug}.com is taken — here are 3 alternatives: ${alts}`);
+          }
+          setFields((prev) => ({ ...prev, domain: d.available ? `${slug}.com` : (d.alternatives?.[0] || `${slug}.com`) }));
+        }).catch(() => { /* domain check failed silently */ });
+      }
 
       // Show look cards if Bruno is asking about look and it hasn't been chosen yet
       const showLookCards = !newFields.look && !fields.look && /local|community|premier/i.test(text);

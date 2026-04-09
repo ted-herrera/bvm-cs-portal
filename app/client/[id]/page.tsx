@@ -51,6 +51,11 @@ export default function ClientPortalPage() {
   const [note, setNote] = useState("");
   const [siteHtml, setSiteHtml] = useState("");
   const [logoSkipped, setLogoSkipped] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    if (!localStorage.getItem("bvm_onboarding_seen")) setShowOnboarding(true);
+  }, []);
 
   useEffect(() => {
     fetch(`/api/profile/${id}`).then((r) => r.json()).then((d) => {
@@ -147,6 +152,16 @@ export default function ClientPortalPage() {
 
       {/* Gold top bar */}
       <div style={{ height: 4, background: "#F5C842" }} />
+
+      {/* ── ONBOARDING VIDEO MODAL ─────────────────────────────────────── */}
+      {showOnboarding && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(13,26,46,0.92)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ maxWidth: 640, width: "90%", textAlign: "center" }}>
+            <video src="/claire-onboarding.mp4" controls autoPlay preload="auto" style={{ width: "100%", borderRadius: 12, boxShadow: "0 8px 40px rgba(0,0,0,0.4)" }} />
+            <button onClick={() => { localStorage.setItem("bvm_onboarding_seen", "true"); setShowOnboarding(false); }} style={{ marginTop: 20, background: "#F5C842", color: "#0d1a2e", border: "none", padding: "14px 40px", borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: "pointer" }}>Got it, let&apos;s go →</button>
+          </div>
+        </div>
+      )}
 
       {/* ── TEARSHEET MODAL ──────────────────────────────────────────────── */}
       {isPreApproval && (
@@ -638,7 +653,8 @@ export default function ClientPortalPage() {
 
               {/* Lesson info */}
               <div style={{ marginTop: 8, padding: "6px 4px" }}>
-                <p style={{ fontSize: 13, fontWeight: 700, color: "#000", margin: "0 0 4px" }}>Your Campaign is Live — Now What?</p>
+                <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#808080", margin: "0 0 3px" }}>Start Here — Module 0</p>
+                <p style={{ fontSize: 13, fontWeight: 700, color: "#000", margin: "0 0 4px" }}>Welcome to BVM Digital</p>
                 <p style={{ fontSize: 11, color: "#444", margin: "0 0 8px", lineHeight: 1.4 }}>Learn how to share your new site, drive traffic, and make the most of your BVM campaign.</p>
               </div>
 
