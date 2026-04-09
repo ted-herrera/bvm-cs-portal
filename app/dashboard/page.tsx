@@ -202,9 +202,14 @@ export default function DashboardPage() {
     ] : []),
   ].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()) : [];
 
+  // Unified activity feed across all clients (when no client selected)
+  const allCommsMessages = clients.flatMap((c) =>
+    c.messages.map((m) => ({ ...m, bizName: c.business_name }))
+  ).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 20);
+
   if (loading) {
     return (
-      <div style={{ minHeight: "100vh", background: "#f0f2f5", display: "flex", flexDirection: "column" }}>
+      <div style={{ minHeight: "100vh", background: "#fff", display: "flex", flexDirection: "column" }}>
         {/* HubSpot-style top nav */}
         <nav style={{ background: "#2d3e50", height: 56, display: "flex", alignItems: "center", padding: "0 20px", gap: 16, flexShrink: 0 }}>
           <img src="/bvm_logo.png" alt="BVM" style={{ height: 32, objectFit: "contain" }} />
@@ -218,7 +223,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f0f2f5", display: "flex", flexDirection: "column" }}>
+    <div style={{ minHeight: "100vh", background: "#fff", display: "flex", flexDirection: "column" }}>
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -317,7 +322,7 @@ export default function DashboardPage() {
 
         {/* ── LEFT PANEL ───────────────────────────────────────────────────── */}
         <aside style={{
-          width: 280, flexShrink: 0, background: "#fff",
+          width: 280, flexShrink: 0, background: "#f0f2f5",
           borderRight: "1px solid #e5e9ef",
           display: "flex", flexDirection: "column",
           overflowY: "auto",
@@ -436,7 +441,7 @@ export default function DashboardPage() {
                 onClick={() => { localStorage.setItem("gcal_connected", "true"); setGcalConnected(true); }}
                 style={{
                   width: "100%", padding: "9px 14px", borderRadius: 7,
-                  border: "1px solid #e5e9ef", background: "#fff",
+                  border: "1px solid #e5e9ef", background: "#f0f2f5",
                   color: "#4a5568", fontSize: 12, fontWeight: 600,
                   cursor: "pointer", textAlign: "left",
                 }}
@@ -453,7 +458,7 @@ export default function DashboardPage() {
 
         {/* ── CENTER PANEL ─────────────────────────────────────────────────── */}
         <main style={{
-          flex: 1, background: "#fff", overflowY: "auto",
+          flex: 1, background: "#f0f2f5", overflowY: "auto",
           display: "flex", flexDirection: "column", minWidth: 0,
         }}>
           {/* Featured Placement urgent alert */}
@@ -475,7 +480,7 @@ export default function DashboardPage() {
           {/* Tab row */}
           <div style={{
             display: "flex", borderBottom: "2px solid #e5e9ef",
-            padding: "0 24px", background: "#fff", flexShrink: 0,
+            padding: "0 24px", background: "#f0f2f5", flexShrink: 0,
           }}>
             {(["priority", "pipeline", "stats"] as const).map((tab) => {
               const labels = { priority: "Priority Queue", pipeline: "Pipeline", stats: "Stats" };
@@ -519,7 +524,7 @@ export default function DashboardPage() {
                         onClick={() => { setSelectedClient(c); setSlideOutOpen(true); setDrawerTab("overview"); }}
                         style={{
                           display: "flex", alignItems: "center", gap: 14,
-                          background: "#fff", border: "1px solid #e5e9ef",
+                          background: "#f0f2f5", border: "1px solid #e5e9ef",
                           borderLeft: `4px solid ${story.color}`,
                           borderRadius: 8, padding: "12px 16px",
                           cursor: "pointer", transition: "box-shadow 0.15s, border-color 0.15s",
@@ -527,7 +532,7 @@ export default function DashboardPage() {
                         onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.08)"; }}
                         onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; }}
                       >
-                        <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#f0f2f5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#2d3e50", flexShrink: 0 }}>
+                        <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#2d3e50", flexShrink: 0 }}>
                           {c.business_name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -599,7 +604,7 @@ export default function DashboardPage() {
                               key={c.id}
                               onClick={() => { setSelectedClient(c); setSlideOutOpen(true); setDrawerTab("overview"); }}
                               style={{
-                                background: "#fff", border: "1px solid #e5e9ef",
+                                background: "#f0f2f5", border: "1px solid #e5e9ef",
                                 borderRadius: 8, padding: "10px 12px", marginBottom: 6,
                                 cursor: "pointer", fontSize: 12,
                                 boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
@@ -639,7 +644,7 @@ export default function DashboardPage() {
                     { value: `${clients.filter((c) => c.messages.length > 0).length}/${clients.length}`, label: "Client Response", icon: "💬" },
                   ].map((s) => (
                     <div key={s.label} style={{
-                      background: "#fff", border: "1px solid #e5e9ef", borderRadius: 12,
+                      background: "#f0f2f5", border: "1px solid #e5e9ef", borderRadius: 12,
                       padding: "24px 20px", textAlign: "center",
                       boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
                     }}>
@@ -663,7 +668,7 @@ export default function DashboardPage() {
 
         {/* ── RIGHT PANEL: Communications ────────────────────────────────── */}
         <aside style={{
-          width: 320, flexShrink: 0, background: "#fff",
+          width: 320, flexShrink: 0, background: "#f0f2f5",
           borderLeft: "1px solid #e5e9ef",
           display: "flex", flexDirection: "column",
           overflow: "hidden",
@@ -671,44 +676,64 @@ export default function DashboardPage() {
           {/* Header */}
           <div style={{
             padding: "14px 16px", borderBottom: "1px solid #e5e9ef",
-            background: "#f8fafc",
+            background: "#fff",
           }}>
             <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#2d3e50", margin: 0 }}>
-              Communications
+              {selectedClient ? `Communications — ${selectedClient.business_name}` : "Recent Communications"}
             </p>
-            {selectedClient && (
-              <p style={{ fontSize: 12, color: "#7a8a9a", margin: "2px 0 0" }}>{selectedClient.business_name}</p>
-            )}
           </div>
 
           {/* Thread */}
           <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px" }}>
-            {!selectedClient ? (
-              <div style={{ textAlign: "center", padding: "40px 16px" }}>
-                <p style={{ fontSize: 13, color: "#7a8a9a" }}>Select a client to view thread</p>
-              </div>
-            ) : mockCommsMessages.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "40px 16px" }}>
-                <p style={{ fontSize: 13, color: "#7a8a9a" }}>No messages yet</p>
-              </div>
-            ) : (
-              mockCommsMessages.map((m, i) => {
-                const roleColor = ROLE_COLORS[m.from] || "#7a8a9a";
-                const roleLabel = ROLE_LABELS[m.from] || m.from.toUpperCase();
-                return (
-                  <div key={i} style={{ marginBottom: 12 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                      <span style={{
-                        fontSize: 9, fontWeight: 800, textTransform: "uppercase",
-                        letterSpacing: "0.05em", color: "#fff", background: roleColor,
-                        padding: "2px 7px", borderRadius: 4,
-                      }}>{roleLabel}</span>
-                      <span style={{ fontSize: 10, color: "#b0b8c4" }}>{timeAgo(m.timestamp)}</span>
+            {selectedClient ? (
+              mockCommsMessages.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px 16px" }}>
+                  <p style={{ fontSize: 13, color: "#7a8a9a" }}>No messages yet</p>
+                </div>
+              ) : (
+                mockCommsMessages.map((m, i) => {
+                  const roleColor = ROLE_COLORS[m.from] || "#7a8a9a";
+                  const roleLabel = ROLE_LABELS[m.from] || m.from.toUpperCase();
+                  return (
+                    <div key={i} style={{ marginBottom: 12 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                        <span style={{
+                          fontSize: 9, fontWeight: 800, textTransform: "uppercase",
+                          letterSpacing: "0.05em", color: "#fff", background: roleColor,
+                          padding: "2px 7px", borderRadius: 4,
+                        }}>{roleLabel}</span>
+                        <span style={{ fontSize: 10, color: "#b0b8c4" }}>{timeAgo(m.timestamp)}</span>
+                      </div>
+                      <p style={{ fontSize: 13, color: "#1a2332", margin: 0, lineHeight: 1.5, paddingLeft: 2 }}>{m.text}</p>
                     </div>
-                    <p style={{ fontSize: 13, color: "#1a2332", margin: 0, lineHeight: 1.5, paddingLeft: 2 }}>{m.text}</p>
-                  </div>
-                );
-              })
+                  );
+                })
+              )
+            ) : (
+              allCommsMessages.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px 16px" }}>
+                  <p style={{ fontSize: 13, color: "#7a8a9a" }}>No activity yet</p>
+                </div>
+              ) : (
+                allCommsMessages.map((m, i) => {
+                  const roleColor = ROLE_COLORS[m.from] || "#7a8a9a";
+                  const roleLabel = ROLE_LABELS[m.from] || m.from.toUpperCase();
+                  return (
+                    <div key={i} style={{ marginBottom: 14 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                        <span style={{
+                          fontSize: 9, fontWeight: 800, textTransform: "uppercase",
+                          letterSpacing: "0.05em", color: "#fff", background: roleColor,
+                          padding: "2px 7px", borderRadius: 4,
+                        }}>{roleLabel}</span>
+                        <span style={{ fontSize: 10, fontWeight: 600, color: "#1a2332" }}>{m.bizName}</span>
+                        <span style={{ fontSize: 10, color: "#b0b8c4" }}>{timeAgo(m.timestamp)}</span>
+                      </div>
+                      <p style={{ fontSize: 13, color: "#1a2332", margin: 0, lineHeight: 1.5, paddingLeft: 2 }}>{m.text}</p>
+                    </div>
+                  );
+                })
+              )
             )}
             <div ref={chatEndRef} />
           </div>
@@ -725,7 +750,7 @@ export default function DashboardPage() {
                 style={{
                   flex: 1, padding: "8px 12px", borderRadius: 8,
                   border: "1px solid #e5e9ef", fontSize: 13, outline: "none",
-                  background: "#fff", color: "#1a2332",
+                  background: "#f0f2f5", color: "#1a2332",
                 }}
               />
               <button
@@ -808,7 +833,7 @@ export default function DashboardPage() {
           <div onClick={() => setBellOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 48 }} />
           <div style={{
             position: "fixed", top: 60, right: 24, width: 360,
-            background: "#fff", borderRadius: 12,
+            background: "#f0f2f5", borderRadius: 12,
             boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
             border: "1px solid #e5e9ef", zIndex: 100,
             maxHeight: "70vh", overflowY: "auto",
@@ -853,7 +878,7 @@ export default function DashboardPage() {
           <div onClick={() => setSlideOutOpen(false)} style={{ position: "fixed", top: 0, left: 280, right: 0, bottom: 0, background: "rgba(0,0,0,0.3)", zIndex: 49 }} />
           <div style={{
             position: "fixed", top: 56, right: 0, width: 420, maxWidth: "calc(100vw - 280px)", height: "calc(100vh - 56px)",
-            background: "#fff", boxShadow: "-8px 0 32px rgba(0,0,0,0.12)",
+            background: "#f0f2f5", boxShadow: "-8px 0 32px rgba(0,0,0,0.12)",
             zIndex: 50, display: "flex", flexDirection: "column",
             animation: "slideIn 0.25s ease-out",
           }}>
@@ -954,7 +979,7 @@ export default function DashboardPage() {
                   style={{
                     flex: 1, padding: "8px 12px", borderRadius: 8,
                     border: "1px solid #e5e9ef", fontSize: 13, outline: "none",
-                    background: "#fff", color: "#1a2332",
+                    background: "#f0f2f5", color: "#1a2332",
                   }}
                 />
                 <button
