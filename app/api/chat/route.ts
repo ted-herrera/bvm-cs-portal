@@ -6,7 +6,11 @@ export async function POST(request: Request) {
     temperature?: number;
   };
 
+  console.log("[chat/route] Request body:", JSON.stringify({ model: model || "claude-sonnet-4-20250514", system: system?.substring(0, 80), messageCount: messages.length, temperature }));
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
+  console.log("[chat/route] ANTHROPIC_API_KEY:", apiKey ? apiKey.substring(0, 10) + "..." : "NOT SET");
+
   if (!apiKey) {
     return Response.json(
       { error: "ANTHROPIC_API_KEY not configured" },

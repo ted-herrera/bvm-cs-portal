@@ -164,7 +164,23 @@ function IntakeInner() {
         }),
       });
       const data = await res.json();
+      console.log("[Bruno] /api/chat response:", JSON.stringify(data));
+
+      if (!res.ok || data.error) {
+        const errMsg = data.error || `API returned ${res.status}`;
+        console.error("[Bruno] API error:", errMsg);
+        addMsg("bruno", `Something went wrong: ${errMsg}`);
+        setLoading(false);
+        return;
+      }
+
       const raw = data.response || data.content?.[0]?.text || "";
+      if (!raw) {
+        console.warn("[Bruno] Empty response from API");
+        addMsg("bruno", "I got an empty response — try again?");
+        setLoading(false);
+        return;
+      }
       const { text, fields: newFields } = parseResponse(raw);
 
       // Update fields with whatever Bruno extracted
