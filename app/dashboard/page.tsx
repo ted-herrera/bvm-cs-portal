@@ -92,6 +92,7 @@ export default function DashboardPage() {
   const [msgInput, setMsgInput] = useState("");
   const [msgSending, setMsgSending] = useState(false);
   const [weather, setWeather] = useState<{ temp: string; icon: string } | null>(null);
+  const [clock, setClock] = useState(new Date());
   const [gcalConnected, setGcalConnected] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -118,15 +119,14 @@ export default function DashboardPage() {
     setGcalConnected(localStorage.getItem("gcal_connected") === "true");
   }, []);
 
-  // Poll
+  // Poll + clock
   useEffect(() => {
     const i = setInterval(() => { fetch("/api/clients").then((r) => r.json()).then((d) => setClients(d.clients || [])).catch(() => {}); }, 10000);
-    return () => clearInterval(i);
+    const clockInterval = setInterval(() => setClock(new Date()), 1000);
+    return () => { clearInterval(i); clearInterval(clockInterval); };
   }, []);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [drawerClient]);
-
-  const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
   // Notifications
   const notifications = clients.flatMap((c) =>
@@ -238,8 +238,18 @@ export default function DashboardPage() {
         top: 0,
         zIndex: 40,
       }}>
-        {/* Logo */}
-        <img src="/bvm_logo.png" alt="BVM" style={{ height: 32, objectFit: "contain", flexShrink: 0 }} />
+        {/* Logo + clock */}
+        <div style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>
+          <img src="/bvm_logo.png" alt="BVM" style={{ height: 32, objectFit: "contain", filter: "brightness(0) invert(1)" }} />
+          <div style={{ borderLeft: "1px solid rgba(255,255,255,0.2)", paddingLeft: 14 }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: "#fff", margin: 0, fontVariantNumeric: "tabular-nums" }}>
+              {clock.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" })}
+            </p>
+            <p style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", margin: 0 }}>
+              {clock.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+            </p>
+          </div>
+        </div>
 
         {/* Search bar — visual placeholder */}
         <div style={{ flex: 1, maxWidth: 480, margin: "0 auto" }}>
@@ -251,7 +261,7 @@ export default function DashboardPage() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2.5">
               <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
             </svg>
-            <span style={{ fontSize: 13, color: "rgba(255,255,255,0.45)" }}>Search clients, stages, actions…</span>
+            <span style={{ fontSize: 13, color: "rgba(255,255,255,0.45)" }}>Ask Bruno...</span>
           </div>
         </div>
 
@@ -639,12 +649,11 @@ export default function DashboardPage() {
                   ))}
                 </div>
 
-                {/* greeting + date in stats */}
+                {/* greeting in stats */}
                 <div style={{ marginTop: 28, padding: "20px 24px", background: "#f8fafc", borderRadius: 12, border: "1px solid #e5e9ef" }}>
                   <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, fontWeight: 700, color: "#1a2332", margin: 0 }}>
                     {getGreeting()}, Ted
                   </h2>
-                  <p style={{ fontSize: 12, color: "#7a8a9a", margin: "4px 0 0" }}>{today}</p>
                 </div>
               </div>
             )}
