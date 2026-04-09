@@ -6,7 +6,6 @@ const PUBLIC_PATHS = [
   "/login",
   "/api/",
   "/qa-demo",
-  "/tearsheet",
   "/client",
   "/_next",
   "/favicon.ico",
@@ -35,6 +34,12 @@ export function proxy(request: NextRequest) {
 
   if (pathname === "/") {
     return NextResponse.redirect(new URL("/marketing", request.url));
+  }
+
+  // Redirect old /tearsheet/[id] URLs to /client/[id]
+  if (pathname.startsWith("/tearsheet/")) {
+    const clientId = pathname.replace("/tearsheet/", "");
+    return NextResponse.redirect(new URL(`/client/${clientId}`, request.url));
   }
 
   // Redirect old /profile and /clients routes to dashboard
