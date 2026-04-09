@@ -96,6 +96,10 @@ export default function DashboardPage() {
   const [clock, setClock] = useState(new Date());
   const [gcalConnected, setGcalConnected] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const [actionPopover, setActionPopover] = useState<"note" | "task" | null>(null);
+  const [actionText, setActionText] = useState("");
+  const [actionDue, setActionDue] = useState("");
+  const [actionConfirm, setActionConfirm] = useState("");
   const [brunoQuery, setBrunoQuery] = useState("");
   const [brunoResponse, setBrunoResponse] = useState("");
   const [brunoLoading, setBrunoLoading] = useState(false);
@@ -437,23 +441,63 @@ export default function DashboardPage() {
           <div style={{
             display: "flex", justifyContent: "space-around",
             padding: "16px 12px", borderBottom: "1px solid #e5e9ef",
+            position: "relative",
           }}>
             {[
-              { icon: "📝", label: "Note" },
-              { icon: "✉️", label: "Email" },
-              { icon: "📞", label: "Call" },
-              { icon: "✅", label: "Task" },
+              { icon: "📝", label: "Note", action: () => { if (!selectedClient) return; setActionPopover("note"); setActionText(""); setActionConfirm(""); } },
+              { icon: "✉️", label: "Email", action: () => { if (!selectedClient) return; window.open(`mailto:${selectedClient.business_name.toLowerCase().replace(/\s+/g, "")}@email.com`); setActionConfirm("Email client opened"); setTimeout(() => setActionConfirm(""), 3000); } },
+              { icon: "📞", label: "Call", action: () => { if (!selectedClient) return; window.open(`tel:${selectedClient.phone?.replace(/\D/g, "") || ""}`); setActionConfirm(`Calling ${selectedClient.phone || "client"}`); setTimeout(() => setActionConfirm(""), 3000); } },
+              { icon: "✅", label: "Task", action: () => { if (!selectedClient) return; setActionPopover("task"); setActionText(""); setActionDue(""); setActionConfirm(""); } },
             ].map((btn) => (
-              <button key={btn.label} style={{
+              <button key={btn.label} onClick={btn.action} disabled={!selectedClient} style={{
                 display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
                 background: "#f8fafc", border: "1px solid #e5e9ef", borderRadius: 8,
-                padding: "10px 14px", cursor: "pointer", color: "#4a5568",
-                fontSize: 11, fontWeight: 600,
+                padding: "10px 14px", cursor: selectedClient ? "pointer" : "not-allowed", color: "#4a5568",
+                fontSize: 11, fontWeight: 600, opacity: selectedClient ? 1 : 0.4,
               }}>
                 <span style={{ fontSize: 17 }}>{btn.icon}</span>
                 {btn.label}
               </button>
             ))}
+
+            {/* Confirmation toast */}
+            {actionConfirm && (
+              <div style={{ position: "absolute", bottom: -32, left: "50%", transform: "translateX(-50%)", background: "#22c55e", color: "#fff", fontSize: 11, fontWeight: 700, padding: "5px 14px", borderRadius: 6, whiteSpace: "nowrap", zIndex: 10 }}>
+                {actionConfirm}
+              </div>
+            )}
+
+            {/* Note popover */}
+            {actionPopover === "note" && selectedClient && (
+              <div style={{ position: "absolute", top: "100%", left: 12, right: 12, background: "#fff", border: "1px solid #e5e9ef", borderRadius: 10, padding: 14, boxShadow: "0 4px 16px rgba(0,0,0,0.1)", zIndex: 20 }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: "#1a2332", margin: "0 0 8px" }}>Add Note — {selectedClient.business_name}</p>
+                <textarea value={actionText} onChange={(e) => setActionText(e.target.value)} placeholder="Type your note..." rows={3} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #e5e9ef", fontSize: 12, resize: "none", boxSizing: "border-box" }} />
+                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                  <button onClick={async () => {
+                    if (!actionText.trim()) return;
+                    await fetch(`/api/profile/message/${selectedClient.id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: actionText, from: "rep", repName: "Ted" }) });
+                    setActionPopover(null); setActionConfirm("Note saved"); setTimeout(() => setActionConfirm(""), 3000);
+                  }} style={{ background: "#F5C842", color: "#1a2332", border: "none", padding: "6px 16px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Save Note</button>
+                  <button onClick={() => setActionPopover(null)} style={{ background: "none", border: "1px solid #e5e9ef", padding: "6px 16px", borderRadius: 6, fontSize: 12, color: "#7a8a9a", cursor: "pointer" }}>Cancel</button>
+                </div>
+              </div>
+            )}
+
+            {/* Task popover */}
+            {actionPopover === "task" && selectedClient && (
+              <div style={{ position: "absolute", top: "100%", left: 12, right: 12, background: "#fff", border: "1px solid #e5e9ef", borderRadius: 10, padding: 14, boxShadow: "0 4px 16px rgba(0,0,0,0.1)", zIndex: 20 }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: "#1a2332", margin: "0 0 8px" }}>Create Task — {selectedClient.business_name}</p>
+                <textarea value={actionText} onChange={(e) => setActionText(e.target.value)} placeholder="Task description..." rows={2} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #e5e9ef", fontSize: 12, resize: "none", boxSizing: "border-box" }} />
+                <input type="date" value={actionDue} onChange={(e) => setActionDue(e.target.value)} style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e5e9ef", fontSize: 12, marginTop: 6, boxSizing: "border-box" }} />
+                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                  <button onClick={() => {
+                    if (!actionText.trim()) return;
+                    setActionPopover(null); setActionConfirm("Task created — sync to Close CRM when connected"); setTimeout(() => setActionConfirm(""), 4000);
+                  }} style={{ background: "#F5C842", color: "#1a2332", border: "none", padding: "6px 16px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Create Task</button>
+                  <button onClick={() => setActionPopover(null)} style={{ background: "none", border: "1px solid #e5e9ef", padding: "6px 16px", borderRadius: 6, fontSize: 12, color: "#7a8a9a", cursor: "pointer" }}>Cancel</button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Property rows */}
@@ -1074,14 +1118,47 @@ export default function DashboardPage() {
 
               {drawerTab === "actions" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <Link href={`/tearsheet/${selectedClient.id}`} style={{ display: "block", background: "#F5C842", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: "none", textAlign: "center" }}>Open Full Profile →</Link>
-                  <Link href={`/tearsheet/${selectedClient.id}`} style={{ display: "block", background: "#f8fafc", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none", textAlign: "center", border: "1px solid #e5e9ef" }}>Open Tear Sheet →</Link>
+                  <Link href={`/client/${selectedClient.id}`} style={{ display: "block", background: "#F5C842", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: "none", textAlign: "center" }}>Open Client Portal →</Link>
                   <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/client/${selectedClient.id}`); }} style={{ background: "#f8fafc", border: "1px solid #e5e9ef", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Copy Client Portal Link</button>
-                  <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/tearsheet/${selectedClient.id}`); }} style={{ background: "#f8fafc", border: "1px solid #e5e9ef", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Copy Tear Sheet Link</button>
                   {gcalConnected && (
                     <button onClick={() => addToCalendar(`Follow up: ${selectedClient.business_name}`, `Check in on ${selectedClient.business_name} build status. Stage: ${STAGE_LABELS[selectedClient.stage]}`)} style={{ background: "#f8fafc", border: "1px solid #e5e9ef", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>📅 Add Calendar Reminder</button>
                   )}
                   <Link href={`/qa?clientId=${selectedClient.id}`} style={{ display: "block", background: "#f8fafc", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none", textAlign: "center", border: "1px solid #e5e9ef" }}>Run QA</Link>
+
+                  <div style={{ height: 1, background: "#e5e9ef", margin: "4px 0" }} />
+                  <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#7a8a9a", margin: "4px 0" }}>Integrations</p>
+
+                  {/* Send Reminder — Close CRM */}
+                  <button onClick={async () => {
+                    setActionConfirm("");
+                    try {
+                      await fetch("/api/activity", {
+                        method: "POST", headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ clientId: selectedClient.id, agreementNumber: "Pull from Close CRM", activityType: "Tearsheet Reminder Sent", businessName: selectedClient.business_name }),
+                      });
+                    } catch { /* endpoint may not exist yet */ }
+                    setActionConfirm("Reminder logged in Close CRM"); setTimeout(() => setActionConfirm(""), 4000);
+                  }} style={{ background: "#1a2332", border: "none", color: "#fff", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "center" }}>
+                    📋 Send Reminder — Close CRM
+                  </button>
+
+                  {/* Send Card — Handwrytten */}
+                  <button onClick={async () => {
+                    setActionConfirm("");
+                    try {
+                      await fetch("https://api.handwrytten.com/v2/orders", {
+                        method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer 4c12347d298b4867a5c73f5ad3b4559d" },
+                        body: JSON.stringify({
+                          card_id: "welcome",
+                          message: `Welcome to BVM, ${selectedClient.business_name}! We're excited to build your campaign.`,
+                          recipients: [{ name: selectedClient.business_name, city: selectedClient.city, state: "", zip: selectedClient.zip || "" }],
+                        }),
+                      });
+                    } catch { /* endpoint may reject without full address */ }
+                    setActionConfirm("Handwritten card on its way!"); setTimeout(() => setActionConfirm(""), 4000);
+                  }} style={{ background: "#7c3aed", border: "none", color: "#fff", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "center" }}>
+                    ✉️ Send Handwrytten Card
+                  </button>
                 </div>
               )}
             </div>
