@@ -184,12 +184,21 @@ export default function ClientPortalPage() {
                       setSelectedLook(l.id);
                       if (isPremier) {
                         const confettiMod = await import("canvas-confetti");
+                        // Create canvas that sits above the modal (zIndex 200)
                         const canvas = document.createElement("canvas");
-                        canvas.style.cssText = "position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9999";
+                        canvas.width = window.innerWidth;
+                        canvas.height = window.innerHeight;
+                        canvas.style.position = "fixed";
+                        canvas.style.top = "0";
+                        canvas.style.left = "0";
+                        canvas.style.width = "100vw";
+                        canvas.style.height = "100vh";
+                        canvas.style.pointerEvents = "none";
+                        canvas.style.zIndex = "99999";
                         document.body.appendChild(canvas);
                         const fire = confettiMod.create(canvas, { resize: true });
-                        fire({ particleCount: 120, spread: 80, colors: ["#F5C842", "#0d1a2e", "#ffffff"] });
-                        setTimeout(() => canvas.remove(), 3000);
+                        await fire({ particleCount: 150, spread: 90, startVelocity: 35, origin: { y: 0.6 }, colors: ["#F5C842", "#0d1a2e", "#ffffff"] });
+                        canvas.remove();
                       }
                     }} style={{ background: sel ? "#fffbeb" : "#fff", border: isPremier || sel ? "2px solid #F5C842" : "2px solid #e2e8f0", borderRadius: 16, padding: 0, cursor: "pointer", textAlign: "left", position: "relative", overflow: "hidden", transition: "all 0.2s", boxShadow: sel ? "0 4px 20px rgba(245,200,66,0.3)" : "none", transform: sel ? "scale(1.03)" : "scale(1)" }}>
                       {isPremier && <div style={{ position: "absolute", top: 10, right: 10, background: "#F5C842", color: "#0d1a2e", fontSize: 9, fontWeight: 800, padding: "3px 10px", borderRadius: 999 }}>Most Popular</div>}
