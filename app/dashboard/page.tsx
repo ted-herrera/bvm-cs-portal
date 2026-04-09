@@ -180,12 +180,26 @@ export default function DashboardPage() {
   const [followUpsOpen, setFollowUpsOpen] = useState(true);
   const [interestsOpen, setInterestsOpen] = useState(true);
 
-  // ── Left panel initials ────────────────────────────────────────────────────
+  // ── Left panel: selected client info ────────────────────────────────────────
   const leftInitials = drawerClient
     ? drawerClient.business_name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
-    : "TH";
-  const leftName = drawerClient ? drawerClient.business_name : "Ted Herrera";
-  const leftSub = drawerClient ? drawerClient.city : "BVM Rep";
+    : "";
+  const leftName = drawerClient ? drawerClient.business_name : "";
+  const leftSub = drawerClient ? `${drawerClient.city}${drawerClient.zip ? `, ${drawerClient.zip}` : ""}` : "";
+
+  // ── Communications: merge real messages + mock dev/client messages ─────────
+  const ROLE_COLORS: Record<string, string> = { rep: "#2d3e50", dev: "#7c3aed", client: "#0891b2" };
+  const ROLE_LABELS: Record<string, string> = { rep: "REP", dev: "DEV", client: "CLIENT" };
+  const mockCommsMessages = drawerClient ? [
+    ...(drawerClient.messages.length > 0 ? drawerClient.messages : []),
+    ...(!drawerClient.messages.some((m) => m.from === "dev") ? [
+      { from: "dev", text: `Site build started for ${drawerClient.business_name}. Hero section done, working on services.`, timestamp: new Date(Date.now() - 7200000).toISOString() },
+      { from: "dev", text: "QA passed — ready for rep review.", timestamp: new Date(Date.now() - 3600000).toISOString() },
+    ] : []),
+    ...(!drawerClient.messages.some((m) => m.from === "client") ? [
+      { from: "client", text: "Looks great! Can we change the phone number though?", timestamp: new Date(Date.now() - 1800000).toISOString() },
+    ] : []),
+  ].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()) : [];
 
   if (loading) {
     return (
@@ -272,14 +286,17 @@ export default function DashboardPage() {
             </button>
           </div>
 
-          {/* Avatar */}
-          <div style={{
-            width: 34, height: 34, borderRadius: "50%",
-            background: "#F5C842", color: "#2d3e50",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 13, fontWeight: 800, letterSpacing: "-0.5px", flexShrink: 0,
-          }}>
-            TH
+          {/* Avatar with hover tooltip */}
+          <div style={{ position: "relative" }} className="nav-avatar-wrap">
+            <div style={{
+              width: 34, height: 34, borderRadius: "50%",
+              background: "#F5C842", color: "#2d3e50",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 13, fontWeight: 800, letterSpacing: "-0.5px", flexShrink: 0,
+              cursor: "default",
+            }}>
+              TH
+            </div>
           </div>
         </div>
       </nav>
@@ -296,18 +313,32 @@ export default function DashboardPage() {
         }}>
           {/* Contact card */}
           <div style={{ padding: "28px 20px 20px", borderBottom: "1px solid #e5e9ef", textAlign: "center" }}>
-            {/* Initials avatar */}
-            <div style={{
-              width: 72, height: 72, borderRadius: "50%",
-              background: "#2d3e50", color: "#fff",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 26, fontWeight: 800, margin: "0 auto 14px",
-              boxShadow: "0 2px 10px rgba(45,62,80,0.2)",
-            }}>
-              {leftInitials}
-            </div>
-            <p style={{ fontSize: 16, fontWeight: 700, color: "#1a2332", margin: 0 }}>{leftName}</p>
-            <p style={{ fontSize: 12, color: "#7a8a9a", margin: "3px 0 0" }}>{leftSub}</p>
+            {drawerClient ? (
+              <>
+                <div style={{
+                  width: 72, height: 72, borderRadius: "50%",
+                  background: "#2d3e50", color: "#fff",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 26, fontWeight: 800, margin: "0 auto 14px",
+                  boxShadow: "0 2px 10px rgba(45,62,80,0.2)",
+                }}>
+                  {leftInitials}
+                </div>
+                <p style={{ fontSize: 16, fontWeight: 700, color: "#1a2332", margin: 0 }}>{leftName}</p>
+                <p style={{ fontSize: 12, color: "#7a8a9a", margin: "3px 0 0" }}>{leftSub}</p>
+              </>
+            ) : (
+              <div style={{ padding: "20px 0" }}>
+                <div style={{
+                  width: 72, height: 72, borderRadius: "50%",
+                  background: "#e5e9ef", color: "#7a8a9a",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 28, margin: "0 auto 14px",
+                }}>?</div>
+                <p style={{ fontSize: 14, fontWeight: 600, color: "#7a8a9a", margin: 0 }}>Select a client</p>
+                <p style={{ fontSize: 12, color: "#b0b8c4", margin: "4px 0 0" }}>Click any client to view details</p>
+              </div>
+            )}
           </div>
 
           {/* Quick action row */}
@@ -334,27 +365,15 @@ export default function DashboardPage() {
           </div>
 
           {/* Property rows */}
+          {drawerClient && (
           <div style={{ padding: "4px 0", borderBottom: "1px solid #e5e9ef" }}>
             {[
-              {
-                label: "Stage",
-                value: drawerClient ? STAGE_LABELS[drawerClient.stage] : "—",
-              },
-              {
-                label: "Last Contacted",
-                value: drawerClient
-                  ? timeAgo(drawerClient.buildLog[drawerClient.buildLog.length - 1]?.timestamp || drawerClient.created_at)
-                  : "—",
-              },
-              { label: "Owner", value: "Ted Herrera" },
-              {
-                label: "Phone",
-                value: drawerClient?.phone || "—",
-              },
-              {
-                label: "Look",
-                value: drawerClient?.selectedLook?.replace(/_/g, " ") || "—",
-              },
+              { label: "Stage", value: STAGE_LABELS[drawerClient.stage], highlight: true },
+              { label: "Last Contacted", value: timeAgo(drawerClient.buildLog[drawerClient.buildLog.length - 1]?.timestamp || drawerClient.created_at) },
+              { label: "Agreement #", value: "Pull from Close CRM" },
+              { label: "Look", value: drawerClient.selectedLook?.replace(/_/g, " ") || "—" },
+              { label: "Phone", value: drawerClient.phone || "—" },
+              { label: "City", value: drawerClient.city || "—" },
             ].map((row) => (
               <div key={row.label} style={{
                 display: "flex", justifyContent: "space-between", alignItems: "flex-start",
@@ -366,7 +385,7 @@ export default function DashboardPage() {
                   {row.label}
                 </span>
                 <span style={{
-                  fontSize: 12, color: "#1a2332", fontWeight: 600,
+                  fontSize: 12, color: row.highlight ? "#F5C842" : "#1a2332", fontWeight: 600,
                   textAlign: "right", textTransform: row.label === "Look" ? "capitalize" : undefined,
                 }}>
                   {row.value}
@@ -374,6 +393,7 @@ export default function DashboardPage() {
               </div>
             ))}
           </div>
+          )}
 
           <div style={{ flex: 1 }} />
 
@@ -631,93 +651,138 @@ export default function DashboardPage() {
           </div>
         </main>
 
-        {/* ── RIGHT PANEL ──────────────────────────────────────────────────── */}
+        {/* ── RIGHT PANEL: Communications ────────────────────────────────── */}
         <aside style={{
-          width: 280, flexShrink: 0, background: "#f8fafc",
+          width: 320, flexShrink: 0, background: "#fff",
           borderLeft: "1px solid #e5e9ef",
-          overflowY: "auto", padding: "20px 0",
+          display: "flex", flexDirection: "column",
+          overflow: "hidden",
         }}>
+          {/* Header */}
+          <div style={{
+            padding: "14px 16px", borderBottom: "1px solid #e5e9ef",
+            background: "#f8fafc",
+          }}>
+            <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#2d3e50", margin: 0 }}>
+              Communications
+            </p>
+            {drawerClient && (
+              <p style={{ fontSize: 12, color: "#7a8a9a", margin: "2px 0 0" }}>{drawerClient.business_name}</p>
+            )}
+          </div>
 
-          {/* Follow Up Today */}
-          <div style={{ marginBottom: 4 }}>
+          {/* Thread */}
+          <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px" }}>
+            {!drawerClient ? (
+              <div style={{ textAlign: "center", padding: "40px 16px" }}>
+                <p style={{ fontSize: 13, color: "#7a8a9a" }}>Select a client to view thread</p>
+              </div>
+            ) : mockCommsMessages.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "40px 16px" }}>
+                <p style={{ fontSize: 13, color: "#7a8a9a" }}>No messages yet</p>
+              </div>
+            ) : (
+              mockCommsMessages.map((m, i) => {
+                const roleColor = ROLE_COLORS[m.from] || "#7a8a9a";
+                const roleLabel = ROLE_LABELS[m.from] || m.from.toUpperCase();
+                return (
+                  <div key={i} style={{ marginBottom: 12 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                      <span style={{
+                        fontSize: 9, fontWeight: 800, textTransform: "uppercase",
+                        letterSpacing: "0.05em", color: "#fff", background: roleColor,
+                        padding: "2px 7px", borderRadius: 4,
+                      }}>{roleLabel}</span>
+                      <span style={{ fontSize: 10, color: "#b0b8c4" }}>{timeAgo(m.timestamp)}</span>
+                    </div>
+                    <p style={{ fontSize: 13, color: "#1a2332", margin: 0, lineHeight: 1.5, paddingLeft: 2 }}>{m.text}</p>
+                  </div>
+                );
+              })
+            )}
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Message input */}
+          {drawerClient && (
+            <div style={{ padding: "10px 14px", borderTop: "1px solid #e5e9ef", background: "#f8fafc", display: "flex", gap: 8 }}>
+              <input
+                type="text"
+                value={msgInput}
+                onChange={(e) => setMsgInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                placeholder="Type a message..."
+                style={{
+                  flex: 1, padding: "8px 12px", borderRadius: 8,
+                  border: "1px solid #e5e9ef", fontSize: 13, outline: "none",
+                  background: "#fff", color: "#1a2332",
+                }}
+              />
+              <button
+                onClick={sendMessage}
+                disabled={msgSending || !msgInput.trim()}
+                style={{
+                  background: "#F5C842", color: "#1a2332", border: "none",
+                  padding: "8px 14px", borderRadius: 8, fontSize: 13, fontWeight: 700,
+                  cursor: "pointer", opacity: msgSending || !msgInput.trim() ? 0.5 : 1,
+                }}
+              >
+                Send
+              </button>
+            </div>
+          )}
+
+          {/* Collapsible sections below thread */}
+          <div style={{ borderTop: "1px solid #e5e9ef" }}>
+            {/* Follow Up Today */}
             <button
               onClick={() => setFollowUpsOpen(!followUpsOpen)}
               style={{
                 width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "8px 20px", background: "none", border: "none",
+                padding: "10px 16px", background: "#f8fafc", border: "none", borderBottom: "1px solid #e5e9ef",
                 cursor: "pointer",
               }}
             >
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#2d3e50" }}>
-                Follow Up Today
+              <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#2d3e50" }}>
+                Follow Up Today ({followUps.length})
               </span>
-              <span style={{ fontSize: 13, color: "#7a8a9a", transform: followUpsOpen ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
-                ▶
-              </span>
+              <span style={{ fontSize: 11, color: "#7a8a9a", transform: followUpsOpen ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>▶</span>
             </button>
-
             {followUpsOpen && (
-              <div style={{ padding: "4px 16px 12px" }}>
-                {followUps.length === 0 && (
-                  <p style={{ fontSize: 12, color: "#7a8a9a", fontStyle: "italic", padding: "4px 4px" }}>All caught up!</p>
-                )}
-                {followUps.slice(0, 5).map((c) => (
-                  <div key={c.id} style={{
-                    background: "#fff", border: "1px solid #e5e9ef",
-                    borderRadius: 8, padding: "10px 12px", marginBottom: 6,
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-                  }}>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: "#1a2332", margin: 0 }}>{c.business_name}</p>
-                    <p style={{ fontSize: 11, color: "#7a8a9a", margin: "2px 0 6px" }}>
-                      Tear sheet unopened {daysSince(lastStageDate(c))}d
-                    </p>
-                    <Link href={`/tearsheet/${c.id}`} style={{ fontSize: 11, color: "#2d3e50", fontWeight: 600, textDecoration: "none" }}>
-                      Send Reminder →
-                    </Link>
+              <div style={{ padding: "8px 14px 12px" }}>
+                {followUps.length === 0 && <p style={{ fontSize: 12, color: "#7a8a9a", fontStyle: "italic" }}>All caught up!</p>}
+                {followUps.slice(0, 3).map((c) => (
+                  <div key={c.id} style={{ background: "#f8fafc", border: "1px solid #e5e9ef", borderRadius: 6, padding: "8px 10px", marginBottom: 4, fontSize: 12 }}>
+                    <span style={{ fontWeight: 700, color: "#1a2332" }}>{c.business_name}</span>
+                    <span style={{ color: "#7a8a9a", marginLeft: 6 }}>{daysSince(lastStageDate(c))}d</span>
                   </div>
                 ))}
               </div>
             )}
-          </div>
 
-          <div style={{ height: 1, background: "#e5e9ef", margin: "4px 0" }} />
-
-          {/* Campaign Interest */}
-          <div style={{ marginTop: 4 }}>
+            {/* Campaign Interest */}
             <button
               onClick={() => setInterestsOpen(!interestsOpen)}
               style={{
                 width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "8px 20px", background: "none", border: "none",
+                padding: "10px 16px", background: "#f8fafc", border: "none", borderBottom: "1px solid #e5e9ef",
                 cursor: "pointer",
               }}
             >
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#2d3e50" }}>
-                Campaign Interest
+              <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#2d3e50" }}>
+                Campaign Interest ({interests.length})
               </span>
-              <span style={{ fontSize: 13, color: "#7a8a9a", transform: interestsOpen ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
-                ▶
-              </span>
+              <span style={{ fontSize: 11, color: "#7a8a9a", transform: interestsOpen ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>▶</span>
             </button>
-
             {interestsOpen && (
-              <div style={{ padding: "4px 16px 12px" }}>
-                {interests.length === 0 && (
-                  <p style={{ fontSize: 12, color: "#7a8a9a", fontStyle: "italic", padding: "4px 4px" }}>No interest signals yet.</p>
-                )}
-                {interests.slice(0, 5).map((c) => {
+              <div style={{ padding: "8px 14px 12px" }}>
+                {interests.length === 0 && <p style={{ fontSize: 12, color: "#7a8a9a", fontStyle: "italic" }}>No signals yet.</p>}
+                {interests.slice(0, 3).map((c) => {
                   const types = Object.keys(c.interests || {}).filter((k) => !k.endsWith("_at") && c.interests?.[k]);
                   return (
-                    <div key={c.id} style={{
-                      background: "#fff", border: "1px solid #e5e9ef",
-                      borderRadius: 8, padding: "10px 12px", marginBottom: 6,
-                      boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-                    }}>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: "#1a2332", margin: 0 }}>{c.business_name}</p>
-                      <p style={{ fontSize: 11, color: "#F5C842", margin: "2px 0 6px", fontWeight: 600 }}>{types.join(", ")}</p>
-                      <a href={`tel:${c.phone?.replace(/\D/g, "")}`} style={{ fontSize: 11, color: "#2d3e50", fontWeight: 600, textDecoration: "none" }}>
-                        Call Now →
-                      </a>
+                    <div key={c.id} style={{ background: "#f8fafc", border: "1px solid #e5e9ef", borderRadius: 6, padding: "8px 10px", marginBottom: 4, fontSize: 12 }}>
+                      <span style={{ fontWeight: 700, color: "#1a2332" }}>{c.business_name}</span>
+                      <span style={{ color: "#F5C842", fontWeight: 600, marginLeft: 6 }}>{types.join(", ")}</span>
                     </div>
                   );
                 })}
