@@ -96,6 +96,11 @@ export default function DashboardPage() {
   const [clock, setClock] = useState(new Date());
   const [gcalConnected, setGcalConnected] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const [brunoQuery, setBrunoQuery] = useState("");
+  const [brunoResponse, setBrunoResponse] = useState("");
+  const [brunoLoading, setBrunoLoading] = useState(false);
+  const [brunoOpen, setBrunoOpen] = useState(false);
+  const brunoRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     async function load() {
@@ -128,6 +133,42 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [slideOutOpen, selectedClient]);
+
+  // Close Bruno panel on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (brunoRef.current && !brunoRef.current.contains(e.target as Node)) setBrunoOpen(false);
+    }
+    if (brunoOpen) document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [brunoOpen]);
+
+  async function askBruno() {
+    if (!brunoQuery.trim() || brunoLoading) return;
+    setBrunoLoading(true);
+    setBrunoOpen(true);
+    setBrunoResponse("");
+    const clientSummary = clients.map((c) => ({
+      id: c.id, name: c.business_name, city: c.city, stage: c.stage,
+      look: c.selectedLook, phone: c.phone,
+      daysSinceLastUpdate: daysSince(lastStageDate(c)),
+      interests: c.interests ? Object.keys(c.interests).filter((k) => !k.endsWith("_at") && c.interests?.[k]) : [],
+      messageCount: c.messages.length,
+      approved: !!c.approved_at,
+    }));
+    const system = `You are Bruno, a VA for BVM account managers. You have access to this rep's client list:\n${JSON.stringify(clientSummary, null, 2)}\n\nAnswer questions about the pipeline, suggest actions, flag at-risk clients. Be direct and concise. You can also tell the rep to enroll a client in a Close CRM sequence or send a Handwrytten card.`;
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ system, messages: [{ role: "user", content: brunoQuery }], temperature: 0.5 }),
+      });
+      const data = await res.json();
+      setBrunoResponse(data.response || data.error || "No response");
+    } catch {
+      setBrunoResponse("Something went wrong — try again.");
+    }
+    setBrunoLoading(false);
+  }
 
   // Notifications
   const notifications = clients.flatMap((c) =>
@@ -257,18 +298,59 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Search bar — visual placeholder */}
-        <div style={{ flex: 1, maxWidth: 480, margin: "0 auto" }}>
+        {/* Ask Bruno search bar */}
+        <div ref={brunoRef} style={{ flex: 1, maxWidth: 480, margin: "0 auto", position: "relative" }}>
           <div style={{
             display: "flex", alignItems: "center", gap: 8,
-            background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)",
-            borderRadius: 6, padding: "6px 14px",
+            background: brunoOpen ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.1)",
+            border: brunoOpen ? "1px solid rgba(255,255,255,0.3)" : "1px solid rgba(255,255,255,0.15)",
+            borderRadius: 6, padding: "6px 14px", transition: "all 0.15s",
           }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2.5">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2.5" style={{ flexShrink: 0 }}>
               <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
             </svg>
-            <span style={{ fontSize: 13, color: "rgba(255,255,255,0.45)" }}>Ask Bruno...</span>
+            <input
+              type="text"
+              value={brunoQuery}
+              onChange={(e) => setBrunoQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && askBruno()}
+              onFocus={() => { if (brunoResponse) setBrunoOpen(true); }}
+              placeholder="Ask Bruno..."
+              style={{
+                flex: 1, background: "transparent", border: "none", outline: "none",
+                fontSize: 13, color: "#fff", caretColor: "#F5C842",
+              }}
+            />
+            {brunoQuery.trim() && (
+              <button onClick={askBruno} disabled={brunoLoading} style={{
+                background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 4,
+                padding: "3px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer",
+                opacity: brunoLoading ? 0.5 : 1, flexShrink: 0,
+              }}>
+                {brunoLoading ? "..." : "Ask"}
+              </button>
+            )}
           </div>
+
+          {/* Bruno response dropdown */}
+          {brunoOpen && (brunoLoading || brunoResponse) && (
+            <div style={{
+              position: "absolute", top: "calc(100% + 8px)", left: 0, right: 0,
+              background: "#fff", borderRadius: 10, padding: "16px 20px",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.25)", border: "1px solid #e5e9ef",
+              zIndex: 200, maxHeight: 320, overflowY: "auto",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <div style={{ width: 22, height: 22, borderRadius: "50%", background: "#F5C842", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: "#1B2A4A", fontSize: 10 }}>B</div>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#1a2332" }}>Bruno</span>
+              </div>
+              {brunoLoading ? (
+                <p style={{ fontSize: 13, color: "#7a8a9a", margin: 0 }}>Thinking...</p>
+              ) : (
+                <p style={{ fontSize: 13, color: "#1a2332", margin: 0, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{brunoResponse}</p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Right controls */}
