@@ -6,10 +6,8 @@ const PUBLIC_PATHS = [
   "/login",
   "/api/",
   "/qa-demo",
-  "/qa",
   "/tearsheet",
   "/client",
-  "/intake",
   "/_next",
   "/favicon.ico",
   "/bvm_logo.png",
@@ -31,30 +29,29 @@ function getRoleFromCookie(cookie: string): "rep" | "dev" | null {
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Allow public paths
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
   }
 
-  // Root redirects to marketing
   if (pathname === "/") {
     return NextResponse.redirect(new URL("/marketing", request.url));
   }
 
-  const session = request.cookies.get("dc_session")?.value;
+  // Redirect old /profile and /clients routes to dashboard
+  if (pathname.startsWith("/profile") || pathname.startsWith("/clients")) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
 
-  // Protected routes need session
+  const session = request.cookies.get("dc_session")?.value;
   if (!session) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
   const role = getRoleFromCookie(session);
 
-  // Role-based routing
-  if (role === "dev" && (pathname.startsWith("/dashboard") || pathname.startsWith("/clients"))) {
+  if (role === "dev" && pathname.startsWith("/dashboard")) {
     return NextResponse.redirect(new URL("/build-queue", request.url));
   }
-
   if (role === "rep" && pathname.startsWith("/build-queue")) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }

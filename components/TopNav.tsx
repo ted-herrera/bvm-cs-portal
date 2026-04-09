@@ -7,7 +7,7 @@ type ActivePage = "dashboard" | "clients" | "intake" | "qa";
 
 const pills: { label: string; href: string; page: ActivePage }[] = [
   { label: "Dashboard", href: "/dashboard", page: "dashboard" },
-  { label: "Clients", href: "/clients", page: "clients" },
+  { label: "Clients", href: "/dashboard", page: "dashboard" },
   { label: "New Intake", href: "/intake", page: "intake" },
   { label: "QA Engine", href: "/qa", page: "qa" },
 ];

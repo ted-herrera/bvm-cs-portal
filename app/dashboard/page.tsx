@@ -66,11 +66,11 @@ function getStoryPill(c: ClientProfile): { icon: string; text: string; color: st
 
 function getAction(c: ClientProfile): { label: string; href: string } {
   if (c.interests?.featured_placement) return { label: "Call Client →", href: `tel:${c.phone?.replace(/\D/g, "")}` };
-  if (c.stage === "revision-requested") return { label: "View Message →", href: `/profile/${c.id}` };
+  if (c.stage === "revision-requested") return { label: "View Message →", href: `/tearsheet/${c.id}` };
   if (c.stage === "tear-sheet") return { label: "Open Tear Sheet →", href: `/tearsheet/${c.id}` };
-  if (c.stage === "qa") return { label: "Review QA →", href: `/profile/${c.id}` };
-  if (c.stage === "live") return { label: "View Site →", href: c.published_url || `/profile/${c.id}` };
-  return { label: "View Profile →", href: `/profile/${c.id}` };
+  if (c.stage === "qa") return { label: "Review QA →", href: `/tearsheet/${c.id}` };
+  if (c.stage === "live") return { label: "View Site →", href: c.published_url || `/tearsheet/${c.id}` };
+  return { label: "View Profile →", href: `/tearsheet/${c.id}` };
 }
 
 function addToCalendar(title: string, details: string) {
@@ -203,7 +203,7 @@ export default function DashboardPage() {
             { label: "Dashboard", href: "/dashboard", active: true },
             { label: "New Intake", href: "/intake", active: false },
             { label: "QA Engine", href: "/qa", active: false },
-            { label: "All Clients", href: "/clients", active: false },
+            { label: "All Clients", href: "/dashboard", active: true },
             { label: "Build Queue", href: "/build-queue", active: false },
           ].map((link) => (
             <Link key={link.href} href={link.href} style={{
@@ -387,7 +387,7 @@ export default function DashboardPage() {
               <button onClick={() => setReadNotifs(new Set(notifications.map((n) => n.id)))} style={{ background: "none", border: "none", fontSize: 11, color: "#3b82f6", cursor: "pointer" }}>Mark all read</button>
             </div>
             {notifications.map((n) => (
-              <Link key={n.id} href={`/profile/${n.clientId}`} onClick={() => setBellOpen(false)} style={{ display: "flex", gap: 10, padding: "10px 16px", borderBottom: "1px solid #f8fafc", textDecoration: "none", background: readNotifs.has(n.id) ? "#fff" : "#f8fafc" }}>
+              <Link key={n.id} href={`/tearsheet/${n.clientId}`} onClick={() => setBellOpen(false)} style={{ display: "flex", gap: 10, padding: "10px 16px", borderBottom: "1px solid #f8fafc", textDecoration: "none", background: readNotifs.has(n.id) ? "#fff" : "#f8fafc" }}>
                 <div style={{ flex: 1 }}>
                   <p style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0", margin: 0 }}>{n.name}</p>
                   <p style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", margin: "2px 0 0" }}>{n.msg}</p>
@@ -454,7 +454,7 @@ export default function DashboardPage() {
 
               {drawerTab === "actions" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <Link href={`/profile/${drawerClient.id}`} style={{ display: "block", background: "#F5C842", color: "#e2e8f0", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: "none", textAlign: "center" }}>Open Full Profile →</Link>
+                  <Link href={`/tearsheet/${drawerClient.id}`} style={{ display: "block", background: "#F5C842", color: "#e2e8f0", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: "none", textAlign: "center" }}>Open Full Profile →</Link>
                   <Link href={`/tearsheet/${drawerClient.id}`} style={{ display: "block", background: "#1a2f50", color: "#e2e8f0", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none", textAlign: "center", border: "1px solid rgba(255,255,255,0.08)" }}>Open Tear Sheet →</Link>
                   <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/client/${drawerClient.id}`); }} style={{ background: "#1a2f50", border: "1px solid rgba(255,255,255,0.08)", color: "#e2e8f0", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Copy Client Portal Link</button>
                   <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/tearsheet/${drawerClient.id}`); }} style={{ background: "#1a2f50", border: "1px solid rgba(255,255,255,0.08)", color: "#e2e8f0", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Copy Tear Sheet Link</button>
