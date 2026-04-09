@@ -173,120 +173,354 @@ export default function DashboardPage() {
     setMsgSending(false);
   }
 
+  // ── Center panel tab state ─────────────────────────────────────────────────
+  const [centerTab, setCenterTab] = useState<"priority" | "pipeline" | "stats">("priority");
+
+  // ── Right panel collapse state ─────────────────────────────────────────────
+  const [followUpsOpen, setFollowUpsOpen] = useState(true);
+  const [interestsOpen, setInterestsOpen] = useState(true);
+
+  // ── Left panel initials ────────────────────────────────────────────────────
+  const leftInitials = drawerClient
+    ? drawerClient.business_name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
+    : "TH";
+  const leftName = drawerClient ? drawerClient.business_name : "Ted Herrera";
+  const leftSub = drawerClient ? drawerClient.city : "BVM Rep";
+
   if (loading) {
     return (
-      <div style={{ minHeight: "100vh", background: "#1a2f50" }}>
-        <TopNav activePage="dashboard" />
+      <div style={{ minHeight: "100vh", background: "#f0f2f5", display: "flex", flexDirection: "column" }}>
+        {/* HubSpot-style top nav */}
+        <nav style={{ background: "#2d3e50", height: 56, display: "flex", alignItems: "center", padding: "0 20px", gap: 16, flexShrink: 0 }}>
+          <img src="/bvm_logo.png" alt="BVM" style={{ height: 32, objectFit: "contain" }} />
+        </nav>
         <div style={{ display: "flex", justifyContent: "center", paddingTop: 120 }}>
-          <div style={{ width: 32, height: 32, border: "2px solid #F5C842", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+          <div style={{ width: 32, height: 32, border: "3px solid #F5C842", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
         </div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0f1f3d", display: "flex", flexDirection: "column" }}>
+    <div style={{ minHeight: "100vh", background: "#f0f2f5", display: "flex", flexDirection: "column" }}>
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
       `}</style>
-      <TopNav activePage="dashboard" />
 
-      <div style={{ display: "flex", flex: 1 }}>
-        {/* ── LEFT SIDEBAR ─────────────────────────────────────────────────── */}
-        <aside style={{ width: 220, flexShrink: 0, background: "#0d1a2e", display: "flex", flexDirection: "column", padding: "20px 12px", overflowY: "auto" }}>
-          <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "#F5C842", margin: "0 0 20px", padding: "0 2px" }}>BVM Design Center</p>
+      {/* ── TOP NAV ──────────────────────────────────────────────────────────── */}
+      <nav style={{
+        background: "#2d3e50",
+        height: 56,
+        display: "flex",
+        alignItems: "center",
+        padding: "0 20px",
+        gap: 16,
+        flexShrink: 0,
+        boxShadow: "0 1px 4px rgba(0,0,0,0.25)",
+        position: "sticky",
+        top: 0,
+        zIndex: 40,
+      }}>
+        {/* Logo */}
+        <img src="/bvm_logo.png" alt="BVM" style={{ height: 32, objectFit: "contain", flexShrink: 0 }} />
 
-          {/* Nav links */}
-          {[
-            { label: "Dashboard", href: "/dashboard", active: true },
-            { label: "New Intake", href: "/intake", active: false },
-            { label: "QA Engine", href: "/qa", active: false },
-            { label: "All Clients", href: "/dashboard", active: true },
-            { label: "Build Queue", href: "/build-queue", active: false },
-          ].map((link) => (
-            <Link key={link.href} href={link.href} style={{
-              display: "block", padding: "10px 14px", borderRadius: 8, fontSize: 13,
-              fontWeight: link.active ? 700 : 500, marginBottom: 2,
-              background: link.active ? "#F5C842" : "transparent",
-              color: link.active ? "#0d1a2e" : "rgba(255,255,255,0.6)",
-              textDecoration: "none",
+        {/* Search bar — visual placeholder */}
+        <div style={{ flex: 1, maxWidth: 480, margin: "0 auto" }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 8,
+            background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)",
+            borderRadius: 6, padding: "6px 14px",
+          }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2.5">
+              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+            </svg>
+            <span style={{ fontSize: 13, color: "rgba(255,255,255,0.45)" }}>Search clients, stages, actions…</span>
+          </div>
+        </div>
+
+        {/* Right controls */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+          {weather && (
+            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", display: "flex", alignItems: "center", gap: 4 }}>
+              {weather.temp}
+            </span>
+          )}
+
+          {/* Bell */}
+          <div style={{ position: "relative" }}>
+            <button
+              onClick={() => setBellOpen(!bellOpen)}
+              style={{
+                background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: 6, width: 36, height: 36, display: "flex", alignItems: "center",
+                justifyContent: "center", cursor: "pointer", color: "rgba(255,255,255,0.75)", fontSize: 16,
+              }}
+            >
+              🔔
+              {unread > 0 && (
+                <span style={{
+                  position: "absolute", top: -4, right: -4, background: "#ef4444", color: "#fff",
+                  fontSize: 9, fontWeight: 700, width: 16, height: 16, borderRadius: "50%",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  {unread}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Avatar */}
+          <div style={{
+            width: 34, height: 34, borderRadius: "50%",
+            background: "#F5C842", color: "#2d3e50",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 13, fontWeight: 800, letterSpacing: "-0.5px", flexShrink: 0,
+          }}>
+            TH
+          </div>
+        </div>
+      </nav>
+
+      {/* ── BODY: THREE-COLUMN ───────────────────────────────────────────────── */}
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+
+        {/* ── LEFT PANEL ───────────────────────────────────────────────────── */}
+        <aside style={{
+          width: 280, flexShrink: 0, background: "#fff",
+          borderRight: "1px solid #e5e9ef",
+          display: "flex", flexDirection: "column",
+          overflowY: "auto",
+        }}>
+          {/* Contact card */}
+          <div style={{ padding: "28px 20px 20px", borderBottom: "1px solid #e5e9ef", textAlign: "center" }}>
+            {/* Initials avatar */}
+            <div style={{
+              width: 72, height: 72, borderRadius: "50%",
+              background: "#2d3e50", color: "#fff",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 26, fontWeight: 800, margin: "0 auto 14px",
+              boxShadow: "0 2px 10px rgba(45,62,80,0.2)",
             }}>
-              {link.label}
-            </Link>
-          ))}
+              {leftInitials}
+            </div>
+            <p style={{ fontSize: 16, fontWeight: 700, color: "#1a2332", margin: 0 }}>{leftName}</p>
+            <p style={{ fontSize: 12, color: "#7a8a9a", margin: "3px 0 0" }}>{leftSub}</p>
+          </div>
+
+          {/* Quick action row */}
+          <div style={{
+            display: "flex", justifyContent: "space-around",
+            padding: "16px 12px", borderBottom: "1px solid #e5e9ef",
+          }}>
+            {[
+              { icon: "📝", label: "Note" },
+              { icon: "✉️", label: "Email" },
+              { icon: "📞", label: "Call" },
+              { icon: "✅", label: "Task" },
+            ].map((btn) => (
+              <button key={btn.label} style={{
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+                background: "#f8fafc", border: "1px solid #e5e9ef", borderRadius: 8,
+                padding: "10px 14px", cursor: "pointer", color: "#4a5568",
+                fontSize: 11, fontWeight: 600,
+              }}>
+                <span style={{ fontSize: 17 }}>{btn.icon}</span>
+                {btn.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Property rows */}
+          <div style={{ padding: "4px 0", borderBottom: "1px solid #e5e9ef" }}>
+            {[
+              {
+                label: "Stage",
+                value: drawerClient ? STAGE_LABELS[drawerClient.stage] : "—",
+              },
+              {
+                label: "Last Contacted",
+                value: drawerClient
+                  ? timeAgo(drawerClient.buildLog[drawerClient.buildLog.length - 1]?.timestamp || drawerClient.created_at)
+                  : "—",
+              },
+              { label: "Owner", value: "Ted Herrera" },
+              {
+                label: "Phone",
+                value: drawerClient?.phone || "—",
+              },
+              {
+                label: "Look",
+                value: drawerClient?.selectedLook?.replace(/_/g, " ") || "—",
+              },
+            ].map((row) => (
+              <div key={row.label} style={{
+                display: "flex", justifyContent: "space-between", alignItems: "flex-start",
+                padding: "10px 20px",
+                background: "#f8fafc",
+                borderBottom: "1px solid #edf0f4",
+              }}>
+                <span style={{ fontSize: 12, color: "#7a8a9a", fontWeight: 500, flexShrink: 0, paddingRight: 8 }}>
+                  {row.label}
+                </span>
+                <span style={{
+                  fontSize: 12, color: "#1a2332", fontWeight: 600,
+                  textAlign: "right", textTransform: row.label === "Look" ? "capitalize" : undefined,
+                }}>
+                  {row.value}
+                </span>
+              </div>
+            ))}
+          </div>
 
           <div style={{ flex: 1 }} />
 
-          {/* Calendar connection */}
-          {!gcalConnected ? (
-            <button onClick={() => { localStorage.setItem("gcal_connected", "true"); setGcalConnected(true); }} style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid #334155", background: "transparent", color: "rgba(255,255,255,0.6)", fontSize: 12, fontWeight: 600, cursor: "pointer", marginBottom: 8, textAlign: "left" }}>
-              📅 Connect Google Calendar
-            </button>
-          ) : (
-            <div style={{ padding: "8px 14px", fontSize: 12, color: "#22c55e", fontWeight: 600 }}>📅 Calendar Connected</div>
-          )}
-        </aside>
-
-        {/* ── MAIN CONTENT ─────────────────────────────────────────────────── */}
-        <main style={{ flex: 1, background: "#0f1f3d", overflowY: "auto", display: "flex", flexDirection: "column" }}>
-
-          {/* Header */}
-          <div style={{ padding: "20px 24px", borderBottom: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div>
-              <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 26, fontWeight: 700, color: "#e2e8f0", margin: 0 }}>
-                {getGreeting()}, Ted
-              </h1>
-              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", margin: "4px 0 0" }}>{today}</p>
-              {/* Affirmation */}
-              <p onClick={() => setAffIdx((affIdx + 1) % AFFIRMATIONS.length)} style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 13, color: "#F5C842", fontStyle: "italic", margin: "8px 0 0", cursor: "pointer", animation: "fadeIn 0.5s", opacity: 1 }}>
-                ✨ {AFFIRMATIONS[affIdx]}
-              </p>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              {weather && <span style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>{weather.temp} {weather.icon}</span>}
-              <div style={{ position: "relative" }}>
-                <button onClick={() => setBellOpen(!bellOpen)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", position: "relative", padding: 4 }}>
-                  🔔
-                  {unread > 0 && <span style={{ position: "absolute", top: -2, right: -4, background: "#ef4444", color: "#fff", fontSize: 9, fontWeight: 700, width: 16, height: 16, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>{unread}</span>}
-                </button>
-              </div>
-            </div>
+          {/* Affirmation */}
+          <div
+            onClick={() => setAffIdx((affIdx + 1) % AFFIRMATIONS.length)}
+            style={{
+              margin: 16, padding: "14px 16px", borderRadius: 10,
+              background: "#fffbea", border: "1px solid #F5C842",
+              cursor: "pointer", animation: "fadeIn 0.4s",
+            }}
+          >
+            <p style={{
+              fontFamily: "'Playfair Display', Georgia, serif",
+              fontSize: 12, fontStyle: "italic", color: "#7a5a00",
+              margin: 0, lineHeight: 1.6,
+            }}>
+              ✨ {AFFIRMATIONS[affIdx]}
+            </p>
+            <p style={{ fontSize: 10, color: "#b08800", margin: "6px 0 0", fontWeight: 600 }}>
+              Tap for next →
+            </p>
           </div>
 
-          <div style={{ flex: 1, padding: 24, display: "flex", gap: 20 }}>
-            {/* Left: Priority + Kanban */}
-            <div style={{ flex: 1, minWidth: 0 }}>
+          {/* Calendar connection */}
+          <div style={{ padding: "0 16px 16px" }}>
+            {!gcalConnected ? (
+              <button
+                onClick={() => { localStorage.setItem("gcal_connected", "true"); setGcalConnected(true); }}
+                style={{
+                  width: "100%", padding: "9px 14px", borderRadius: 7,
+                  border: "1px solid #e5e9ef", background: "#fff",
+                  color: "#4a5568", fontSize: 12, fontWeight: 600,
+                  cursor: "pointer", textAlign: "left",
+                }}
+              >
+                📅 Connect Google Calendar
+              </button>
+            ) : (
+              <div style={{ fontSize: 12, color: "#22c55e", fontWeight: 600, padding: "8px 0" }}>
+                📅 Calendar Connected
+              </div>
+            )}
+          </div>
+        </aside>
 
-              {/* Featured Placement Urgent */}
-              {clients.filter((c) => c.interests?.featured_placement).length > 0 && (
-                <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderLeft: "4px solid #ef4444", borderRadius: 12, padding: "12px 20px", marginBottom: 16 }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: "#b91c1c" }}>👑 Featured Placement Requests — Call These Clients Now: </span>
-                  <span style={{ fontSize: 13, color: "#dc2626" }}>{clients.filter((c) => c.interests?.featured_placement).map((c) => c.business_name).join(", ")}</span>
-                </div>
-              )}
+        {/* ── CENTER PANEL ─────────────────────────────────────────────────── */}
+        <main style={{
+          flex: 1, background: "#fff", overflowY: "auto",
+          display: "flex", flexDirection: "column", minWidth: 0,
+        }}>
+          {/* Featured Placement urgent alert */}
+          {clients.filter((c) => c.interests?.featured_placement).length > 0 && (
+            <div style={{
+              background: "#fef2f2", borderBottom: "1px solid #fecaca",
+              borderLeft: "4px solid #ef4444", padding: "10px 24px",
+              display: "flex", alignItems: "center", gap: 10,
+            }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#b91c1c" }}>
+                👑 Featured Placement Requests — Call These Clients Now:
+              </span>
+              <span style={{ fontSize: 13, color: "#dc2626" }}>
+                {clients.filter((c) => c.interests?.featured_placement).map((c) => c.business_name).join(", ")}
+              </span>
+            </div>
+          )}
 
-              {/* Priority Queue */}
-              <div style={{ marginBottom: 28 }}>
-                <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#F5C842", marginBottom: 12 }}>Priority Queue</p>
+          {/* Tab row */}
+          <div style={{
+            display: "flex", borderBottom: "2px solid #e5e9ef",
+            padding: "0 24px", background: "#fff", flexShrink: 0,
+          }}>
+            {(["priority", "pipeline", "stats"] as const).map((tab) => {
+              const labels = { priority: "Priority Queue", pipeline: "Pipeline", stats: "Stats" };
+              const active = centerTab === tab;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setCenterTab(tab)}
+                  style={{
+                    padding: "14px 20px", border: "none", background: "transparent",
+                    fontSize: 13, fontWeight: active ? 700 : 500,
+                    color: active ? "#2d3e50" : "#7a8a9a",
+                    borderBottom: active ? "2px solid #F5C842" : "2px solid transparent",
+                    marginBottom: -2, cursor: "pointer", transition: "color 0.15s",
+                  }}
+                >
+                  {labels[tab]}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Tab content */}
+          <div style={{ padding: 24, flex: 1 }}>
+
+            {/* PRIORITY QUEUE TAB */}
+            {centerTab === "priority" && (
+              <div>
+                <p style={{
+                  fontSize: 11, fontWeight: 700, textTransform: "uppercase",
+                  letterSpacing: "0.1em", color: "#7a8a9a", marginBottom: 14,
+                }}>
+                  {priorityQueue.length} active clients
+                </p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   {priorityQueue.slice(0, 8).map(({ client: c, story }) => {
                     const action = getAction(c);
                     return (
-                      <div key={c.id} onClick={() => { setDrawerClient(c); setDrawerTab("overview"); }} style={{ display: "flex", alignItems: "center", gap: 12, background: "#0f1f3d", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "10px 16px", cursor: "pointer", transition: "box-shadow 0.15s" }}
-                        onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.06)"; }}
+                      <div
+                        key={c.id}
+                        onClick={() => { setDrawerClient(c); setDrawerTab("overview"); }}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 14,
+                          background: "#fff", border: "1px solid #e5e9ef",
+                          borderLeft: `4px solid ${story.color}`,
+                          borderRadius: 8, padding: "12px 16px",
+                          cursor: "pointer", transition: "box-shadow 0.15s, border-color 0.15s",
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.08)"; }}
                         onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; }}
                       >
-                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: story.color, flexShrink: 0 }} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <span style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0" }}>{c.business_name}</span>
-                          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginLeft: 8 }}>{c.city}</span>
+                        <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#f0f2f5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#2d3e50", flexShrink: 0 }}>
+                          {c.business_name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
                         </div>
-                        <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 999, background: `${story.color}18`, color: story.color, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: 14, fontWeight: 700, color: "#1a2332", margin: 0 }}>{c.business_name}</p>
+                          <p style={{ fontSize: 11, color: "#7a8a9a", margin: "2px 0 0" }}>{c.city}</p>
+                        </div>
+                        <span style={{
+                          fontSize: 11, padding: "4px 10px", borderRadius: 999,
+                          background: `${story.color}15`, color: story.color,
+                          fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0,
+                          border: `1px solid ${story.color}30`,
+                        }}>
                           {story.icon} {story.text}
                         </span>
-                        <a href={action.href} onClick={(e) => e.stopPropagation()} style={{ fontSize: 12, color: "#F5C842", fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap", flexShrink: 0 }}>
+                        <a
+                          href={action.href}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            fontSize: 12, color: "#2d3e50", fontWeight: 600,
+                            textDecoration: "none", whiteSpace: "nowrap", flexShrink: 0,
+                            padding: "6px 12px", borderRadius: 6,
+                            border: "1px solid #e5e9ef", background: "#f8fafc",
+                          }}
+                        >
                           {action.label}
                         </a>
                       </div>
@@ -294,128 +528,295 @@ export default function DashboardPage() {
                   })}
                 </div>
               </div>
+            )}
 
-              {/* Kanban */}
-              <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#F5C842", marginBottom: 12 }}>Pipeline</p>
-              <div style={{ display: "grid", gridTemplateColumns: `repeat(${kanbanCols.length}, 1fr)`, gap: 8, overflowX: "auto" }}>
-                {kanbanCols.map((stage) => {
-                  const stageClients = clients.filter((c) => c.stage === stage);
-                  return (
-                    <div key={stage} style={{ background: "#1a2f50", borderRadius: 10, padding: 10, minHeight: 200 }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{STAGE_LABELS[stage]}</span>
-                        <span style={{ fontSize: 10, fontWeight: 700, background: "#243454", color: "rgba(255,255,255,0.4)", width: 20, height: 20, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>{stageClients.length}</span>
-                      </div>
-                      {stageClients.map((c) => {
-                        const days = daysSince(lastStageDate(c));
-                        const dayColor = days > 10 ? "#ef4444" : days > 5 ? "#f59e0b" : "#94a3b8";
-                        return (
-                          <div key={c.id} onClick={() => { setDrawerClient(c); setDrawerTab("overview"); }} style={{ background: "#0f1f3d", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "10px 12px", marginBottom: 6, cursor: "pointer", fontSize: 12 }}>
-                            <p style={{ fontWeight: 700, color: "#e2e8f0", margin: 0 }}>{c.business_name}</p>
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
-                              <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>{c.city}</span>
-                              <span style={{ color: dayColor, fontSize: 10, fontWeight: 600 }}>{days}d</span>
+            {/* PIPELINE TAB */}
+            {centerTab === "pipeline" && (
+              <div>
+                <p style={{
+                  fontSize: 11, fontWeight: 700, textTransform: "uppercase",
+                  letterSpacing: "0.1em", color: "#7a8a9a", marginBottom: 14,
+                }}>
+                  Pipeline
+                </p>
+                <div style={{ display: "grid", gridTemplateColumns: `repeat(${kanbanCols.length}, 1fr)`, gap: 8, overflowX: "auto" }}>
+                  {kanbanCols.map((stage) => {
+                    const stageClients = clients.filter((c) => c.stage === stage);
+                    return (
+                      <div key={stage} style={{
+                        background: "#f8fafc", borderRadius: 10,
+                        padding: 10, minHeight: 200,
+                        border: "1px solid #e5e9ef",
+                      }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: "#7a8a9a", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+                            {STAGE_LABELS[stage]}
+                          </span>
+                          <span style={{
+                            fontSize: 10, fontWeight: 700, background: "#e5e9ef",
+                            color: "#4a5568", width: 20, height: 20, borderRadius: "50%",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                          }}>
+                            {stageClients.length}
+                          </span>
+                        </div>
+                        {stageClients.map((c) => {
+                          const days = daysSince(lastStageDate(c));
+                          const dayColor = days > 10 ? "#ef4444" : days > 5 ? "#f59e0b" : "#94a3b8";
+                          return (
+                            <div
+                              key={c.id}
+                              onClick={() => { setDrawerClient(c); setDrawerTab("overview"); }}
+                              style={{
+                                background: "#fff", border: "1px solid #e5e9ef",
+                                borderRadius: 8, padding: "10px 12px", marginBottom: 6,
+                                cursor: "pointer", fontSize: 12,
+                                boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                              }}
+                            >
+                              <p style={{ fontWeight: 700, color: "#1a2332", margin: 0 }}>{c.business_name}</p>
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
+                                <span style={{ color: "#7a8a9a", fontSize: 11 }}>{c.city}</span>
+                                <span style={{ color: dayColor, fontSize: 10, fontWeight: 600 }}>{days}d</span>
+                              </div>
+                              {c.interests?.print && <span style={{ fontSize: 9, color: "#92400e", fontWeight: 700 }}>📰</span>}
+                              {c.interests?.featured_placement && <span style={{ fontSize: 9, color: "#dc2626", fontWeight: 700 }}> 👑</span>}
                             </div>
-                            {c.interests?.print && <span style={{ fontSize: 9, color: "#92400e", fontWeight: 700 }}>📰</span>}
-                            {c.interests?.featured_placement && <span style={{ fontSize: 9, color: "#dc2626", fontWeight: 700 }}> 👑</span>}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })}
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* ── RIGHT PANEL ─────────────────────────────────────────────── */}
-            <div style={{ width: 280, flexShrink: 0, background: "#162744", borderRadius: 12, padding: "20px 16px" }}>
-              {/* Follow Up Today */}
-              <div style={{ marginBottom: 24 }}>
-                <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#F5C842", marginBottom: 10 }}>Follow Up Today</p>
-                {followUps.length === 0 && <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", fontStyle: "italic" }}>All caught up!</p>}
+            {/* STATS TAB */}
+            {centerTab === "stats" && (
+              <div>
+                <p style={{
+                  fontSize: 11, fontWeight: 700, textTransform: "uppercase",
+                  letterSpacing: "0.1em", color: "#7a8a9a", marginBottom: 20,
+                }}>
+                  Performance Overview
+                </p>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+                  {[
+                    { value: delivered, label: "Sites Delivered", icon: "🚀" },
+                    { value: "4.2 hrs", label: "Avg TTM", icon: "⏱️" },
+                    { value: `${avgQA}%`, label: "QA Pass Rate", icon: "✅" },
+                    { value: `${clients.filter((c) => c.messages.length > 0).length}/${clients.length}`, label: "Client Response", icon: "💬" },
+                  ].map((s) => (
+                    <div key={s.label} style={{
+                      background: "#fff", border: "1px solid #e5e9ef", borderRadius: 12,
+                      padding: "24px 20px", textAlign: "center",
+                      boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+                    }}>
+                      <div style={{ fontSize: 26, marginBottom: 8 }}>{s.icon}</div>
+                      <div style={{ fontSize: 28, fontWeight: 800, color: "#2d3e50", lineHeight: 1 }}>{s.value}</div>
+                      <div style={{ fontSize: 12, color: "#7a8a9a", marginTop: 6, fontWeight: 500 }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* greeting + date in stats */}
+                <div style={{ marginTop: 28, padding: "20px 24px", background: "#f8fafc", borderRadius: 12, border: "1px solid #e5e9ef" }}>
+                  <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, fontWeight: 700, color: "#1a2332", margin: 0 }}>
+                    {getGreeting()}, Ted
+                  </h2>
+                  <p style={{ fontSize: 12, color: "#7a8a9a", margin: "4px 0 0" }}>{today}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </main>
+
+        {/* ── RIGHT PANEL ──────────────────────────────────────────────────── */}
+        <aside style={{
+          width: 280, flexShrink: 0, background: "#f8fafc",
+          borderLeft: "1px solid #e5e9ef",
+          overflowY: "auto", padding: "20px 0",
+        }}>
+
+          {/* Follow Up Today */}
+          <div style={{ marginBottom: 4 }}>
+            <button
+              onClick={() => setFollowUpsOpen(!followUpsOpen)}
+              style={{
+                width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "8px 20px", background: "none", border: "none",
+                cursor: "pointer",
+              }}
+            >
+              <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#2d3e50" }}>
+                Follow Up Today
+              </span>
+              <span style={{ fontSize: 13, color: "#7a8a9a", transform: followUpsOpen ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+                ▶
+              </span>
+            </button>
+
+            {followUpsOpen && (
+              <div style={{ padding: "4px 16px 12px" }}>
+                {followUps.length === 0 && (
+                  <p style={{ fontSize: 12, color: "#7a8a9a", fontStyle: "italic", padding: "4px 4px" }}>All caught up!</p>
+                )}
                 {followUps.slice(0, 5).map((c) => (
-                  <div key={c.id} style={{ background: "#1a2f50", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "10px 12px", marginBottom: 6 }}>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0", margin: 0 }}>{c.business_name}</p>
-                    <p style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", margin: "2px 0 6px" }}>Tear sheet unopened {daysSince(lastStageDate(c))}d</p>
-                    <Link href={`/tearsheet/${c.id}`} style={{ fontSize: 11, color: "#F5C842", fontWeight: 600, textDecoration: "none" }}>Send Reminder →</Link>
+                  <div key={c.id} style={{
+                    background: "#fff", border: "1px solid #e5e9ef",
+                    borderRadius: 8, padding: "10px 12px", marginBottom: 6,
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                  }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: "#1a2332", margin: 0 }}>{c.business_name}</p>
+                    <p style={{ fontSize: 11, color: "#7a8a9a", margin: "2px 0 6px" }}>
+                      Tear sheet unopened {daysSince(lastStageDate(c))}d
+                    </p>
+                    <Link href={`/tearsheet/${c.id}`} style={{ fontSize: 11, color: "#2d3e50", fontWeight: 600, textDecoration: "none" }}>
+                      Send Reminder →
+                    </Link>
                   </div>
                 ))}
               </div>
+            )}
+          </div>
 
-              {/* Campaign Interest */}
-              <div style={{ marginBottom: 24 }}>
-                <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#F5C842", marginBottom: 10 }}>Campaign Interest</p>
-                {interests.length === 0 && <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", fontStyle: "italic" }}>No interest signals yet.</p>}
+          <div style={{ height: 1, background: "#e5e9ef", margin: "4px 0" }} />
+
+          {/* Campaign Interest */}
+          <div style={{ marginTop: 4 }}>
+            <button
+              onClick={() => setInterestsOpen(!interestsOpen)}
+              style={{
+                width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "8px 20px", background: "none", border: "none",
+                cursor: "pointer",
+              }}
+            >
+              <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#2d3e50" }}>
+                Campaign Interest
+              </span>
+              <span style={{ fontSize: 13, color: "#7a8a9a", transform: interestsOpen ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+                ▶
+              </span>
+            </button>
+
+            {interestsOpen && (
+              <div style={{ padding: "4px 16px 12px" }}>
+                {interests.length === 0 && (
+                  <p style={{ fontSize: 12, color: "#7a8a9a", fontStyle: "italic", padding: "4px 4px" }}>No interest signals yet.</p>
+                )}
                 {interests.slice(0, 5).map((c) => {
                   const types = Object.keys(c.interests || {}).filter((k) => !k.endsWith("_at") && c.interests?.[k]);
                   return (
-                    <div key={c.id} style={{ background: "#1a2f50", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "10px 12px", marginBottom: 6 }}>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0", margin: 0 }}>{c.business_name}</p>
-                      <p style={{ fontSize: 11, color: "#F5C842", margin: "2px 0 6px" }}>{types.join(", ")}</p>
-                      <a href={`tel:${c.phone?.replace(/\D/g, "")}`} style={{ fontSize: 11, color: "#F5C842", fontWeight: 600, textDecoration: "none" }}>Call Now →</a>
+                    <div key={c.id} style={{
+                      background: "#fff", border: "1px solid #e5e9ef",
+                      borderRadius: 8, padding: "10px 12px", marginBottom: 6,
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                    }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: "#1a2332", margin: 0 }}>{c.business_name}</p>
+                      <p style={{ fontSize: 11, color: "#F5C842", margin: "2px 0 6px", fontWeight: 600 }}>{types.join(", ")}</p>
+                      <a href={`tel:${c.phone?.replace(/\D/g, "")}`} style={{ fontSize: 11, color: "#2d3e50", fontWeight: 600, textDecoration: "none" }}>
+                        Call Now →
+                      </a>
                     </div>
                   );
                 })}
               </div>
-            </div>
+            )}
           </div>
-
-          {/* Bottom Stats Bar */}
-          <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", padding: "16px 24px", display: "flex", gap: 40, justifyContent: "center", background: "#0d1a2e" }}>
-            {[
-              { value: delivered, label: "Sites Delivered" },
-              { value: "4.2 hrs", label: "Avg TTM" },
-              { value: `${avgQA}%`, label: "QA Pass Rate" },
-              { value: `${clients.filter((c) => c.messages.length > 0).length}/${clients.length}`, label: "Client Response" },
-            ].map((s) => (
-              <div key={s.label} style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 22, fontWeight: 800, color: "#F5C842" }}>{s.value}</div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>{s.label}</div>
-              </div>
-            ))}
-          </div>
-        </main>
+        </aside>
       </div>
 
-      {/* ── NOTIFICATION DRAWER ─────────────────────────────────────────── */}
+      {/* ── NOTIFICATION DRAWER ──────────────────────────────────────────────── */}
       {bellOpen && (
         <>
           <div onClick={() => setBellOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 48 }} />
-          <div style={{ position: "fixed", top: 60, right: 24, width: 360, background: "#0d1a2e", borderRadius: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.08)", zIndex: 100, maxHeight: "70vh", overflowY: "auto" }}>
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0" }}>Notifications</span>
-              <button onClick={() => setReadNotifs(new Set(notifications.map((n) => n.id)))} style={{ background: "none", border: "none", fontSize: 11, color: "#3b82f6", cursor: "pointer" }}>Mark all read</button>
+          <div style={{
+            position: "fixed", top: 60, right: 24, width: 360,
+            background: "#fff", borderRadius: 12,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+            border: "1px solid #e5e9ef", zIndex: 100,
+            maxHeight: "70vh", overflowY: "auto",
+          }}>
+            <div style={{
+              padding: "12px 16px", borderBottom: "1px solid #e5e9ef",
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+            }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: "#1a2332" }}>Notifications</span>
+              <button
+                onClick={() => setReadNotifs(new Set(notifications.map((n) => n.id)))}
+                style={{ background: "none", border: "none", fontSize: 11, color: "#3b82f6", cursor: "pointer" }}
+              >
+                Mark all read
+              </button>
             </div>
             {notifications.map((n) => (
-              <Link key={n.id} href={`/tearsheet/${n.clientId}`} onClick={() => setBellOpen(false)} style={{ display: "flex", gap: 10, padding: "10px 16px", borderBottom: "1px solid #f8fafc", textDecoration: "none", background: readNotifs.has(n.id) ? "#fff" : "#f8fafc" }}>
+              <Link
+                key={n.id}
+                href={`/tearsheet/${n.clientId}`}
+                onClick={() => setBellOpen(false)}
+                style={{
+                  display: "flex", gap: 10, padding: "10px 16px",
+                  borderBottom: "1px solid #f0f2f5", textDecoration: "none",
+                  background: readNotifs.has(n.id) ? "#fff" : "#f8fafc",
+                }}
+              >
                 <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0", margin: 0 }}>{n.name}</p>
-                  <p style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", margin: "2px 0 0" }}>{n.msg}</p>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: "#1a2332", margin: 0 }}>{n.name}</p>
+                  <p style={{ fontSize: 11, color: "#7a8a9a", margin: "2px 0 0" }}>{n.msg}</p>
                 </div>
-                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", whiteSpace: "nowrap", flexShrink: 0 }}>{n.time}</span>
+                <span style={{ fontSize: 10, color: "#94a3b8", whiteSpace: "nowrap", flexShrink: 0 }}>{n.time}</span>
               </Link>
             ))}
           </div>
         </>
       )}
 
-      {/* ── SLIDE-OUT PANEL ─────────────────────────────────────────────── */}
+      {/* ── SLIDE-OUT PANEL ──────────────────────────────────────────────────── */}
       {drawerClient && (
         <>
           <div onClick={() => setDrawerClient(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 49 }} />
-          <div style={{ position: "fixed", top: 0, right: 0, width: 400, height: "100vh", background: "#0f1f3d", boxShadow: "-8px 0 32px rgba(0,0,0,0.15)", zIndex: 50, display: "flex", flexDirection: "column", animation: "slideIn 0.25s ease-out" }}>
-            <div style={{ padding: "20px", borderBottom: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{
+            position: "fixed", top: 0, right: 0, width: 400, height: "100vh",
+            background: "#fff", boxShadow: "-8px 0 32px rgba(0,0,0,0.12)",
+            zIndex: 50, display: "flex", flexDirection: "column",
+            animation: "slideIn 0.25s ease-out",
+          }}>
+            <div style={{
+              padding: "20px", borderBottom: "1px solid #e5e9ef",
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              background: "#f8fafc",
+            }}>
               <div>
-                <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, fontWeight: 700, color: "#e2e8f0", margin: 0 }}>{drawerClient.business_name}</h2>
-                <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", margin: "2px 0 0" }}>{drawerClient.city} · {STAGE_LABELS[drawerClient.stage]}</p>
+                <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, fontWeight: 700, color: "#1a2332", margin: 0 }}>
+                  {drawerClient.business_name}
+                </h2>
+                <p style={{ fontSize: 12, color: "#7a8a9a", margin: "2px 0 0" }}>
+                  {drawerClient.city} · {STAGE_LABELS[drawerClient.stage]}
+                </p>
               </div>
-              <button onClick={() => setDrawerClient(null)} style={{ background: "none", border: "none", fontSize: 22, color: "rgba(255,255,255,0.5)", cursor: "pointer" }}>×</button>
+              <button
+                onClick={() => setDrawerClient(null)}
+                style={{ background: "none", border: "none", fontSize: 22, color: "#7a8a9a", cursor: "pointer" }}
+              >
+                ×
+              </button>
             </div>
 
             {/* Tabs */}
-            <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+            <div style={{ display: "flex", borderBottom: "1px solid #e5e9ef" }}>
               {([{ key: "overview" as const, label: "Overview" }, { key: "comm" as const, label: "Communication" }, { key: "actions" as const, label: "Actions" }]).map((t) => (
-                <button key={t.key} onClick={() => setDrawerTab(t.key)} style={{ flex: 1, padding: "10px 0", border: "none", cursor: "pointer", fontSize: 12, fontWeight: drawerTab === t.key ? 700 : 500, color: drawerTab === t.key ? "#0d1a2e" : "#94a3b8", background: "transparent", borderBottom: drawerTab === t.key ? "2px solid #F5C842" : "2px solid transparent" }}>
+                <button
+                  key={t.key}
+                  onClick={() => setDrawerTab(t.key)}
+                  style={{
+                    flex: 1, padding: "10px 0", border: "none", cursor: "pointer",
+                    fontSize: 12, fontWeight: drawerTab === t.key ? 700 : 500,
+                    color: drawerTab === t.key ? "#2d3e50" : "#94a3b8",
+                    background: "transparent",
+                    borderBottom: drawerTab === t.key ? "2px solid #F5C842" : "2px solid transparent",
+                  }}
+                >
                   {t.label}
                 </button>
               ))}
@@ -424,28 +825,28 @@ export default function DashboardPage() {
             <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
               {drawerTab === "overview" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12, fontSize: 13 }}>
-                  <div><span style={{ color: "rgba(255,255,255,0.4)" }}>Phone: </span><span style={{ color: "#e2e8f0", fontWeight: 600 }}>{drawerClient.phone || "—"}</span></div>
-                  <div><span style={{ color: "rgba(255,255,255,0.4)" }}>Look: </span><span style={{ color: "#e2e8f0", fontWeight: 600, textTransform: "capitalize" }}>{drawerClient.selectedLook?.replace(/_/g, " ") || "—"}</span></div>
-                  <div><span style={{ color: "rgba(255,255,255,0.4)" }}>Services: </span><span style={{ color: "#e2e8f0" }}>{drawerClient.intakeAnswers?.q3 || "—"}</span></div>
-                  <div><span style={{ color: "rgba(255,255,255,0.4)" }}>CTA: </span><span style={{ color: "#e2e8f0" }}>{drawerClient.intakeAnswers?.q4 || "—"}</span></div>
-                  <div><span style={{ color: "rgba(255,255,255,0.4)" }}>Stage: </span><span style={{ color: "#F5C842", fontWeight: 600 }}>{STAGE_LABELS[drawerClient.stage]}</span></div>
-                  <div><span style={{ color: "rgba(255,255,255,0.4)" }}>Created: </span><span style={{ color: "#e2e8f0" }}>{new Date(drawerClient.created_at).toLocaleDateString()}</span></div>
+                  <div><span style={{ color: "#7a8a9a" }}>Phone: </span><span style={{ color: "#1a2332", fontWeight: 600 }}>{drawerClient.phone || "—"}</span></div>
+                  <div><span style={{ color: "#7a8a9a" }}>Look: </span><span style={{ color: "#1a2332", fontWeight: 600, textTransform: "capitalize" }}>{drawerClient.selectedLook?.replace(/_/g, " ") || "—"}</span></div>
+                  <div><span style={{ color: "#7a8a9a" }}>Services: </span><span style={{ color: "#1a2332" }}>{drawerClient.intakeAnswers?.q3 || "—"}</span></div>
+                  <div><span style={{ color: "#7a8a9a" }}>CTA: </span><span style={{ color: "#1a2332" }}>{drawerClient.intakeAnswers?.q4 || "—"}</span></div>
+                  <div><span style={{ color: "#7a8a9a" }}>Stage: </span><span style={{ color: "#F5C842", fontWeight: 600 }}>{STAGE_LABELS[drawerClient.stage]}</span></div>
+                  <div><span style={{ color: "#7a8a9a" }}>Created: </span><span style={{ color: "#1a2332" }}>{new Date(drawerClient.created_at).toLocaleDateString()}</span></div>
                   {drawerClient.interests && Object.keys(drawerClient.interests).filter((k) => !k.endsWith("_at") && drawerClient.interests?.[k]).length > 0 && (
-                    <div><span style={{ color: "rgba(255,255,255,0.4)" }}>Interests: </span><span style={{ color: "#F5C842", fontWeight: 600 }}>{Object.keys(drawerClient.interests).filter((k) => !k.endsWith("_at") && drawerClient.interests?.[k]).join(", ")}</span></div>
+                    <div><span style={{ color: "#7a8a9a" }}>Interests: </span><span style={{ color: "#F5C842", fontWeight: 600 }}>{Object.keys(drawerClient.interests).filter((k) => !k.endsWith("_at") && drawerClient.interests?.[k]).join(", ")}</span></div>
                   )}
                 </div>
               )}
 
               {drawerTab === "comm" && (
                 <div>
-                  {drawerClient.messages.length === 0 && <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, textAlign: "center", padding: "20px 0" }}>No messages yet.</p>}
+                  {drawerClient.messages.length === 0 && <p style={{ color: "#7a8a9a", fontSize: 13, textAlign: "center", padding: "20px 0" }}>No messages yet.</p>}
                   {drawerClient.messages.map((m, i) => (
-                    <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid #f0f2f5" }}>
                       <div style={{ display: "flex", justifyContent: "space-between" }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0" }}>{m.from}</span>
-                        <span style={{ fontSize: 10, color: "rgba(255,255,255,0.5)" }}>{timeAgo(m.timestamp)}</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: "#1a2332" }}>{m.from}</span>
+                        <span style={{ fontSize: 10, color: "#94a3b8" }}>{timeAgo(m.timestamp)}</span>
                       </div>
-                      <p style={{ fontSize: 13, color: "#cbd5e1", margin: "4px 0 0", lineHeight: 1.5 }}>{m.text}</p>
+                      <p style={{ fontSize: 13, color: "#4a5568", margin: "4px 0 0", lineHeight: 1.5 }}>{m.text}</p>
                     </div>
                   ))}
                   <div ref={chatEndRef} />
@@ -454,23 +855,44 @@ export default function DashboardPage() {
 
               {drawerTab === "actions" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <Link href={`/tearsheet/${drawerClient.id}`} style={{ display: "block", background: "#F5C842", color: "#e2e8f0", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: "none", textAlign: "center" }}>Open Full Profile →</Link>
-                  <Link href={`/tearsheet/${drawerClient.id}`} style={{ display: "block", background: "#1a2f50", color: "#e2e8f0", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none", textAlign: "center", border: "1px solid rgba(255,255,255,0.08)" }}>Open Tear Sheet →</Link>
-                  <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/client/${drawerClient.id}`); }} style={{ background: "#1a2f50", border: "1px solid rgba(255,255,255,0.08)", color: "#e2e8f0", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Copy Client Portal Link</button>
-                  <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/tearsheet/${drawerClient.id}`); }} style={{ background: "#1a2f50", border: "1px solid rgba(255,255,255,0.08)", color: "#e2e8f0", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Copy Tear Sheet Link</button>
+                  <Link href={`/tearsheet/${drawerClient.id}`} style={{ display: "block", background: "#F5C842", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: "none", textAlign: "center" }}>Open Full Profile →</Link>
+                  <Link href={`/tearsheet/${drawerClient.id}`} style={{ display: "block", background: "#f8fafc", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none", textAlign: "center", border: "1px solid #e5e9ef" }}>Open Tear Sheet →</Link>
+                  <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/client/${drawerClient.id}`); }} style={{ background: "#f8fafc", border: "1px solid #e5e9ef", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Copy Client Portal Link</button>
+                  <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/tearsheet/${drawerClient.id}`); }} style={{ background: "#f8fafc", border: "1px solid #e5e9ef", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Copy Tear Sheet Link</button>
                   {gcalConnected && (
-                    <button onClick={() => addToCalendar(`Follow up: ${drawerClient.business_name}`, `Check in on ${drawerClient.business_name} build status. Stage: ${STAGE_LABELS[drawerClient.stage]}`)} style={{ background: "#1a2f50", border: "1px solid rgba(255,255,255,0.08)", color: "#e2e8f0", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>📅 Add Calendar Reminder</button>
+                    <button onClick={() => addToCalendar(`Follow up: ${drawerClient.business_name}`, `Check in on ${drawerClient.business_name} build status. Stage: ${STAGE_LABELS[drawerClient.stage]}`)} style={{ background: "#f8fafc", border: "1px solid #e5e9ef", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>📅 Add Calendar Reminder</button>
                   )}
-                  <Link href={`/qa?clientId=${drawerClient.id}`} style={{ display: "block", background: "#1a2f50", color: "#e2e8f0", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none", textAlign: "center", border: "1px solid rgba(255,255,255,0.08)" }}>Run QA</Link>
+                  <Link href={`/qa?clientId=${drawerClient.id}`} style={{ display: "block", background: "#f8fafc", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none", textAlign: "center", border: "1px solid #e5e9ef" }}>Run QA</Link>
                 </div>
               )}
             </div>
 
             {/* Message input for comm tab */}
             {drawerTab === "comm" && (
-              <div style={{ padding: "12px 20px", borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", gap: 8 }}>
-                <input type="text" value={msgInput} onChange={(e) => setMsgInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendMessage()} placeholder="Send message to client..." style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)", fontSize: 13, outline: "none" }} />
-                <button onClick={sendMessage} disabled={msgSending || !msgInput.trim()} style={{ background: "#F5C842", color: "#e2e8f0", border: "none", padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: msgSending ? 0.5 : 1 }}>Send</button>
+              <div style={{ padding: "12px 20px", borderTop: "1px solid #e5e9ef", display: "flex", gap: 8, background: "#f8fafc" }}>
+                <input
+                  type="text"
+                  value={msgInput}
+                  onChange={(e) => setMsgInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                  placeholder="Send message to client..."
+                  style={{
+                    flex: 1, padding: "8px 12px", borderRadius: 8,
+                    border: "1px solid #e5e9ef", fontSize: 13, outline: "none",
+                    background: "#fff", color: "#1a2332",
+                  }}
+                />
+                <button
+                  onClick={sendMessage}
+                  disabled={msgSending || !msgInput.trim()}
+                  style={{
+                    background: "#F5C842", color: "#1a2332", border: "none",
+                    padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 700,
+                    cursor: "pointer", opacity: msgSending ? 0.5 : 1,
+                  }}
+                >
+                  Send
+                </button>
               </div>
             )}
           </div>
