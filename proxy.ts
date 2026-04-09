@@ -7,6 +7,7 @@ const PUBLIC_PATHS = [
   "/api/",
   "/qa-demo",
   "/client",
+  "/social",
   "/_next",
   "/favicon.ico",
   "/bvm_logo.png",

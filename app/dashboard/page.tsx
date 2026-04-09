@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import TopNav from "@/components/TopNav";
+import { useRouter } from "next/navigation";
 import type { ClientProfile, PipelineStage } from "@/lib/pipeline";
 import { STAGE_LABELS } from "@/lib/pipeline";
 
@@ -109,7 +109,18 @@ interface PulseTimerInfo {
   lastScore: number | null;
 }
 
+function handleSignOut(router: ReturnType<typeof useRouter>) {
+  document.cookie = "dc_session=; path=/; max-age=0";
+  try {
+    localStorage.removeItem("dc_auth_token");
+  } catch {
+    /* ignore */
+  }
+  router.push("/login");
+}
+
 export default function DashboardPage() {
+  const router = useRouter();
   const [clients, setClients] = useState<ClientProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [bellOpen, setBellOpen] = useState(false);
@@ -548,6 +559,24 @@ export default function DashboardPage() {
               TH
             </div>
           </div>
+
+          {/* Log out */}
+          <button
+            onClick={() => handleSignOut(router)}
+            style={{
+              background: "rgba(255,255,255,0.08)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: 6,
+              padding: "8px 14px",
+              fontSize: 12,
+              fontWeight: 600,
+              color: "rgba(255,255,255,0.85)",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Log Out
+          </button>
         </div>
       </nav>
 
@@ -1510,7 +1539,7 @@ export default function DashboardPage() {
                         `Rep: Ted Herrera\n` +
                         `Stage: ${STAGE_LABELS[selectedClient.stage]}\n\n` +
                         `Sent from BVM Design Center`;
-                      const to = "elizabeth@bestversionmedia.com,sal@bestversionmedia.com";
+                      const to = "enorman@bestversionmedia.com,sfaiella@bestversionmedia.com";
                       const mailto = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
                       window.open(mailto);
                       // Log to activity feed
