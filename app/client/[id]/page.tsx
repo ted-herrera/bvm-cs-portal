@@ -449,13 +449,7 @@ export default function ClientPortalPage() {
                 </div>
               </div>
 
-              {/* 3. Welcome video card */}
-              <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: "20px 24px", marginBottom: 24 }}>
-                <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#94a3b8", margin: "0 0 16px" }}>Getting Started</p>
-                <video src="/claire-onboarding.mp4" controls preload="metadata" style={{ borderRadius: 8, boxShadow: "0 2px 12px rgba(0,0,0,0.08)", maxWidth: 640, width: "100%", display: "block" }} />
-              </div>
-
-              {/* 4. Action cards grid */}
+              {/* Action cards grid */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
 
                 {/* My Site card */}
