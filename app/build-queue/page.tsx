@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ClientProfile } from "@/lib/pipeline";
-import { STAGE_LABELS, STAGE_COLORS } from "@/lib/pipeline";
+import { STAGE_LABELS } from "@/lib/pipeline";
 
 const DEV_USERNAME = "dev";
 
@@ -12,10 +12,18 @@ function daysSince(dateStr: string): number {
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
 }
 
+function hoursSince(dateStr: string): number {
+  return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60));
+}
+
 export default function BuildQueuePage() {
   const router = useRouter();
   const [clients, setClients] = useState<ClientProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [clock, setClock] = useState(new Date());
+  const [selectedBuild, setSelectedBuild] = useState<ClientProfile | null>(null);
+  const [msgInput, setMsgInput] = useState("");
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   async function load() {
     try {
@@ -27,6 +35,11 @@ export default function BuildQueuePage() {
   }
 
   useEffect(() => { load(); }, []);
+  useEffect(() => {
+    const i = setInterval(() => setClock(new Date()), 1000);
+    const poll = setInterval(() => { fetch("/api/clients").then((r) => r.json()).then((d) => setClients(d.clients || [])).catch(() => {}); }, 10000);
+    return () => { clearInterval(i); clearInterval(poll); };
+  }, []);
 
   const buildingClients = clients.filter((c) => c.stage === "building");
   const unassigned = buildingClients.filter((c) => !c.assignedDev);
@@ -38,7 +51,8 @@ export default function BuildQueuePage() {
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   }).length;
 
-  const today = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const qaClients = clients.filter((c) => c.qaReport);
+  const avgQA = qaClients.length ? Math.round(qaClients.reduce((s, c) => s + (c.qaReport?.score || 0), 0) / qaClients.length) : 0;
 
   async function claimBuild(clientId: string) {
     await fetch("/api/build/claim", {
@@ -67,118 +81,237 @@ export default function BuildQueuePage() {
     router.push("/login");
   }
 
-  const stats = [
-    { label: "Available Builds", value: unassigned.length },
-    { label: "My Active Builds", value: myBuilds.length },
-    { label: "Completed This Month", value: completedThisMonth },
-  ];
+  async function sendDevMsg() {
+    if (!msgInput.trim() || !selectedBuild) return;
+    await fetch(`/api/profile/message/${selectedBuild.id}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: msgInput, from: "dev" }),
+    });
+    const updated = { ...selectedBuild, messages: [...selectedBuild.messages, { from: "dev", text: msgInput, timestamp: new Date().toISOString() }] };
+    setSelectedBuild(updated);
+    setClients((prev) => prev.map((c) => c.id === updated.id ? updated : c));
+    setMsgInput("");
+  }
+
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [selectedBuild?.messages.length]);
+
+  const mono = "'DM Mono', 'Fira Code', 'SF Mono', monospace";
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#000", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+        <div style={{ fontFamily: mono, color: "#00d4ff", fontSize: 14 }}>LOADING BUILDS...</div>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0d1a2e", display: "flex", flexDirection: "column" }}>
-      {/* Gold bar */}
-      <div style={{ height: 4, background: "#F5C842", flexShrink: 0 }} />
+    <div style={{ minHeight: "100vh", background: "#000", display: "flex", flexDirection: "column", fontFamily: mono }}>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
 
-      {/* Nav */}
-      <nav style={{ background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "10px 32px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100, flexShrink: 0 }}>
-        <span style={{ color: "#0d1a2e", fontWeight: 700, fontSize: 14, textTransform: "uppercase", letterSpacing: "0.08em" }}>BVM DESIGN CENTER</span>
-        <div style={{ display: "flex", gap: 4 }}>
-          <Link href="/build-queue" style={{ padding: "6px 16px", borderRadius: 9999, fontSize: 13, fontWeight: 600, textDecoration: "none", background: "#F5C842", color: "#0d1a2e" }}>Build Queue</Link>
-          <Link href="/build-queue" style={{ padding: "6px 16px", borderRadius: 9999, fontSize: 13, fontWeight: 600, textDecoration: "none", background: "transparent", color: "#0d1a2e", opacity: 0.6 }}>My Builds</Link>
+      {/* ── TOP BAR ──────────────────────────────────────────────────────── */}
+      <nav style={{ background: "#000", borderBottom: "1px solid #00d4ff30", height: 48, display: "flex", alignItems: "center", padding: "0 24px", justifyContent: "space-between", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <span style={{ color: "#00d4ff", fontSize: 14, fontWeight: 500, letterSpacing: "0.12em" }}>BVM BUILD QUEUE</span>
+          <span style={{ color: "#00d4ff30", fontSize: 12 }}>|</span>
+          <span style={{ color: "#00d4ff80", fontSize: 11 }}>v2.0</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ fontSize: 13, color: "#0d1a2e", fontWeight: 500 }}>Dev Team</span>
-          <button onClick={handleSignOut} style={{ background: "none", border: "none", color: "#64748b", fontSize: 13, cursor: "pointer" }}>Sign Out</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <span style={{ color: "#00d4ff", fontSize: 12, fontVariantNumeric: "tabular-nums" }}>
+            {clock.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" })}
+          </span>
+          <span style={{ color: "#00d4ff40" }}>|</span>
+          <span style={{ color: "#00d4ff80", fontSize: 11 }}>
+            {clock.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+          </span>
+          <span style={{ color: "#00d4ff40" }}>|</span>
+          <span style={{ background: "#00d4ff15", border: "1px solid #00d4ff40", borderRadius: 4, padding: "2px 10px", fontSize: 11, color: "#00d4ff" }}>DEV: {DEV_USERNAME}</span>
+          <button onClick={handleSignOut} style={{ background: "none", border: "1px solid #ff3b3b40", borderRadius: 4, padding: "2px 10px", fontSize: 11, color: "#ff3b3b", cursor: "pointer", fontFamily: mono }}>LOGOUT</button>
         </div>
       </nav>
 
-      <main style={{ flex: 1, padding: "32px 40px", maxWidth: 1200, margin: "0 auto", width: "100%" }}>
-        {/* Header */}
-        <div style={{ marginBottom: 32 }}>
-          <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 32, fontWeight: 700, color: "#fff", margin: 0 }}>Build Queue</h1>
-          <p style={{ fontSize: 14, color: "#94a3b8", marginTop: 4 }}>Available builds — take one to begin</p>
-          <p style={{ color: "#F5C842", fontSize: 12, marginTop: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>{today}</p>
-        </div>
+      {/* ── THREE COLUMNS ────────────────────────────────────────────────── */}
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
 
-        {/* Stat cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 40 }}>
-          {stats.map((s) => (
-            <div key={s.label} style={{ background: "#fff", borderTop: "3px solid #0d1a2e", borderRadius: 12, padding: "20px 24px" }}>
-              <p style={{ fontSize: 12, color: "#64748b", margin: 0, textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 600 }}>{s.label}</p>
-              <p style={{ fontSize: 32, fontWeight: 700, color: "#0d1a2e", margin: "8px 0 0" }}>{s.value}</p>
-            </div>
-          ))}
-        </div>
+        {/* ── LEFT: Unassigned Builds ─────────────────────────────────── */}
+        <div style={{ flex: 1, borderRight: "1px solid #00d4ff15", overflowY: "auto", padding: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <span style={{ color: "#00d4ff", fontSize: 11, letterSpacing: "0.12em", fontWeight: 500 }}>UNASSIGNED BUILDS</span>
+            <span style={{ color: "#00d4ff60", fontSize: 11 }}>{unassigned.length}</span>
+          </div>
 
-        {/* Unassigned */}
-        <div style={{ marginBottom: 32 }}>
-          <h2 style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: "#f59e0b", textTransform: "uppercase", marginBottom: 12 }}>AVAILABLE</h2>
           {unassigned.length === 0 ? (
-            <div style={{ background: "#1a2740", borderLeft: "3px solid #f59e0b", borderRadius: 10, padding: "20px 24px", opacity: 0.5 }}>
-              <p style={{ fontSize: 13, color: "#64748b", margin: 0, fontStyle: "italic" }}>No unassigned builds right now</p>
+            <div style={{ border: "1px dashed #00d4ff30", borderRadius: 8, padding: 24, textAlign: "center" }}>
+              <p style={{ color: "#00d4ff40", fontSize: 12, margin: 0 }}>NO BUILDS AVAILABLE</p>
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {unassigned.map((c) => (
-                <div key={c.id} style={{ background: "#fff", borderRadius: 12, padding: "20px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}>
-                  <div>
-                    <p style={{ fontSize: 16, fontWeight: 600, color: "#0d1a2e", margin: 0 }}>{c.business_name}</p>
-                    <p style={{ fontSize: 12, color: "#94a3b8", margin: "2px 0 0" }}>{c.city}, {c.zip}</p>
-                    <p style={{ fontSize: 11, color: "#94a3b8", margin: "2px 0 0" }}>Look: {c.selectedLook?.replace(/_/g, " ")}</p>
-                    <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {unassigned.map((c) => {
+                const days = daysSince(c.buildLog[c.buildLog.length - 1]?.timestamp || c.created_at);
+                const urgent = !!c.interests?.featured_placement;
+                return (
+                  <div key={c.id} onClick={() => setSelectedBuild(c)} style={{
+                    background: "#000", border: `1px solid ${urgent ? "#ff3b3b" : "#00d4ff40"}`,
+                    borderRadius: 8, padding: "16px 18px", cursor: "pointer",
+                    transition: "border-color 0.15s",
+                  }}>
+                    {urgent && (
+                      <div style={{ background: "#ff3b3b", color: "#000", fontSize: 9, fontWeight: 500, letterSpacing: "0.1em", padding: "2px 8px", borderRadius: 3, display: "inline-block", marginBottom: 8 }}>URGENT — FEATURED PLACEMENT</div>
+                    )}
+                    <p style={{ fontSize: 16, fontWeight: 500, color: "#fff", margin: "0 0 4px" }}>{c.business_name}</p>
+                    <p style={{ fontSize: 11, color: "#00d4ff80", margin: "0 0 8px" }}>{c.city}, {c.zip}</p>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                      <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 3, background: "#00d4ff10", border: "1px solid #00d4ff30", color: "#00d4ff" }}>{c.selectedLook?.replace(/_/g, " ") || "—"}</span>
                       {c.intakeAnswers?.q3?.split(",").map((s) => (
-                        <span key={s.trim()} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 9999, background: "#f1f5f9", color: "#64748b" }}>{s.trim()}</span>
+                        <span key={s.trim()} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 3, background: "#00d4ff08", border: "1px solid #00d4ff20", color: "#00d4ff80" }}>{s.trim()}</span>
                       ))}
                     </div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 9999, background: "#0d1a2e", color: "#94a3b8", fontWeight: 500 }}>Rep: {c.assigned_rep}</span>
-                    <span style={{ fontSize: 12, color: daysSince(c.buildLog[c.buildLog.length - 1]?.timestamp || c.created_at) > 2 ? "#f59e0b" : "#64748b" }}>
-                      {daysSince(c.buildLog[c.buildLog.length - 1]?.timestamp || c.created_at)}d waiting
-                    </span>
-                    <span className={STAGE_COLORS[c.stage]} style={{ fontSize: 11, padding: "3px 10px", borderRadius: 9999, color: "#fff", fontWeight: 600 }}>{STAGE_LABELS[c.stage]}</span>
-                    <button onClick={() => claimBuild(c.id)} style={{ background: "#F5C842", color: "#0d1a2e", border: "none", padding: "8px 20px", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                      Take This Build
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 11, color: days > 3 ? "#ff3b3b" : days > 1 ? "#f59e0b" : "#00d4ff60" }}>{days}d waiting</span>
+                      {c.qaReport && <span style={{ fontSize: 10, color: "#00d4ff60" }}>QA: {c.qaReport.score}</span>}
+                    </div>
+                    <button onClick={(e) => { e.stopPropagation(); claimBuild(c.id); }} style={{
+                      width: "100%", marginTop: 12, background: "transparent", border: "1px solid #00d4ff",
+                      color: "#00d4ff", padding: "8px 0", borderRadius: 6, fontSize: 12, fontWeight: 500,
+                      cursor: "pointer", fontFamily: mono, letterSpacing: "0.06em",
+                      transition: "all 0.15s",
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "#00d4ff"; e.currentTarget.style.color = "#000"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#00d4ff"; }}
+                    >
+                      CLAIM BUILD →
                     </button>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
 
-        {/* My Builds */}
-        <div style={{ marginBottom: 32 }}>
-          <h2 style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: "#3b82f6", textTransform: "uppercase", marginBottom: 12 }}>MY BUILDS</h2>
+        {/* ── CENTER: My Builds ───────────────────────────────────────── */}
+        <div style={{ flex: 1, borderRight: "1px solid #00d4ff15", overflowY: "auto", padding: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <span style={{ color: "#f59e0b", fontSize: 11, letterSpacing: "0.12em", fontWeight: 500 }}>MY BUILDS</span>
+            <span style={{ color: "#f59e0b60", fontSize: 11 }}>{myBuilds.length}</span>
+          </div>
+
           {myBuilds.length === 0 ? (
-            <div style={{ background: "#1a2740", borderLeft: "3px solid #3b82f6", borderRadius: 10, padding: "20px 24px", opacity: 0.5 }}>
-              <p style={{ fontSize: 13, color: "#64748b", margin: 0, fontStyle: "italic" }}>No builds claimed yet — take one from above</p>
+            <div style={{ border: "1px dashed #f59e0b30", borderRadius: 8, padding: 24, textAlign: "center" }}>
+              <p style={{ color: "#f59e0b40", fontSize: 12, margin: 0 }}>NO ACTIVE BUILDS — CLAIM ONE</p>
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {myBuilds.map((c) => (
-                <div key={c.id} style={{ background: "#fff", borderRadius: 12, padding: "20px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}>
-                  <div>
-                    <p style={{ fontSize: 16, fontWeight: 600, color: "#0d1a2e", margin: 0 }}>{c.business_name}</p>
-                    <p style={{ fontSize: 12, color: "#94a3b8", margin: "2px 0 0" }}>{c.city}, {c.zip}</p>
-                    <p style={{ fontSize: 11, color: "#94a3b8", margin: "2px 0 0" }}>Look: {c.selectedLook?.replace(/_/g, " ")}</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {myBuilds.map((c) => {
+                const hrs = hoursSince(c.buildLog[c.buildLog.length - 1]?.timestamp || c.created_at);
+                return (
+                  <div key={c.id} onClick={() => setSelectedBuild(c)} style={{
+                    background: "#000", border: "1px solid #f59e0b40",
+                    borderRadius: 8, padding: "16px 18px", cursor: "pointer",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                      <p style={{ fontSize: 16, fontWeight: 500, color: "#fff", margin: 0 }}>{c.business_name}</p>
+                      <span style={{ fontSize: 10, color: "#f59e0b", background: "#f59e0b15", border: "1px solid #f59e0b30", borderRadius: 3, padding: "2px 8px" }}>IN PROGRESS</span>
+                    </div>
+                    <p style={{ fontSize: 11, color: "#00d4ff80", margin: "0 0 8px" }}>{c.city} · {c.selectedLook?.replace(/_/g, " ") || "—"}</p>
+                    <p style={{ fontSize: 11, color: "#f59e0b80", margin: "0 0 12px" }}>{hrs}h since claimed</p>
+
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={(e) => { e.stopPropagation(); downloadBrief(c); }} style={{
+                        flex: 1, background: "transparent", border: "1px solid #f59e0b",
+                        color: "#f59e0b", padding: "7px 0", borderRadius: 6, fontSize: 11, fontWeight: 500,
+                        cursor: "pointer", fontFamily: mono, letterSpacing: "0.04em",
+                      }}>
+                        DOWNLOAD DEV PACK
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); markReady(c.id); }} style={{
+                        flex: 1, background: "transparent", border: "1px solid #00d4ff",
+                        color: "#00d4ff", padding: "7px 0", borderRadius: 6, fontSize: 11, fontWeight: 500,
+                        cursor: "pointer", fontFamily: mono, letterSpacing: "0.04em",
+                      }}>
+                        MARK READY FOR QA →
+                      </button>
+                    </div>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <span style={{ fontSize: 12, color: "#64748b" }}>
-                      {daysSince(c.buildLog[c.buildLog.length - 1]?.timestamp || c.created_at)}d in my queue
-                    </span>
-                    <button onClick={() => downloadBrief(c)} style={{ background: "#F5C842", color: "#0d1a2e", border: "none", padding: "8px 20px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-                      Download Build Package
-                    </button>
-                    <button onClick={() => markReady(c.id)} style={{ background: "#0d1a2e", color: "#fff", border: "none", padding: "8px 20px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-                      Mark Ready for QA →
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
-      </main>
+
+        {/* ── RIGHT: Communications ───────────────────────────────────── */}
+        <div style={{ width: 320, flexShrink: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div style={{ padding: "12px 16px", borderBottom: "1px solid #00d4ff15" }}>
+            <span style={{ color: "#fff", fontSize: 11, letterSpacing: "0.12em", fontWeight: 500 }}>COMMUNICATIONS</span>
+            {selectedBuild && (
+              <p style={{ fontSize: 11, color: "#00d4ff80", margin: "4px 0 0" }}>VIEWING: {selectedBuild.business_name}</p>
+            )}
+          </div>
+
+          <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px" }}>
+            {!selectedBuild ? (
+              <div style={{ textAlign: "center", padding: "40px 16px" }}>
+                <p style={{ color: "#00d4ff30", fontSize: 12 }}>SELECT A BUILD TO VIEW THREAD</p>
+              </div>
+            ) : (
+              <>
+                {selectedBuild.messages.length === 0 && (
+                  <p style={{ color: "#00d4ff30", fontSize: 12, textAlign: "center", padding: "20px 0" }}>NO MESSAGES YET</p>
+                )}
+                {selectedBuild.messages.map((m, i) => {
+                  const isRep = m.from === "rep";
+                  const isDev = m.from === "dev";
+                  const badgeColor = isRep ? "#f59e0b" : isDev ? "#00d4ff" : "#22c55e";
+                  const badgeLabel = isRep ? "REP" : isDev ? "DEV" : "CLIENT";
+                  return (
+                    <div key={i} style={{ marginBottom: 14 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                        <span style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.08em", color: "#000", background: badgeColor, padding: "1px 6px", borderRadius: 3 }}>{badgeLabel}</span>
+                        <span style={{ fontSize: 10, color: "#00d4ff40" }}>{new Date(m.timestamp).toLocaleString()}</span>
+                      </div>
+                      <p style={{ fontSize: 12, color: "#fff", margin: 0, lineHeight: 1.6 }}>{m.text}</p>
+                    </div>
+                  );
+                })}
+                <div ref={chatEndRef} />
+              </>
+            )}
+          </div>
+
+          {selectedBuild && (
+            <div style={{ padding: "10px 14px", borderTop: "1px solid #00d4ff15", display: "flex", gap: 8 }}>
+              <input
+                type="text" value={msgInput}
+                onChange={(e) => setMsgInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && sendDevMsg()}
+                placeholder="Message..."
+                style={{ flex: 1, background: "#000", border: "1px solid #00d4ff30", borderRadius: 6, padding: "7px 10px", fontSize: 12, color: "#fff", outline: "none", fontFamily: mono, caretColor: "#00d4ff" }}
+              />
+              <button onClick={sendDevMsg} disabled={!msgInput.trim()} style={{
+                background: "#00d4ff", color: "#000", border: "none", borderRadius: 6,
+                padding: "7px 14px", fontSize: 11, fontWeight: 500, cursor: "pointer",
+                fontFamily: mono, opacity: msgInput.trim() ? 1 : 0.3,
+              }}>SEND</button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── BOTTOM BAR ───────────────────────────────────────────────────── */}
+      <div style={{ borderTop: "1px solid #00d4ff20", padding: "10px 24px", display: "flex", gap: 32, justifyContent: "center", flexShrink: 0 }}>
+        {[
+          { label: "TOTAL BUILDS", value: buildingClients.length },
+          { label: "UNASSIGNED", value: unassigned.length },
+          { label: "MY ACTIVE", value: myBuilds.length },
+          { label: "COMPLETED/MO", value: completedThisMonth },
+          { label: "AVG QA", value: `${avgQA}%` },
+        ].map((s) => (
+          <div key={s.label} style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 16, fontWeight: 500, color: "#00d4ff" }}>{s.value}</div>
+            <div style={{ fontSize: 9, color: "#00d4ff50", letterSpacing: "0.1em", marginTop: 2 }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
