@@ -3,266 +3,268 @@
 import { useState, useRef, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import TopNav from "@/components/TopNav";
-import { classifyBusinessType, getCTASuggestion } from "@/lib/business-classifier";
 
-interface Msg { role: "bruno" | "user"; text: string; pills?: { label: string; value: string }[] }
+interface Msg {
+  role: "bruno" | "user";
+  text: string;
+  cards?: { label: string; value: string; desc: string; accent: string }[];
+}
+
+interface IntakeFields {
+  bizName: string;
+  city: string;
+  zip: string;
+  desc: string;
+  services: string[];
+  cta: string;
+  look: string;
+  tagline: string;
+}
 
 const LOOK_OPTIONS = [
   { id: "warm_bold", label: "Local", accent: "#c2692a", desc: "Clean & Classic" },
   { id: "professional", label: "Community", accent: "#185fa5", desc: "Professional & Trusted" },
-  { id: "bold_modern", label: "Premier ⭐", accent: "#F5C842", desc: "Bold & Premium" },
+  { id: "bold_modern", label: "Premier", accent: "#F5C842", desc: "Bold & Premium" },
 ];
 
-function delay(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
+const SYSTEM_PROMPT = `You are Bruno, an intake assistant for BVM Design Center. Your job is to collect exactly 6 pieces of information to build a local business website. Be conversational, warm, and natural — exactly like talking to a smart friend.
+
+The 6 things you need:
+1. Business name
+2. City and ZIP code
+3. What the business does
+4. 2-3 services they offer
+5. Their call to action (Order Now, Book Now, Call Us, etc)
+6. Their preferred look — show as 3 clickable cards: Local, Community, Premier
+
+Rules:
+1. Never break flow no matter what they type — handle anything gracefully and come back
+2. Collect all 6 naturally in any order however the conversation goes
+3. Once you have all 6 confirm everything in one summary then POST to /api/intake/create
+4. Never ask rigid scripted questions — just have a conversation and extract what you need
+
+CRITICAL: You must ALWAYS end every response with a JSON block on its own line in this exact format:
+###FIELDS###
+{"bizName":"","city":"","zip":"","desc":"","services":[],"cta":"","look":"","tagline":"","complete":false}
+###END###
+
+Fill in whatever fields you've collected so far from the conversation. Leave uncollected fields as empty strings or empty arrays. Set "complete" to true ONLY when all 6 items are confirmed by the user in a summary.
+
+For "look", use one of: "warm_bold", "professional", "bold_modern" (or empty if not chosen yet).
+For "cta", use title case like "Order Now", "Book Now", "Call Us".
+For "tagline", generate a short catchy tagline based on what you know about the business.
+
+When you're ready to show the look options, mention all three: Local (clean & classic), Community (professional & trusted), Premier (bold & premium). The UI will render them as clickable cards automatically when look hasn't been chosen yet and you mention them.
+
+When you have all 6 and the user confirms your summary, set complete to true.`;
+
+function parseResponse(raw: string): { text: string; fields: Partial<IntakeFields> & { complete?: boolean } } {
+  const marker = "###FIELDS###";
+  const endMarker = "###END###";
+  const markerIdx = raw.indexOf(marker);
+  if (markerIdx === -1) return { text: raw.trim(), fields: {} };
+
+  const text = raw.substring(0, markerIdx).trim();
+  const jsonStr = raw.substring(markerIdx + marker.length, raw.indexOf(endMarker)).trim();
+  try {
+    const fields = JSON.parse(jsonStr);
+    return { text, fields };
+  } catch {
+    return { text, fields: {} };
+  }
+}
 
 function IntakeInner() {
   const router = useRouter();
   const params = useSearchParams();
   const isMagic = params.get("magic") === "true";
 
-  type Step = "intro" | "confirm" | "services" | "tagline" | "cta" | "look" | "finish";
-
-  const [step, setStep] = useState<Step>("intro");
   const [chat, setChat] = useState<Msg[]>([{
     role: "bruno",
     text: isMagic
-      ? "Hey — your rep set up this link for you. Tell me about the business. Name, what they do, where they are."
-      : "Hey — I'm Bruno. Tell me about the business. Name, what they do, where they are.",
+      ? "Hey — your rep set up this link for you. Tell me about the business! What's the name, what do they do, where are they?"
+      : "Hey — I'm Bruno! Tell me about the business. What's the name, what do they do, where are they located?",
   }]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [finished, setFinished] = useState(false);
 
-  const [bizName, setBizName] = useState("");
-  const [city, setCity] = useState("");
-  const [zip, setZip] = useState("");
-  const [desc, setDesc] = useState("");
-  const [services, setServices] = useState<string[]>([]);
-  const [tagline, setTagline] = useState("");
-  const [taglineAttempts, setTaglineAttempts] = useState(0);
-  const [cta, setCta] = useState("");
-  const [look, setLook] = useState("warm_bold");
-  const [sbrData, setSbrData] = useState<Record<string, unknown> | null>(null);
+  const [fields, setFields] = useState<IntakeFields>({
+    bizName: "", city: "", zip: "", desc: "",
+    services: [], cta: "", look: "", tagline: "",
+  });
+
   const [previewHtml, setPreviewHtml] = useState("");
+  const [sbrData, setSbrData] = useState<Record<string, unknown> | null>(null);
 
-  const sbrRef = useRef<Record<string, unknown> | null>(null);
+  const historyRef = useRef<{ role: string; content: string }[]>([{
+    role: "assistant",
+    content: isMagic
+      ? "Hey — your rep set up this link for you. Tell me about the business! What's the name, what do they do, where are they?"
+      : "Hey — I'm Bruno! Tell me about the business. What's the name, what do they do, where are they located?",
+  }]);
+
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const sbrFiredRef = useRef(false);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chat]);
 
+  // Live preview update
   useEffect(() => {
-    if (!look || !bizName) return;
+    if (!fields.look || !fields.bizName) return;
     fetch("/api/site/generate", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clientId: "preview", lookKey: look, profileData: { business_name: bizName, city, zip, phone: "", intakeAnswers: { q1: `${bizName}, ${city} ${zip}`, q2: desc, q3: services.join(", "), q4: cta, q5: look }, sbrData: sbrData || undefined } }),
+      body: JSON.stringify({
+        clientId: "preview", lookKey: fields.look,
+        profileData: {
+          business_name: fields.bizName, city: fields.city, zip: fields.zip, phone: "",
+          intakeAnswers: {
+            q1: `${fields.bizName}, ${fields.city} ${fields.zip}`,
+            q2: fields.desc, q3: fields.services.join(", "),
+            q4: fields.cta, q5: fields.look,
+          },
+          sbrData: sbrData || undefined,
+        },
+      }),
     }).then((r) => r.json()).then((d) => setPreviewHtml(d.html || "")).catch(() => {});
-  }, [look, bizName, city, zip, desc, services, cta, sbrData]);
+  }, [fields.look, fields.bizName, fields.city, fields.zip, fields.desc, fields.services, fields.cta, sbrData]);
 
-  function add(role: "bruno" | "user", text: string, pills?: { label: string; value: string }[]) {
-    setChat((p) => [...p, { role, text, pills }]);
-  }
+  // Fire SBR once we have name + city + zip
+  useEffect(() => {
+    if (sbrFiredRef.current || !fields.bizName || !fields.city || !fields.zip) return;
+    sbrFiredRef.current = true;
+    fetch("/api/sbr/run", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ businessType: fields.desc || "business", zip: fields.zip, city: fields.city, businessName: fields.bizName }),
+    }).then((r) => r.json()).then((data) => {
+      setSbrData(data.sbrData || data);
+    }).catch(() => {});
+  }, [fields.bizName, fields.city, fields.zip, fields.desc]);
 
-  async function fireSBR(name: string, z: string, c: string) {
-    try {
-      const res = await fetch("/api/sbr/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ businessType: classifyBusinessType(name, ""), zip: z, city: c, businessName: name }) });
-      const data = await res.json();
-      const sbr = data.sbrData || data;
-      setSbrData(sbr);
-      sbrRef.current = sbr;
-      const comps = (sbr.competitors as string[])?.slice(0, 3)?.join(", ");
-      if (comps) add("bruno", `🏆 Top competitors: ${comps}`);
-      const insight = sbr.marketInsight as string;
-      if (insight) { await delay(400); add("bruno", `📊 ${String(insight).substring(0, 120)}...`); }
-    } catch { /* SBR unavailable */ }
-  }
-
-  async function generateTaglines(): Promise<string[]> {
-    const sbr = sbrRef.current;
-    const headline = (sbr?.campaignHeadline as string) || "";
-    const prompt = `Write 3 short taglines (under 8 words each) for "${bizName}", a ${classifyBusinessType(bizName, desc)} in ${city}. Services: ${services.join(", ")}. ${headline ? `Headline: ${headline}.` : ""} Return ONLY: ["tagline1","tagline2","tagline3"]`;
-    try {
-      const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system: "Return ONLY a JSON array of 3 taglines. No markdown.", messages: [{ role: "user", content: prompt }] }) });
-      const data = await res.json();
-      const text = String(data?.response ?? data?.content?.[0]?.text ?? "");
-      const match = text.match(/\[[\s\S]*?\]/);
-      if (match) return JSON.parse(match[0]) as string[];
-    } catch { /* fallback */ }
-    return [`${bizName} — Built for ${city}`, "Quality You Can Trust", "Local. Proven. Yours."];
+  function addMsg(role: "bruno" | "user", text: string, cards?: Msg["cards"]) {
+    setChat((p) => [...p, { role, text, cards }]);
   }
 
   async function handleSend(override?: string) {
     const ans = (override || input).trim();
-    if (!ans || loading) return;
+    if (!ans || loading || finished) return;
     setInput("");
-    add("user", ans);
+    addMsg("user", ans);
     setLoading(true);
 
-    switch (step) {
-      case "intro": {
-        // Extract everything from one message
-        const zipMatch = ans.match(/\b(\d{5})\b/);
-        const parts = ans.replace(/\d{5}/, "").split(/[,.\n]+/).map((s) => s.trim()).filter(Boolean);
-        const name = parts[0]?.replace(/(?<!['\u2019])\b\w/g, (c) => c.toUpperCase()) || "New Business";
-        const descPart = parts.slice(1).join(", ").replace(/\b(in|at|from|near)\s+\w+(\s+\w{2})?\s*$/i, "").trim();
-        const cityMatch = ans.match(/\b(?:in|at|from|near)\s+([A-Za-z\s]+?)(?:\s+\d{5}|\s*$)/i);
-        const c = cityMatch?.[1]?.trim().replace(/\b\w/g, (ch) => ch.toUpperCase()) || "";
+    historyRef.current.push({ role: "user", content: ans });
 
-        setBizName(name);
-        if (c) setCity(c);
-        if (zipMatch) setZip(zipMatch[1]);
-        if (descPart) setDesc(descPart);
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          system: SYSTEM_PROMPT,
+          messages: historyRef.current,
+          temperature: 0.7,
+        }),
+      });
+      const data = await res.json();
+      const raw = data.response || data.content?.[0]?.text || "";
+      const { text, fields: newFields } = parseResponse(raw);
 
-        await delay(400);
-        const summary = `${name}${descPart ? `, ${descPart.toLowerCase().slice(0, 60)}` : ""}${c ? ` in ${c}` : ""}${zipMatch ? ` ${zipMatch[1]}` : ""}`;
-        add("bruno", `Got it — ${summary}. That right?`);
-        setStep("confirm");
-        break;
+      // Update fields with whatever Bruno extracted
+      setFields((prev) => {
+        const updated = { ...prev };
+        if (newFields.bizName) updated.bizName = newFields.bizName;
+        if (newFields.city) updated.city = newFields.city;
+        if (newFields.zip) updated.zip = newFields.zip;
+        if (newFields.desc) updated.desc = newFields.desc;
+        if (newFields.services && newFields.services.length > 0) updated.services = newFields.services;
+        if (newFields.cta) updated.cta = newFields.cta;
+        if (newFields.look) updated.look = newFields.look;
+        if (newFields.tagline) updated.tagline = newFields.tagline;
+        return updated;
+      });
+
+      // Show look cards if Bruno is asking about look and it hasn't been chosen yet
+      const showLookCards = !newFields.look && !fields.look && /local|community|premier/i.test(text);
+      const cards = showLookCards
+        ? LOOK_OPTIONS.map((l) => ({ label: l.label, value: l.id, desc: l.desc, accent: l.accent }))
+        : undefined;
+
+      addMsg("bruno", text, cards);
+      historyRef.current.push({ role: "assistant", content: raw });
+
+      // Confetti for Premier
+      if (newFields.look === "bold_modern") {
+        import("canvas-confetti").then((mod) => mod.default({ particleCount: 120, spread: 80, colors: ["#F5C842", "#0d1a2e", "#ffffff"] }));
       }
 
-      case "confirm": {
-        const yes = /^(yes|yeah|yep|sure|correct|right|perfect|yup|absolutely)$/i.test(ans.trim());
-        if (!yes) {
-          add("bruno", "No worries — tell me again. Name, what they do, where they are.");
-          setStep("intro");
-          break;
-        }
-        await delay(300);
-        add("bruno", `Scanning ${city || "the"} market...`);
-        if (zip && city) fireSBR(bizName, zip, city);
-        await delay(800);
-        add("bruno", "What are the top 2 or 3 things they offer?");
-        setStep("services");
-        break;
+      // If complete, fire the POST
+      if (newFields.complete) {
+        setFinished(true);
+        await doFinish(newFields);
       }
-
-      case "services": {
-        const items = ans.split(/[,\n&]+/).map((s) => s.trim()).filter((s) => s.length > 1);
-        if (items.length === 0) { add("bruno", "Give me at least one service or specialty."); break; }
-        setServices(items.slice(0, 3));
-        await delay(400);
-        add("bruno", `${items.slice(0, 3).join(", ")} — solid. Generating taglines...`);
-        const taglines = await generateTaglines();
-        await delay(300);
-        add("bruno", "Pick a tagline:", taglines.map((t) => ({ label: t, value: t })));
-        setStep("tagline");
-        break;
-      }
-
-      case "tagline": {
-        const none = /^(none|none of these|no|nope|different|other)$/i.test(ans.trim());
-        if (none && taglineAttempts < 2) {
-          setTaglineAttempts((p) => p + 1);
-          if (taglineAttempts === 0) {
-            add("bruno", "What feeling should the brand give people?");
-          } else {
-            const taglines = await generateTaglines();
-            add("bruno", "Try these:", taglines.map((t) => ({ label: t, value: t })));
-          }
-          break;
-        }
-        if (none) {
-          const taglines = await generateTaglines();
-          const picked = taglines[0] || `${bizName} — ${city}`;
-          setTagline(picked);
-          add("bruno", `Going with "${picked}" — your rep can update anytime.`);
-        } else {
-          setTagline(ans);
-          add("bruno", `Locked: "${ans}"`);
-        }
-        await delay(400);
-        const bt = classifyBusinessType(bizName, desc);
-        const sug = getCTASuggestion(bt, bt);
-        const alt = bt === "restaurant" ? "Reserve a Table" : bt === "dental" ? "Call Today" : "Call Now";
-        add("bruno", "What should the main button say?", [{ label: sug, value: sug }, { label: alt, value: alt }]);
-        setStep("cta");
-        break;
-      }
-
-      case "cta": {
-        setCta(ans.split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" "));
-        await delay(300);
-        add("bruno", "Pick a site style:");
-        setStep("look");
-        break;
-      }
-
-      case "look": {
-        let lookId = "";
-        if (["warm_bold", "professional", "bold_modern"].includes(ans)) lookId = ans;
-        else if (ans.match(/local|warm/i)) lookId = "warm_bold";
-        else if (ans.match(/community|professional/i)) lookId = "professional";
-        else if (ans.match(/premier|bold|modern/i)) lookId = "bold_modern";
-        if (!lookId) { add("bruno", "Pick one — click a card or type Local, Community, or Premier."); break; }
-        setLook(lookId);
-        const label = LOOK_OPTIONS.find((l) => l.id === lookId)?.label || lookId;
-        if (lookId === "bold_modern") {
-          import("canvas-confetti").then((mod) => mod.default({ particleCount: 120, spread: 80, colors: ["#F5C842", "#0d1a2e", "#ffffff"] }));
-        }
-        await delay(300);
-        add("bruno", `${label} — nice. Creating profile now...`);
-        setStep("finish");
-        await doFinish(lookId);
-        break;
-      }
+    } catch {
+      addMsg("bruno", "Sorry, had a hiccup. Say that again?");
     }
+
     setLoading(false);
   }
 
-  async function doFinish(lookKey: string) {
-    await delay(600);
-    add("bruno", "📍 Running market analysis...");
-    await delay(500);
-    add("bruno", "🎨 Building campaign...");
-    await delay(400);
-    add("bruno", "✅ Done — opening dashboard.");
+  async function doFinish(finalFields: Partial<IntakeFields>) {
+    const f = { ...fields, ...finalFields };
+    const slug = f.bizName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "");
 
     try {
-      const slug = bizName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "");
       const res = await fetch("/api/intake/create", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          intakeAnswers: { q1: `${bizName}, ${city} ${zip}`, q2: desc, q3: services.join(", "), q4: cta, q5: lookKey, q6: "no", q7: "", q8: tagline, q9: `${slug}.com` },
-          sbrData: { ...(sbrData || {}), tagline, suggestedTagline: tagline, services: services.map((s) => ({ name: s, description: `${s} — proudly serving ${city}.` })) },
+          intakeAnswers: {
+            q1: `${f.bizName}, ${f.city} ${f.zip}`, q2: f.desc,
+            q3: f.services.join(", "), q4: f.cta, q5: f.look,
+            q6: "no", q7: "", q8: f.tagline, q9: `${slug}.com`,
+          },
+          sbrData: {
+            ...(sbrData || {}), tagline: f.tagline, suggestedTagline: f.tagline,
+            services: f.services.map((s) => ({ name: s, description: `${s} — proudly serving ${f.city}.` })),
+          },
           rep: isMagic ? "magic-link" : "ted",
         }),
       });
       const data = await res.json();
-      if (data.profile?.id) { await delay(600); router.push("/dashboard"); }
+      if (data.profile?.id) {
+        await new Promise((r) => setTimeout(r, 600));
+        router.push("/dashboard");
+      }
     } catch { /* error */ }
   }
 
   // Demo mode
   async function runDemo() {
-    const d = 600;
     const w = (ms: number) => new Promise((r) => setTimeout(r, ms));
-    add("user", "Ted's Tacos, smash burgers and street tacos in Tulsa 74103");
+    const d = 600;
+    addMsg("user", "Ted's Tacos, smash burgers and street tacos in Tulsa 74103");
     await w(d);
-    setBizName("Ted's Tacos"); setCity("Tulsa"); setZip("74103"); setDesc("smash burgers and street tacos");
-    add("bruno", "Got it — Ted's Tacos, smash burgers and street tacos in Tulsa 74103. That right?");
+    setFields((p) => ({ ...p, bizName: "Ted's Tacos", city: "Tulsa", zip: "74103", desc: "smash burgers and street tacos" }));
+    addMsg("bruno", "Love it — Ted's Tacos in Tulsa! Smash burgers and street tacos sounds amazing. What are the top 2-3 things you guys offer?");
     await w(d);
-    add("user", "Yes"); await w(d);
-    add("bruno", "Scanning Tulsa market..."); await w(d);
-    add("bruno", "What are the top 2 or 3 things they offer?"); await w(d);
-    add("user", "Street Tacos, Catering, Late Night"); await w(d);
-    setServices(["Street Tacos", "Catering", "Late Night"]);
-    add("bruno", "Street Tacos, Catering, Late Night — solid. Generating taglines...");
+    addMsg("user", "Street Tacos, Catering, Late Night");
     await w(d);
-    add("bruno", "Pick a tagline:", [{ label: "Tulsa's Taco Revolution Starts Here", value: "Tulsa's Taco Revolution Starts Here" }, { label: "Real Tacos. Real Fast.", value: "Real Tacos. Real Fast." }, { label: "Eight Years of Making Tulsa Hungry.", value: "Eight Years of Making Tulsa Hungry." }]);
+    setFields((p) => ({ ...p, services: ["Street Tacos", "Catering", "Late Night"] }));
+    addMsg("bruno", "Street Tacos, Catering, and Late Night — solid lineup. What should the main button on your site say? Something like \"Order Now\" or \"Call Us\"?");
     await w(d);
-    add("user", "Tulsa's Taco Revolution Starts Here"); await w(d);
-    setTagline("Tulsa's Taco Revolution Starts Here");
-    add("bruno", 'Locked: "Tulsa\'s Taco Revolution Starts Here"'); await w(d);
-    add("bruno", "What should the main button say?", [{ label: "Order Now", value: "Order Now" }, { label: "Reserve a Table", value: "Reserve a Table" }]);
+    addMsg("user", "Order Now");
     await w(d);
-    add("user", "Order Now"); await w(d);
-    setCta("Order Now");
-    add("bruno", "Pick a site style:"); await w(d);
-    add("user", "Premier ⭐"); await w(d);
-    setLook("bold_modern");
+    setFields((p) => ({ ...p, cta: "Order Now" }));
+    addMsg("bruno", "Order Now it is. Last thing — pick your site's vibe:", LOOK_OPTIONS.map((l) => ({ label: l.label, value: l.id, desc: l.desc, accent: l.accent })));
+    await w(d);
+    addMsg("user", "Premier");
+    await w(d);
+    setFields((p) => ({ ...p, look: "bold_modern", tagline: "Tulsa's Taco Revolution Starts Here" }));
     import("canvas-confetti").then((mod) => mod.default({ particleCount: 120, spread: 80, colors: ["#F5C842", "#0d1a2e", "#ffffff"] }));
-    add("bruno", "Premier ⭐ — nice. Opening profile...");
+    addMsg("bruno", "Premier — great taste! Here's what I've got:\n\n• Business: Ted's Tacos\n• Location: Tulsa, 74103\n• What you do: Smash burgers and street tacos\n• Services: Street Tacos, Catering, Late Night\n• Button: Order Now\n• Look: Premier\n\nCreating your profile now...");
     await w(1000);
     router.push("/dashboard");
   }
+
+  // Check if we should show look cards (look not yet selected and no cards currently showing)
+  const needsLook = !fields.look && !finished;
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "#0d1a2e" }}>
@@ -273,16 +275,31 @@ function IntakeInner() {
           <div style={{ borderBottom: "1px solid #1e293b", padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
               <h2 style={{ fontSize: 18, fontWeight: 700, color: "#fff", margin: 0 }}>Bruno Intake</h2>
-              <p style={{ fontSize: 12, color: "#64748b", margin: "2px 0 0" }}>Step: {step}</p>
+              <p style={{ fontSize: 12, color: "#64748b", margin: "2px 0 0" }}>
+                {[
+                  fields.bizName && "Name",
+                  fields.city && "Location",
+                  fields.desc && "Description",
+                  fields.services.length > 0 && "Services",
+                  fields.cta && "CTA",
+                  fields.look && "Look",
+                ].filter(Boolean).join(" · ") || "Getting started..."}
+              </p>
             </div>
-            <button onClick={runDemo} style={{ background: "#F5C842", color: "#0d1a2e", border: "none", padding: "6px 16px", borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>🎬 Demo</button>
+            <button onClick={runDemo} style={{ background: "#F5C842", color: "#0d1a2e", border: "none", padding: "6px 16px", borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Demo</button>
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
             {chat.map((msg, i) => (
               <div key={i}>
                 <div style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
-                  <div style={{ maxWidth: "80%", borderRadius: 12, padding: "10px 16px", fontSize: 14, whiteSpace: "pre-wrap", lineHeight: 1.6, background: msg.role === "user" ? "#F5C842" : "#1a2740", color: msg.role === "user" ? "#0d1a2e" : "#fff", border: msg.role === "bruno" ? "1px solid #334155" : "none" }}>
+                  <div style={{
+                    maxWidth: "80%", borderRadius: 12, padding: "10px 16px", fontSize: 14,
+                    whiteSpace: "pre-wrap", lineHeight: 1.6,
+                    background: msg.role === "user" ? "#F5C842" : "#1a2740",
+                    color: msg.role === "user" ? "#0d1a2e" : "#fff",
+                    border: msg.role === "bruno" ? "1px solid #334155" : "none",
+                  }}>
                     {msg.role === "bruno" && (
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                         <div style={{ width: 24, height: 24, borderRadius: "50%", background: "#F5C842", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: "#0d1a2e", fontSize: 11 }}>B</div>
@@ -292,28 +309,23 @@ function IntakeInner() {
                     {msg.text}
                   </div>
                 </div>
-                {msg.pills && (
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8, paddingLeft: 32 }}>
-                    {msg.pills.map((p) => (
-                      <button key={p.value} onClick={() => handleSend(p.value)} style={{ background: "#F5C842", color: "#0d1a2e", border: "none", borderRadius: 999, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{p.label}</button>
+                {/* Look option cards */}
+                {msg.cards && needsLook && (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginTop: 12, paddingLeft: 32 }}>
+                    {msg.cards.map((c) => (
+                      <button key={c.value} onClick={() => handleSend(c.label)} style={{
+                        background: "#1a2740", border: c.value === "bold_modern" ? "2px solid #F5C842" : "1px solid #334155",
+                        borderRadius: 12, padding: 16, cursor: "pointer", textAlign: "left",
+                      }}>
+                        <div style={{ height: 4, background: c.accent, borderRadius: 2, marginBottom: 10 }} />
+                        <p style={{ fontSize: 14, fontWeight: 700, color: "#fff", margin: "0 0 4px" }}>{c.label}</p>
+                        <p style={{ fontSize: 11, color: "#64748b", margin: 0 }}>{c.desc}</p>
+                      </button>
                     ))}
-                    {step === "tagline" && <button onClick={() => handleSend("none of these")} style={{ background: "transparent", color: "#64748b", border: "1px solid #334155", borderRadius: 999, padding: "8px 18px", fontSize: 13, cursor: "pointer" }}>None of these</button>}
                   </div>
                 )}
               </div>
             ))}
-
-            {step === "look" && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-                {LOOK_OPTIONS.map((l) => (
-                  <button key={l.id} onClick={() => handleSend(l.id)} style={{ background: "#1a2740", border: l.id === "bold_modern" ? "2px solid #F5C842" : "1px solid #334155", borderRadius: 12, padding: 16, cursor: "pointer", textAlign: "left" }}>
-                    <div style={{ height: 4, background: l.accent, borderRadius: 2, marginBottom: 10 }} />
-                    <p style={{ fontSize: 14, fontWeight: 700, color: "#fff", margin: "0 0 4px" }}>{l.label}</p>
-                    <p style={{ fontSize: 11, color: "#64748b", margin: 0 }}>{l.desc}</p>
-                  </button>
-                ))}
-              </div>
-            )}
 
             {loading && (
               <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 32 }}>
@@ -324,7 +336,7 @@ function IntakeInner() {
             <div ref={chatEndRef} />
           </div>
 
-          {step !== "finish" && (
+          {!finished && (
             <div style={{ borderTop: "1px solid #1e293b", padding: 16 }}>
               <div style={{ display: "flex", gap: 8 }}>
                 <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSend()} placeholder="Type your answer..." style={{ flex: 1, borderRadius: 8, border: "1px solid #334155", background: "#1a2740", padding: "10px 16px", fontSize: 14, color: "#fff", outline: "none" }} disabled={loading} />
@@ -338,23 +350,24 @@ function IntakeInner() {
         <div style={{ width: "50%", background: "#1a2740", padding: 32, overflowY: "auto", position: "sticky", top: 0, height: "100vh" }}>
           <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "#F5C842", marginBottom: 24 }}>Live Preview</p>
           <div style={{ background: "#0d1a2e", border: "1px solid #334155", borderRadius: 12, padding: 32 }}>
-            {bizName ? (
+            {fields.bizName ? (
               <>
-                <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 24, fontWeight: 700, color: "#fff", margin: 0 }}>{bizName}</h2>
-                {city && <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 4 }}>{city}{zip ? `, ${zip}` : ""}</p>}
-                {tagline && <p style={{ fontSize: 15, color: "#F5C842", fontStyle: "italic", marginTop: 12 }}>&ldquo;{tagline}&rdquo;</p>}
-                {services.length > 0 && (
+                <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 24, fontWeight: 700, color: "#fff", margin: 0 }}>{fields.bizName}</h2>
+                {fields.city && <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 4 }}>{fields.city}{fields.zip ? `, ${fields.zip}` : ""}</p>}
+                {fields.tagline && <p style={{ fontSize: 15, color: "#F5C842", fontStyle: "italic", marginTop: 12 }}>&ldquo;{fields.tagline}&rdquo;</p>}
+                {fields.desc && <p style={{ fontSize: 13, color: "#cbd5e1", marginTop: 8 }}>{fields.desc}</p>}
+                {fields.services.length > 0 && (
                   <div style={{ marginTop: 16 }}>
                     <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#64748b", marginBottom: 8 }}>Services</p>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {services.map((s, i) => <span key={i} style={{ border: "1px solid #334155", borderRadius: 999, padding: "4px 12px", fontSize: 12, color: "#fff" }}>{s}</span>)}
+                      {fields.services.map((s, i) => <span key={i} style={{ border: "1px solid #334155", borderRadius: 999, padding: "4px 12px", fontSize: 12, color: "#fff" }}>{s}</span>)}
                     </div>
                   </div>
                 )}
-                {cta && <button style={{ marginTop: 16, background: "#F5C842", color: "#0d1a2e", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 14, fontWeight: 700 }}>{cta}</button>}
+                {fields.cta && <button style={{ marginTop: 16, background: "#F5C842", color: "#0d1a2e", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 14, fontWeight: 700 }}>{fields.cta}</button>}
                 {previewHtml && (
                   <div style={{ marginTop: 20 }}>
-                    <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#64748b", marginBottom: 8 }}>Site Preview — {LOOK_OPTIONS.find((l) => l.id === look)?.label}</p>
+                    <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#64748b", marginBottom: 8 }}>Site Preview — {LOOK_OPTIONS.find((l) => l.id === fields.look)?.label}</p>
                     <div style={{ background: "#374151", borderRadius: "8px 8px 0 0", padding: "6px 8px 0" }}>
                       <div style={{ display: "flex", gap: 3, marginBottom: 4 }}>
                         <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#ef4444" }} />
