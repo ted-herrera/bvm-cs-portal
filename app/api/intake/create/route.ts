@@ -1,5 +1,10 @@
 import { addClient } from "@/lib/mock-data";
+import { addBuild, addNotification } from "@/lib/store";
+import type { BuildRecord } from "@/lib/store";
 import type { ClientProfile } from "@/lib/pipeline";
+import { generateSiteHTML } from "@/lib/studio-engine";
+
+type LookKey = "warm_bold" | "professional" | "bold_modern";
 
 export async function POST(request: Request) {
   const body = (await request.json()) as {
@@ -24,9 +29,20 @@ export async function POST(request: Request) {
 
   // Parse phone from Q7
   const phoneMatch = (intakeAnswers.q7 || "").match(
-    /\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/
+    /\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/,
   );
   const phone = phoneMatch?.[0] || "";
+
+  const lookRaw = (intakeAnswers.q5 || "professional").toLowerCase();
+  const lookKey: LookKey =
+    lookRaw === "warm_bold" || lookRaw === "bold_modern" || lookRaw === "professional"
+      ? lookRaw
+      : "professional";
+
+  const services = (intakeAnswers.q3 || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 
   const profile: ClientProfile = {
     id,
@@ -44,7 +60,7 @@ export async function POST(request: Request) {
     delivered_at: null,
     published_url: null,
     sbrData,
-    selectedLook: intakeAnswers.q5 || null,
+    selectedLook: lookKey,
     intakeAnswers,
     tearSheetUrl: `/tearsheet/${id}`,
     buildNotes: ["Intake completed", "SBR analysis complete"],
@@ -75,11 +91,59 @@ export async function POST(request: Request) {
   console.log("Occasion:", intakeAnswers.q8 || "(none)");
   console.log("Look:", intakeAnswers.q5 || "(none)");
   console.log("Suggested Domain:", intakeAnswers.q9 || "(none)");
-  console.log("SBR Data:", JSON.stringify(sbrData, null, 2));
-  console.log("All Intake Answers:", JSON.stringify(intakeAnswers, null, 2));
   console.log("=================================");
 
   addClient(profile);
 
-  return Response.json({ success: true, profile });
+  // Generate the site HTML for the dev pack / preview
+  let generatedSiteHTML = "";
+  try {
+    generatedSiteHTML = generateSiteHTML(profile, lookKey);
+  } catch (err) {
+    console.error("[intake/create] generateSiteHTML failed:", err);
+  }
+
+  // Create a build record so the client shows up in /build-queue
+  const tagline =
+    (sbrData?.suggestedTagline as string) ||
+    (sbrData?.tagline as string) ||
+    intakeAnswers.q8 ||
+    "";
+
+  const build: BuildRecord = {
+    id: `build-${Date.now().toString(36)}`,
+    clientId: id,
+    businessName,
+    city,
+    zip,
+    services,
+    look: lookKey,
+    tagline,
+    cta: intakeAnswers.q4 || "Contact Us",
+    sbrData,
+    generatedSiteHTML,
+    status: "unassigned",
+    assignedDev: null,
+    createdAt: now,
+    claimedAt: null,
+    readyAt: null,
+    liveAt: null,
+    liveUrl: null,
+    qaReport: null,
+  };
+  addBuild(build);
+
+  // Add a notification for the rep dashboard
+  addNotification({
+    id: `notif-${Date.now().toString(36)}`,
+    type: "new-client",
+    clientId: id,
+    businessName,
+    message: `New intake completed — ${businessName} in ${city}`,
+    createdAt: now,
+    read: false,
+    dismissed: false,
+  });
+
+  return Response.json({ success: true, profile, build });
 }

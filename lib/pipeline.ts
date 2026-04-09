@@ -70,6 +70,7 @@ export interface ClientProfile {
   hasLogo: boolean;
   logoUrl: string | null;
   interests?: Record<string, boolean | string>;
+  confettiFired?: boolean;
 }
 
 export const STAGE_ORDER: PipelineStage[] = [

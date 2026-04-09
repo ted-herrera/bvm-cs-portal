@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import TopNav from "@/components/TopNav";
 import type { ClientProfile, PipelineStage } from "@/lib/pipeline";
-import { STAGE_ORDER, STAGE_LABELS } from "@/lib/pipeline";
+import { STAGE_LABELS } from "@/lib/pipeline";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -81,18 +81,42 @@ function addToCalendar(title: string, details: string) {
 
 // ─── Main ───────────────────────────────────────────────────────────────────
 
+interface StoreNotification {
+  id: string;
+  type: "build-complete" | "handwrytten-task" | "pulse-response" | "upsell-interest" | "new-client";
+  clientId: string;
+  businessName: string;
+  message: string;
+  createdAt: string;
+  read: boolean;
+  dismissed: boolean;
+  meta?: Record<string, unknown>;
+}
+
+interface PulseTimerInfo {
+  clientId: string;
+  day7At: number;
+  day14At: number;
+  day30At: number;
+  lastSentAt: number | null;
+  lastScore: number | null;
+}
+
 export default function DashboardPage() {
   const [clients, setClients] = useState<ClientProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [bellOpen, setBellOpen] = useState(false);
   const [readNotifs, setReadNotifs] = useState<Set<string>>(new Set());
+  const [storeNotifs, setStoreNotifs] = useState<StoreNotification[]>([]);
+  const [pulseTimer, setPulseTimer] = useState<PulseTimerInfo | null>(null);
+  const [pulseStatus, setPulseStatus] = useState("");
   const [affIdx, setAffIdx] = useState(Math.floor(new Date().getTime() / 86400000) % AFFIRMATIONS.length);
   const [selectedClient, setSelectedClient] = useState<ClientProfile | null>(null);
   const [slideOutOpen, setSlideOutOpen] = useState(false);
   const [drawerTab, setDrawerTab] = useState<"overview" | "comm" | "actions">("overview");
   const [msgInput, setMsgInput] = useState("");
   const [msgSending, setMsgSending] = useState(false);
-  const [weather, setWeather] = useState<{ temp: string; icon: string } | null>(null);
+  const [, setWeather] = useState<{ temp: string; icon: string } | null>(null);
   const [clock, setClock] = useState(new Date());
   const [clientWeather, setClientWeather] = useState<string>("");
   const [clientTz, setClientTz] = useState<string>("");
@@ -119,6 +143,13 @@ export default function DashboardPage() {
         const results = await Promise.all(ids.map((id) => fetch(`/api/profile/${id}`).then((r) => r.json()).then((d) => d.client as ClientProfile | null).catch(() => null)));
         setClients(results.filter(Boolean) as ClientProfile[]);
       }
+      try {
+        const nr = await fetch("/api/notifications");
+        const nd = await nr.json();
+        setStoreNotifs(nd.notifications || []);
+      } catch {
+        /* ignore */
+      }
       setLoading(false);
     }
     load();
@@ -131,12 +162,68 @@ export default function DashboardPage() {
     setGcalConnected(localStorage.getItem("gcal_connected") === "true");
   }, []);
 
-  // Poll + clock
+  // Poll clients + notifications every 30s
   useEffect(() => {
-    const i = setInterval(() => { fetch("/api/clients").then((r) => r.json()).then((d) => setClients(d.clients || [])).catch(() => {}); }, 10000);
+    const i = setInterval(() => {
+      fetch("/api/clients")
+        .then((r) => r.json())
+        .then((d) => setClients(d.clients || []))
+        .catch(() => {});
+      fetch("/api/notifications")
+        .then((r) => r.json())
+        .then((d) => setStoreNotifs(d.notifications || []))
+        .catch(() => {});
+    }, 30000);
     const clockInterval = setInterval(() => setClock(new Date()), 1000);
-    return () => { clearInterval(i); clearInterval(clockInterval); };
+    return () => {
+      clearInterval(i);
+      clearInterval(clockInterval);
+    };
   }, []);
+
+  // Fetch pulse timer for selected client
+  useEffect(() => {
+    if (!selectedClient) {
+      setPulseTimer(null);
+      return;
+    }
+    fetch(`/api/pulse/send?clientId=${encodeURIComponent(selectedClient.id)}`)
+      .then((r) => r.json())
+      .then((d) => setPulseTimer(d.timer || null))
+      .catch(() => setPulseTimer(null));
+  }, [selectedClient]);
+
+  async function sendPulseNow() {
+    if (!selectedClient) return;
+    setPulseStatus("Sending...");
+    try {
+      const r = await fetch("/api/pulse/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: selectedClient.id }),
+      });
+      const d = await r.json();
+      if (d.timer) setPulseTimer(d.timer);
+      setPulseStatus("Pulse sent ✓");
+      setTimeout(() => setPulseStatus(""), 3000);
+    } catch {
+      setPulseStatus("Failed — try again");
+      setTimeout(() => setPulseStatus(""), 3000);
+    }
+  }
+
+  async function dismissStoreNotif(id: string) {
+    try {
+      await fetch("/api/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, action: "dismiss" }),
+      });
+    } catch {
+      /* ignore */
+    }
+    setStoreNotifs((prev) => prev.filter((n) => n.id !== id));
+  }
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [slideOutOpen, selectedClient]);
 
@@ -195,18 +282,38 @@ export default function DashboardPage() {
     setBrunoLoading(false);
   }
 
-  // Notifications
-  const notifications = clients.flatMap((c) =>
+  // Notifications — merge store notifications + recent stage changes
+  const storeNotifEntries = storeNotifs.map((n) => ({
+    id: n.id,
+    name: n.businessName,
+    msg: n.message,
+    time: timeAgo(n.createdAt),
+    clientId: n.clientId,
+    type: n.type,
+    isStore: true as const,
+  }));
+
+  const stageNotifEntries = clients.flatMap((c) =>
     c.buildLog.slice(-3).map((e) => ({
       id: `${c.id}-${e.timestamp}`,
       name: c.business_name,
       msg: `${STAGE_LABELS[e.from]} → ${STAGE_LABELS[e.to]}`,
       time: timeAgo(e.timestamp),
       clientId: c.id,
+      type: "stage" as const,
+      isStore: false as const,
     }))
-  ).sort((a, b) => b.id.localeCompare(a.id)).slice(0, 20);
+  );
 
-  const unread = notifications.filter((n) => !readNotifs.has(n.id)).length;
+  const notifications = [...storeNotifEntries, ...stageNotifEntries]
+    .sort((a, b) => b.id.localeCompare(a.id))
+    .slice(0, 30);
+
+  const unread =
+    storeNotifs.filter((n) => !n.read).length +
+    stageNotifEntries.filter((n) => !readNotifs.has(n.id)).length;
+
+  const handwryttenTasks = storeNotifs.filter((n) => n.type === "handwrytten-task");
 
   // Priority queue
   const priorityQueue = [...clients].map((c) => ({ client: c, story: getStoryPill(c) })).sort((a, b) => a.story.urgency - b.story.urgency);
@@ -380,6 +487,25 @@ export default function DashboardPage() {
 
         {/* Right controls */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+          {/* New Intake button */}
+          <Link
+            href="/intake"
+            style={{
+              background: "#f59e0b",
+              color: "#1B2A4A",
+              borderRadius: 6,
+              padding: "8px 16px",
+              fontSize: 12,
+              fontWeight: 700,
+              textDecoration: "none",
+              letterSpacing: "0.02em",
+              whiteSpace: "nowrap",
+              boxShadow: "0 1px 4px rgba(0,0,0,0.15)",
+            }}
+          >
+            New Intake →
+          </Link>
+
           {/* Bell */}
           <div style={{ position: "relative" }}>
             <button
@@ -1000,24 +1126,61 @@ export default function DashboardPage() {
                 Mark all read
               </button>
             </div>
-            {notifications.map((n) => (
-              <Link
-                key={n.id}
-                href={`/tearsheet/${n.clientId}`}
-                onClick={() => setBellOpen(false)}
-                style={{
-                  display: "flex", gap: 10, padding: "10px 16px",
-                  borderBottom: "1px solid #f0f2f5", textDecoration: "none",
-                  background: readNotifs.has(n.id) ? "#fff" : "#f8fafc",
-                }}
-              >
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: "#1a2332", margin: 0 }}>{n.name}</p>
-                  <p style={{ fontSize: 11, color: "#7a8a9a", margin: "2px 0 0" }}>{n.msg}</p>
+            {notifications.map((n) => {
+              const isLive = n.type === "build-complete";
+              const isHw = n.type === "handwrytten-task";
+              const bg = isHw ? "#fffbea" : isLive ? "#ecfdf5" : readNotifs.has(n.id) ? "#fff" : "#f8fafc";
+              return (
+                <div
+                  key={n.id}
+                  onClick={() => {
+                    const target = clients.find((c) => c.id === n.clientId);
+                    if (target) {
+                      setSelectedClient(target);
+                      setSlideOutOpen(true);
+                      setDrawerTab(isHw ? "actions" : "overview");
+                    }
+                    setBellOpen(false);
+                  }}
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    padding: "10px 16px",
+                    borderBottom: "1px solid #f0f2f5",
+                    background: bg,
+                    cursor: "pointer",
+                  }}
+                >
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: "#1a2332", margin: 0 }}>{n.name}</p>
+                    <p style={{ fontSize: 11, color: "#7a8a9a", margin: "2px 0 0" }}>{n.msg}</p>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                    <span style={{ fontSize: 10, color: "#94a3b8", whiteSpace: "nowrap", flexShrink: 0 }}>
+                      {n.time}
+                    </span>
+                    {n.isStore && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          dismissStoreNotif(n.id);
+                        }}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "#94a3b8",
+                          fontSize: 10,
+                          cursor: "pointer",
+                          padding: 0,
+                        }}
+                      >
+                        Dismiss
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <span style={{ fontSize: 10, color: "#94a3b8", whiteSpace: "nowrap", flexShrink: 0 }}>{n.time}</span>
-              </Link>
-            ))}
+              );
+            })}
           </div>
         </>
       )}
@@ -1158,6 +1321,127 @@ export default function DashboardPage() {
                     <button onClick={() => addToCalendar(`Follow up: ${selectedClient.business_name}`, `Check in on ${selectedClient.business_name} build status. Stage: ${STAGE_LABELS[selectedClient.stage]}`)} style={{ background: "#f8fafc", border: "1px solid #e5e9ef", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>📅 Add Calendar Reminder</button>
                   )}
                   <Link href={`/qa?clientId=${selectedClient.id}`} style={{ display: "block", background: "#f8fafc", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none", textAlign: "center", border: "1px solid #e5e9ef" }}>Run QA</Link>
+
+                  <div style={{ height: 1, background: "#e5e9ef", margin: "4px 0" }} />
+                  <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#7a8a9a", margin: "4px 0" }}>Pulse</p>
+
+                  <div style={{ background: "#f8fafc", border: "1px solid #e5e9ef", borderRadius: 8, padding: 12 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#7a8a9a", marginBottom: 6 }}>
+                      <span>Last Pulse score</span>
+                      <span style={{ color: "#1a2332", fontWeight: 700 }}>
+                        {pulseTimer?.lastScore != null ? `${pulseTimer.lastScore}/10` : "—"}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#7a8a9a", marginBottom: 10 }}>
+                      <span>Next Pulse</span>
+                      <span style={{ color: "#1a2332", fontWeight: 700 }}>
+                        {pulseTimer?.day7At && pulseTimer.day7At > Date.now()
+                          ? new Date(pulseTimer.day7At).toLocaleDateString()
+                          : pulseTimer?.day14At && pulseTimer.day14At > Date.now()
+                            ? new Date(pulseTimer.day14At).toLocaleDateString()
+                            : pulseTimer?.day30At && pulseTimer.day30At > Date.now()
+                              ? new Date(pulseTimer.day30At).toLocaleDateString()
+                              : "—"}
+                      </span>
+                    </div>
+                    <button
+                      onClick={sendPulseNow}
+                      style={{
+                        background: "#0d1a2e",
+                        color: "#fff",
+                        border: "none",
+                        padding: "8px 14px",
+                        borderRadius: 6,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        width: "100%",
+                      }}
+                    >
+                      📊 Send Pulse Survey
+                    </button>
+                    {pulseStatus && (
+                      <p style={{ fontSize: 11, color: "#22c55e", margin: "6px 0 0", textAlign: "center", fontWeight: 600 }}>
+                        {pulseStatus}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Handwrytten auto-task */}
+                  {handwryttenTasks.filter((t) => t.clientId === selectedClient.id).map((task) => (
+                    <div
+                      key={task.id}
+                      style={{
+                        background: "#fffbea",
+                        border: "1px solid #f59e0b",
+                        borderRadius: 8,
+                        padding: 12,
+                      }}
+                    >
+                      <p style={{ fontSize: 12, color: "#92400e", margin: "0 0 8px", fontWeight: 600 }}>
+                        {task.message}
+                      </p>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button
+                          onClick={async () => {
+                            try {
+                              await fetch("https://api.handwrytten.com/v2/orders", {
+                                method: "POST",
+                                headers: {
+                                  "Content-Type": "application/json",
+                                  Authorization: "Bearer 4c12347d298b4867a5c73f5ad3b4559d",
+                                },
+                                body: JSON.stringify({
+                                  card_id: "congrats",
+                                  message: `Congratulations on your new site, ${selectedClient.business_name}! — The BVM Team`,
+                                  recipients: [
+                                    {
+                                      name: selectedClient.business_name,
+                                      city: selectedClient.city,
+                                      zip: selectedClient.zip || "",
+                                    },
+                                  ],
+                                }),
+                              });
+                            } catch {
+                              /* endpoint may not exist */
+                            }
+                            dismissStoreNotif(task.id);
+                            setActionConfirm("Handwritten card sent");
+                            setTimeout(() => setActionConfirm(""), 3000);
+                          }}
+                          style={{
+                            flex: 1,
+                            background: "#f59e0b",
+                            color: "#0d1a2e",
+                            border: "none",
+                            padding: "7px 10px",
+                            borderRadius: 6,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Send Card
+                        </button>
+                        <button
+                          onClick={() => dismissStoreNotif(task.id)}
+                          style={{
+                            background: "none",
+                            border: "1px solid #f59e0b",
+                            color: "#92400e",
+                            padding: "7px 10px",
+                            borderRadius: 6,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  ))}
 
                   <div style={{ height: 1, background: "#e5e9ef", margin: "4px 0" }} />
                   <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#7a8a9a", margin: "4px 0" }}>Integrations</p>

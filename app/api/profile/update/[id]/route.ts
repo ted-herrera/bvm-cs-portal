@@ -7,14 +7,16 @@ export async function POST(
 ) {
   const { id } = await params;
   const body = await request.json();
-  const { logoUrl, selectedLook, tagline, occasion, services, cta } = body as {
-    logoUrl?: string;
-    selectedLook?: string;
-    tagline?: string;
-    occasion?: string;
-    services?: string;
-    cta?: string;
-  };
+  const { logoUrl, selectedLook, tagline, occasion, services, cta, confettiFired } =
+    body as {
+      logoUrl?: string;
+      selectedLook?: string;
+      tagline?: string;
+      occasion?: string;
+      services?: string;
+      cta?: string;
+      confettiFired?: boolean;
+    };
 
   const client = getClient(id);
   if (!client) {
@@ -46,6 +48,9 @@ export async function POST(
   }
   if (cta !== undefined && client.intakeAnswers) {
     updates.intakeAnswers = { ...(updates.intakeAnswers as Record<string, string> || client.intakeAnswers), q4: cta };
+  }
+  if (confettiFired !== undefined) {
+    updates.confettiFired = confettiFired;
   }
 
   const newNotes = logEntries.map((text) => ({

@@ -31,25 +31,28 @@ const LOOK_OPTIONS = [
 const SYSTEM_PROMPT = `You are Bruno, an intake assistant for BVM Design Center. Your job is to collect exactly 6 pieces of information to build a local business website. Be conversational, warm, and natural — exactly like talking to a smart friend.
 
 The 6 things you need:
-1. Business name
-2. City and ZIP code
-3. What the business does
-4. 2-3 services they offer
-5. Their call to action (Order Now, Book Now, Call Us, etc)
-6. Their preferred look — show as 3 clickable cards: Local, Community, Premier
+1. Business name (bizName)
+2. City and ZIP code (city, zip)
+3. What the business does (desc)
+4. 2-3 services they offer (services)
+5. Their call to action (cta) — Order Now, Book Now, Call Us, etc
+6. Their preferred look (look) — show as 3 clickable cards: Local, Community, Premier
 
-Rules:
-1. Never break flow no matter what they type — handle anything gracefully and come back
-2. Collect all 6 naturally in any order however the conversation goes
-3. Once you have all 6 confirm everything in one summary then POST to /api/intake/create
-4. Never ask rigid scripted questions — just have a conversation and extract what you need
+ABSOLUTE RULES — DO NOT VIOLATE:
+1. Before asking ANY question, check the ALREADY COLLECTED list (injected by the system). NEVER ask for a field that's already been collected. If bizName is already "Ted's Tacos", do NOT ask "what's the business name?" again.
+2. When you receive a user message, first extract any new fields from it, merge them into what you already know, then ask ONLY for what's still missing.
+3. If all 6 fields are collected, skip directly to a confirmation summary. Do not ask additional questions.
+4. Never break flow no matter what the user types — handle anything gracefully and move forward.
+5. Collect the 6 fields in any natural order.
+6. Never ask rigid scripted questions — just converse and extract.
+7. Your text response MUST be a plain conversational string (no JSON inside the text) — the JSON block goes at the very end between the markers.
 
-CRITICAL: You must ALWAYS end every response with a JSON block on its own line in this exact format:
+CRITICAL OUTPUT FORMAT: You must ALWAYS end every response with a JSON block on its own line in this exact format:
 ###FIELDS###
 {"bizName":"","city":"","zip":"","desc":"","services":[],"cta":"","look":"","tagline":"","complete":false}
 ###END###
 
-Fill in whatever fields you've collected so far from the conversation. Leave uncollected fields as empty strings or empty arrays. Set "complete" to true ONLY when all 6 items are confirmed by the user in a summary.
+Fill in whatever fields you've collected so far from the conversation (including anything from the ALREADY COLLECTED list, so the client state stays accurate). Leave uncollected fields as empty strings or empty arrays. Set "complete" to true ONLY when all 6 items (bizName, city, zip, desc, services, cta, look) are populated AND the user has confirmed your summary.
 
 For "look", use one of: "warm_bold", "professional", "bold_modern" (or empty if not chosen yet).
 For "cta", use title case like "Order Now", "Book Now", "Call Us".
@@ -57,22 +60,48 @@ For "tagline", generate a short catchy tagline based on what you know about the 
 
 When you're ready to show the look options, mention all three: Local (clean & classic), Community (professional & trusted), Premier (bold & premium). The UI will render them as clickable cards automatically when look hasn't been chosen yet and you mention them.
 
-When you have all 6 and the user confirms your summary, set complete to true.`;
+When you have all 6 fields and the user confirms the summary, set complete to true and give a closing confirmation.`;
 
 function parseResponse(raw: string): { text: string; fields: Partial<IntakeFields> & { complete?: boolean } } {
   const marker = "###FIELDS###";
   const endMarker = "###END###";
   const markerIdx = raw.indexOf(marker);
-  if (markerIdx === -1) return { text: raw.trim(), fields: {} };
+  if (markerIdx === -1) {
+    // No marker — try to strip any stray JSON-looking text from the response.
+    const cleaned = raw.replace(/\{[^{}]*"bizName"[^{}]*\}/g, "").trim();
+    return { text: cleaned || raw.trim(), fields: {} };
+  }
 
   const text = raw.substring(0, markerIdx).trim();
-  const jsonStr = raw.substring(markerIdx + marker.length, raw.indexOf(endMarker)).trim();
+  const endIdx = raw.indexOf(endMarker, markerIdx);
+  const jsonSlice = endIdx > -1
+    ? raw.substring(markerIdx + marker.length, endIdx)
+    : raw.substring(markerIdx + marker.length);
+  const jsonStr = jsonSlice.trim();
   try {
     const fields = JSON.parse(jsonStr);
     return { text, fields };
   } catch {
+    // Try to find the first {...} block inside the slice
+    const m = jsonStr.match(/\{[\s\S]*\}/);
+    if (m) {
+      try { return { text, fields: JSON.parse(m[0]) }; } catch { /* ignore */ }
+    }
     return { text, fields: {} };
   }
+}
+
+function buildCollectedFields(f: IntakeFields): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (f.bizName) out.bizName = f.bizName;
+  if (f.city) out.city = f.city;
+  if (f.zip) out.zip = f.zip;
+  if (f.desc) out.desc = f.desc;
+  if (f.services && f.services.length > 0) out.services = f.services;
+  if (f.cta) out.cta = f.cta;
+  if (f.look) out.look = f.look;
+  if (f.tagline) out.tagline = f.tagline;
+  return out;
 }
 
 function IntakeInner() {
@@ -163,6 +192,7 @@ function IntakeInner() {
           system: SYSTEM_PROMPT,
           messages: historyRef.current,
           temperature: 0.7,
+          collectedFields: buildCollectedFields(fields),
         }),
       });
       const data = await res.json();
@@ -176,7 +206,12 @@ function IntakeInner() {
         return;
       }
 
-      const raw = data.response || data.content?.[0]?.text || "";
+      const raw =
+        typeof data.response === "string" && data.response
+          ? data.response
+          : typeof data.content?.[0]?.text === "string"
+            ? data.content[0].text
+            : "";
       if (!raw) {
         console.warn("[Bruno] Empty response from API");
         addMsg("bruno", "I got an empty response — try again?");

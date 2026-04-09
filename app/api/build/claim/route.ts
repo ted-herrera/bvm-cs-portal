@@ -1,29 +1,46 @@
 import { NextResponse } from "next/server";
 import { getClient, updateClient } from "@/lib/mock-data";
+import { getBuild, getBuildByClientId, updateBuild } from "@/lib/store";
 import type { BuildLogEntry } from "@/lib/pipeline";
 
 export async function POST(request: Request) {
-  const { clientId, devUsername } = (await request.json()) as {
-    clientId: string;
+  const { clientId, buildId, devUsername } = (await request.json()) as {
+    clientId?: string;
+    buildId?: string;
     devUsername: string;
   };
 
-  const client = getClient(clientId);
-  if (!client) {
-    return NextResponse.json({ error: "Client not found" }, { status: 404 });
+  const now = new Date().toISOString();
+
+  // Update build record if present
+  let build = buildId ? getBuild(buildId) : null;
+  if (!build && clientId) build = getBuildByClientId(clientId) || null;
+  if (build) {
+    updateBuild(build.id, {
+      status: "claimed",
+      assignedDev: devUsername,
+      claimedAt: now,
+    });
   }
 
-  const logEntry: BuildLogEntry = {
-    from: client.stage,
-    to: "building",
-    timestamp: new Date().toISOString(),
-    triggeredBy: devUsername,
-  };
+  // Update client record
+  const targetClientId = clientId || build?.clientId;
+  if (targetClientId) {
+    const client = getClient(targetClientId);
+    if (client) {
+      const logEntry: BuildLogEntry = {
+        from: client.stage,
+        to: "building",
+        timestamp: now,
+        triggeredBy: devUsername,
+      };
+      updateClient(targetClientId, {
+        stage: "building",
+        assignedDev: devUsername,
+        buildLog: [...client.buildLog, logEntry],
+      });
+    }
+  }
 
-  const updated = updateClient(clientId, {
-    assignedDev: devUsername,
-    buildLog: [...client.buildLog, logEntry],
-  });
-
-  return NextResponse.json({ success: true, client: updated });
+  return NextResponse.json({ success: true });
 }

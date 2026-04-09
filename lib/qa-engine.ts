@@ -241,6 +241,56 @@ function checkContent(html: string): QAPass {
   };
 }
 
+export function autofixHTML(htmlContent: string, businessName?: string): string {
+  let html = htmlContent;
+  const biz = (businessName || "BVM Client").replace(/"/g, "&quot;");
+
+  // Add lang="en" if missing
+  if (!/<html[^>]*\slang=/.test(html)) {
+    html = html.replace(/<html(\s|>)/i, '<html lang="en"$1');
+  }
+  // Add viewport if missing
+  if (!/<meta[^>]*name=["']viewport["']/.test(html)) {
+    html = html.replace(
+      /<head(\s*?)>/i,
+      '<head$1>\n  <meta name="viewport" content="width=device-width, initial-scale=1">',
+    );
+  }
+  // Add meta description if missing
+  if (!/<meta[^>]*name=["']description["']/.test(html)) {
+    html = html.replace(
+      /<head(\s*?)>/i,
+      `<head$1>\n  <meta name="description" content="${biz} — quality service you can trust.">`,
+    );
+  }
+  // Add canonical if missing
+  if (!/<link[^>]*rel=["']canonical["']/.test(html)) {
+    html = html.replace(
+      /<\/head>/i,
+      '  <link rel="canonical" href="/">\n</head>',
+    );
+  }
+  // Add og:title/og:description if missing
+  if (!/<meta[^>]*property=["']og:title["']/.test(html)) {
+    html = html.replace(
+      /<\/head>/i,
+      `  <meta property="og:title" content="${biz}">\n</head>`,
+    );
+  }
+  if (!/<meta[^>]*property=["']og:description["']/.test(html)) {
+    html = html.replace(
+      /<\/head>/i,
+      `  <meta property="og:description" content="${biz} — proudly serving the community.">\n</head>`,
+    );
+  }
+  // Add alt="" to img tags that are missing alt
+  html = html.replace(/<img((?:(?!alt=)[^>])*?)>/gi, (_match, attrs) => {
+    return `<img${attrs} alt="${biz}">`;
+  });
+
+  return html;
+}
+
 export function runQA(htmlContent: string): QAReport {
   const passes = [
     checkStructure(htmlContent),

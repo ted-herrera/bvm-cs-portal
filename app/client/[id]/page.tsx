@@ -52,6 +52,7 @@ export default function ClientPortalPage() {
   const [siteHtml, setSiteHtml] = useState("");
   const [logoSkipped, setLogoSkipped] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showLiveBanner, setShowLiveBanner] = useState(false);
 
   useEffect(() => {
     if (!localStorage.getItem("bvm_onboarding_seen")) setShowOnboarding(true);
@@ -67,6 +68,39 @@ export default function ClientPortalPage() {
         setApproved(isPost);
         if (isPost && !localStorage.getItem(`bvm_welcomed_${id}`)) setShowWelcome(true);
         if (c.selectedLook) setSelectedLook(c.selectedLook);
+
+        // Fire confetti on first view after going live
+        if (c.stage === "live" && !c.confettiFired) {
+          setShowLiveBanner(true);
+          import("canvas-confetti").then((mod) => {
+            const canvas = document.createElement("canvas");
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            canvas.style.position = "fixed";
+            canvas.style.top = "0";
+            canvas.style.left = "0";
+            canvas.style.width = "100vw";
+            canvas.style.height = "100vh";
+            canvas.style.pointerEvents = "none";
+            canvas.style.zIndex = "99999";
+            document.body.appendChild(canvas);
+            const fire = mod.default.create(canvas, { resize: true });
+            fire({
+              particleCount: 200,
+              spread: 100,
+              startVelocity: 45,
+              origin: { y: 0.5 },
+              colors: ["#F5C842", "#fbbf24", "#fde68a", "#ffffff"],
+            });
+            setTimeout(() => canvas.remove(), 5000);
+          });
+          fetch(`/api/profile/update/${id}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ confettiFired: true }),
+          }).catch(() => {});
+          setTimeout(() => setShowLiveBanner(false), 5000);
+        }
       }
     }).catch(() => setLoading(false));
   }, [id]);
@@ -144,6 +178,7 @@ export default function ClientPortalPage() {
   const keyframes = `
     @keyframes spin{to{transform:rotate(360deg)}}
     @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
   `;
 
   return (
@@ -152,6 +187,26 @@ export default function ClientPortalPage() {
 
       {/* Gold top bar */}
       <div style={{ height: 4, background: "#F5C842" }} />
+
+      {/* Live banner */}
+      {showLiveBanner && (
+        <div
+          style={{
+            background: "linear-gradient(90deg, #F5C842, #fbbf24)",
+            color: "#0d1a2e",
+            padding: "14px 32px",
+            textAlign: "center",
+            fontWeight: 800,
+            fontSize: 16,
+            fontFamily: "'Playfair Display', Georgia, serif",
+            animation: "fadeIn 0.4s",
+            position: "relative",
+            zIndex: 50,
+          }}
+        >
+          🎉 Your site is live!
+        </div>
+      )}
 
       {/* ── ONBOARDING VIDEO MODAL ─────────────────────────────────────── */}
       {showOnboarding && (
