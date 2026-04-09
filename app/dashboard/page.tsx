@@ -209,7 +209,7 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: "100vh", background: "#fff", display: "flex", flexDirection: "column" }}>
+      <div style={{ minHeight: "100vh", background: "#f0f2f5", display: "flex", flexDirection: "column" }}>
         {/* HubSpot-style top nav */}
         <nav style={{ background: "#2d3e50", height: 56, display: "flex", alignItems: "center", padding: "0 20px", gap: 16, flexShrink: 0 }}>
           <img src="/bvm_logo.png" alt="BVM" style={{ height: 32, objectFit: "contain" }} />
@@ -223,7 +223,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#fff", display: "flex", flexDirection: "column" }}>
+    <div style={{ minHeight: "100vh", background: "#f0f2f5", display: "flex", flexDirection: "column" }}>
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -273,12 +273,6 @@ export default function DashboardPage() {
 
         {/* Right controls */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-          {weather && (
-            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", display: "flex", alignItems: "center", gap: 4 }}>
-              {weather.temp}
-            </span>
-          )}
-
           {/* Bell */}
           <div style={{ position: "relative" }}>
             <button
@@ -322,7 +316,7 @@ export default function DashboardPage() {
 
         {/* ── LEFT PANEL ───────────────────────────────────────────────────── */}
         <aside style={{
-          width: 280, flexShrink: 0, background: "#f0f2f5",
+          width: 280, flexShrink: 0, background: "#fff",
           borderRight: "1px solid #e5e9ef",
           display: "flex", flexDirection: "column",
           overflowY: "auto",
@@ -384,7 +378,7 @@ export default function DashboardPage() {
           {selectedClient && (
           <div style={{ padding: "4px 0", borderBottom: "1px solid #e5e9ef" }}>
             {[
-              { label: "Stage", value: STAGE_LABELS[selectedClient.stage], highlight: true },
+              { label: "Stage", value: STAGE_LABELS[selectedClient.stage], highlight: true, link: (selectedClient.stage === "tear-sheet" || selectedClient.stage === "intake") ? `/client/${selectedClient.id}` : undefined },
               { label: "Last Contacted", value: timeAgo(selectedClient.buildLog[selectedClient.buildLog.length - 1]?.timestamp || selectedClient.created_at) },
               { label: "Agreement #", value: "Pull from Close CRM" },
               { label: "Look", value: selectedClient.selectedLook?.replace(/_/g, " ") || "—" },
@@ -400,12 +394,21 @@ export default function DashboardPage() {
                 <span style={{ fontSize: 12, color: "#7a8a9a", fontWeight: 500, flexShrink: 0, paddingRight: 8 }}>
                   {row.label}
                 </span>
-                <span style={{
-                  fontSize: 12, color: row.highlight ? "#F5C842" : "#1a2332", fontWeight: 600,
-                  textAlign: "right", textTransform: row.label === "Look" ? "capitalize" : undefined,
-                }}>
-                  {row.value}
-                </span>
+                {row.link ? (
+                  <Link href={row.link} style={{
+                    fontSize: 12, color: "#F5C842", fontWeight: 600,
+                    textDecoration: "underline", textAlign: "right",
+                  }}>
+                    {row.value} →
+                  </Link>
+                ) : (
+                  <span style={{
+                    fontSize: 12, color: row.highlight ? "#F5C842" : "#1a2332", fontWeight: 600,
+                    textAlign: "right", textTransform: row.label === "Look" ? "capitalize" : undefined,
+                  }}>
+                    {row.value}
+                  </span>
+                )}
               </div>
             ))}
           </div>
@@ -441,7 +444,7 @@ export default function DashboardPage() {
                 onClick={() => { localStorage.setItem("gcal_connected", "true"); setGcalConnected(true); }}
                 style={{
                   width: "100%", padding: "9px 14px", borderRadius: 7,
-                  border: "1px solid #e5e9ef", background: "#f0f2f5",
+                  border: "1px solid #e5e9ef", background: "#fff",
                   color: "#4a5568", fontSize: 12, fontWeight: 600,
                   cursor: "pointer", textAlign: "left",
                 }}
@@ -480,7 +483,7 @@ export default function DashboardPage() {
           {/* Tab row */}
           <div style={{
             display: "flex", borderBottom: "2px solid #e5e9ef",
-            padding: "0 24px", background: "#f0f2f5", flexShrink: 0,
+            padding: "0 24px", background: "#fff", flexShrink: 0,
           }}>
             {(["priority", "pipeline", "stats"] as const).map((tab) => {
               const labels = { priority: "Priority Queue", pipeline: "Pipeline", stats: "Stats" };
@@ -524,7 +527,7 @@ export default function DashboardPage() {
                         onClick={() => { setSelectedClient(c); setSlideOutOpen(true); setDrawerTab("overview"); }}
                         style={{
                           display: "flex", alignItems: "center", gap: 14,
-                          background: "#f0f2f5", border: "1px solid #e5e9ef",
+                          background: "#fff", border: "1px solid #e5e9ef",
                           borderLeft: `4px solid ${story.color}`,
                           borderRadius: 8, padding: "12px 16px",
                           cursor: "pointer", transition: "box-shadow 0.15s, border-color 0.15s",
@@ -604,7 +607,7 @@ export default function DashboardPage() {
                               key={c.id}
                               onClick={() => { setSelectedClient(c); setSlideOutOpen(true); setDrawerTab("overview"); }}
                               style={{
-                                background: "#f0f2f5", border: "1px solid #e5e9ef",
+                                background: "#fff", border: "1px solid #e5e9ef",
                                 borderRadius: 8, padding: "10px 12px", marginBottom: 6,
                                 cursor: "pointer", fontSize: 12,
                                 boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
@@ -644,7 +647,7 @@ export default function DashboardPage() {
                     { value: `${clients.filter((c) => c.messages.length > 0).length}/${clients.length}`, label: "Client Response", icon: "💬" },
                   ].map((s) => (
                     <div key={s.label} style={{
-                      background: "#f0f2f5", border: "1px solid #e5e9ef", borderRadius: 12,
+                      background: "#fff", border: "1px solid #e5e9ef", borderRadius: 12,
                       padding: "24px 20px", textAlign: "center",
                       boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
                     }}>
@@ -668,7 +671,7 @@ export default function DashboardPage() {
 
         {/* ── RIGHT PANEL: Communications ────────────────────────────────── */}
         <aside style={{
-          width: 320, flexShrink: 0, background: "#f0f2f5",
+          width: 320, flexShrink: 0, background: "#fff",
           borderLeft: "1px solid #e5e9ef",
           display: "flex", flexDirection: "column",
           overflow: "hidden",
@@ -750,7 +753,7 @@ export default function DashboardPage() {
                 style={{
                   flex: 1, padding: "8px 12px", borderRadius: 8,
                   border: "1px solid #e5e9ef", fontSize: 13, outline: "none",
-                  background: "#f0f2f5", color: "#1a2332",
+                  background: "#fff", color: "#1a2332",
                 }}
               />
               <button
@@ -833,7 +836,7 @@ export default function DashboardPage() {
           <div onClick={() => setBellOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 48 }} />
           <div style={{
             position: "fixed", top: 60, right: 24, width: 360,
-            background: "#f0f2f5", borderRadius: 12,
+            background: "#fff", borderRadius: 12,
             boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
             border: "1px solid #e5e9ef", zIndex: 100,
             maxHeight: "70vh", overflowY: "auto",
@@ -878,7 +881,7 @@ export default function DashboardPage() {
           <div onClick={() => setSlideOutOpen(false)} style={{ position: "fixed", top: 0, left: 280, right: 0, bottom: 0, background: "rgba(0,0,0,0.3)", zIndex: 49 }} />
           <div style={{
             position: "fixed", top: 56, right: 0, width: 420, maxWidth: "calc(100vw - 280px)", height: "calc(100vh - 56px)",
-            background: "#f0f2f5", boxShadow: "-8px 0 32px rgba(0,0,0,0.12)",
+            background: "#fff", boxShadow: "-8px 0 32px rgba(0,0,0,0.12)",
             zIndex: 50, display: "flex", flexDirection: "column",
             animation: "slideIn 0.25s ease-out",
           }}>
@@ -929,11 +932,45 @@ export default function DashboardPage() {
                   <div><span style={{ color: "#7a8a9a" }}>Look: </span><span style={{ color: "#1a2332", fontWeight: 600, textTransform: "capitalize" }}>{selectedClient.selectedLook?.replace(/_/g, " ") || "—"}</span></div>
                   <div><span style={{ color: "#7a8a9a" }}>Services: </span><span style={{ color: "#1a2332" }}>{selectedClient.intakeAnswers?.q3 || "—"}</span></div>
                   <div><span style={{ color: "#7a8a9a" }}>CTA: </span><span style={{ color: "#1a2332" }}>{selectedClient.intakeAnswers?.q4 || "—"}</span></div>
-                  <div><span style={{ color: "#7a8a9a" }}>Stage: </span><span style={{ color: "#F5C842", fontWeight: 600 }}>{STAGE_LABELS[selectedClient.stage]}</span></div>
+                  <div>
+                    <span style={{ color: "#7a8a9a" }}>Stage: </span>
+                    {(selectedClient.stage === "tear-sheet" || selectedClient.stage === "intake") ? (
+                      <Link href={`/client/${selectedClient.id}`} style={{ color: "#F5C842", fontWeight: 600, textDecoration: "underline" }}>{STAGE_LABELS[selectedClient.stage]} →</Link>
+                    ) : (
+                      <span style={{ color: "#F5C842", fontWeight: 600 }}>{STAGE_LABELS[selectedClient.stage]}</span>
+                    )}
+                  </div>
                   <div><span style={{ color: "#7a8a9a" }}>Created: </span><span style={{ color: "#1a2332" }}>{new Date(selectedClient.created_at).toLocaleDateString()}</span></div>
                   {selectedClient.interests && Object.keys(selectedClient.interests).filter((k) => !k.endsWith("_at") && selectedClient.interests?.[k]).length > 0 && (
                     <div><span style={{ color: "#7a8a9a" }}>Interests: </span><span style={{ color: "#F5C842", fontWeight: 600 }}>{Object.keys(selectedClient.interests).filter((k) => !k.endsWith("_at") && selectedClient.interests?.[k]).join(", ")}</span></div>
                   )}
+
+                  {/* Approval Receipt */}
+                  <div style={{ marginTop: 12, padding: "16px", background: "#f8fafc", borderRadius: 10, border: "1px solid #e5e9ef" }}>
+                    {selectedClient.approved_at ? (
+                      <>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                          <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#22c55e", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#fff", fontWeight: 700 }}>✓</div>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "#1a2332" }}>Campaign Approved</span>
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 12 }}>
+                          <div><span style={{ color: "#7a8a9a" }}>Approved: </span><span style={{ color: "#1a2332" }}>{new Date(selectedClient.approved_at).toLocaleString()}</span></div>
+                          <div><span style={{ color: "#7a8a9a" }}>Look: </span><span style={{ color: "#1a2332", textTransform: "capitalize" }}>{selectedClient.selectedLook?.replace(/_/g, " ") || "—"}</span></div>
+                          <div><span style={{ color: "#7a8a9a" }}>Tagline: </span><span style={{ color: "#1a2332" }}>{(selectedClient.sbrData as Record<string, unknown>)?.suggestedTagline as string || (selectedClient.sbrData as Record<string, unknown>)?.tagline as string || "—"}</span></div>
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
+                            {["Name", "Phone", "Services", "CTA"].map((item) => (
+                              <span key={item} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: "#dcfce7", color: "#166534", fontWeight: 600 }}>✓ {item}</span>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#f59e0b", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#fff", fontWeight: 700 }}>!</div>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "#92400e" }}>Pending Approval</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -979,7 +1016,7 @@ export default function DashboardPage() {
                   style={{
                     flex: 1, padding: "8px 12px", borderRadius: 8,
                     border: "1px solid #e5e9ef", fontSize: 13, outline: "none",
-                    background: "#f0f2f5", color: "#1a2332",
+                    background: "#fff", color: "#1a2332",
                   }}
                 />
                 <button
