@@ -7,19 +7,35 @@ import type { ClientProfile, PipelineStage, BuildLogEntry } from "@/lib/pipeline
 const PORTAL_STAGES: PipelineStage[] = ["tear-sheet", "building", "qa", "delivered", "live"];
 const STAGE_LABELS_MAP = ["Direction", "Building", "QA", "Review", "Live"];
 
-const UPSELLS = [
-  { icon: "📈", title: "Digital Advertising", product: "digital-ads", desc: "Drive traffic with Google Ads, social campaigns, and geofenced ads." },
-  { icon: "📱", title: "Social Media", product: "social-media", desc: "We manage your social so you can focus on your business." },
-  { icon: "⭐", title: "Reputation Management", product: "reputation", desc: "Protect and grow your Google rating." },
-  { icon: "📧", title: "Email Marketing", product: "email-marketing", desc: "Stay in front of customers every month." },
-  { icon: "🔄", title: "Site Refresh", product: "site-refresh", desc: "Keep your site fresh every 6-12 months." },
-  { icon: "⚡", title: "Custom Enhancement", product: "custom-enhancement", desc: "Custom features, integrations, or unique layouts." },
+const UPSELLS: {
+  icon: string;
+  title: string;
+  product: string;
+  desc: string;
+  price: string;
+  preview?: string;
+}[] = [
+  { icon: "🌐", title: "Custom Web Development", product: "custom-web", desc: "Premium custom build beyond your Bruno-generated site", price: "From $1,499" },
+  { icon: "📱", title: "Social Media Management", product: "social-media", desc: "30 AI-generated posts/month, Facebook + Instagram + Google Business", price: "$199/mo", preview: "social" },
+  { icon: "🔍", title: "Search Engine Optimization", product: "seo", desc: "Local SEO, Google Business optimization, monthly ranking report", price: "$149/mo" },
+  { icon: "📣", title: "Digital Advertising", product: "digital-ads", desc: "Geo-targeted ads across Google, Facebook & Instagram", price: "$299/mo" },
+  { icon: "📧", title: "Email Marketing", product: "email-marketing", desc: "Monthly Bruno-written campaign to your customer list", price: "$99/mo" },
+  { icon: "⭐", title: "Reputation Management", product: "reputation", desc: "Monitor and respond to Google reviews, monthly report", price: "$79/mo" },
+  { icon: "🔄", title: "Site Refresh", product: "site-refresh", desc: "Annual content update, new photos, seasonal messaging", price: "$299/yr" },
+  { icon: "👑", title: "Premier Upgrade", product: "premier-upgrade", desc: "Review ticker, featured badge, animated stats", price: "$499 one-time" },
+];
+
+const BVM_SAMPLE_SITES = [
+  { look: "warm_bold", label: "Evergreen Landscapes (Local)", url: "https://evergreen-landscapes.bvmlocal.com/" },
+  { look: "professional", label: "Hurst Roofers (Community)", url: "https://hurstroofers-examplesite.bvmlocal.com/" },
+  { look: "professional", label: "Best Captain Law (Community)", url: "https://bestcaptainlaw-examplesite.bvmlocal.com/" },
+  { look: "bold_modern", label: "Best Oishi Media (Premier)", url: "https://bestoishimedia-examplesite.bvmlocal.com/" },
 ];
 
 const LOOK_OPTIONS = [
-  { id: "warm_bold", label: "Local", accent: "#c2692a", desc: "Warm, inviting — food & hospitality" },
-  { id: "professional", label: "Community", accent: "#185fa5", desc: "Trustworthy — healthcare, dental, legal" },
-  { id: "bold_modern", label: "Premier", accent: "#F5C842", desc: "Bold & premium — home services, construction" },
+  { id: "warm_bold", label: "Local", accent: "#c2692a", desc: "Warm, inviting — food & hospitality", sampleUrl: "https://evergreen-landscapes.bvmlocal.com/" },
+  { id: "professional", label: "Community", accent: "#185fa5", desc: "Trustworthy — healthcare, dental, legal", sampleUrl: "https://hurstroofers-examplesite.bvmlocal.com/" },
+  { id: "bold_modern", label: "Premier", accent: "#F5C842", desc: "Bold & premium — home services, construction", sampleUrl: "https://bestoishimedia-examplesite.bvmlocal.com/" },
 ];
 
 const CHECK_LABELS = [
@@ -265,7 +281,8 @@ export default function ClientPortalPage() {
                   const sel = selectedLook === l.id;
                   const isPremier = l.id === "bold_modern";
                   return (
-                    <button key={l.id} onClick={async () => {
+                    <div key={l.id} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <button onClick={async () => {
                       setSelectedLook(l.id);
                       if (isPremier) {
                         const confettiMod = await import("canvas-confetti");
@@ -285,7 +302,7 @@ export default function ClientPortalPage() {
                         await fire({ particleCount: 150, spread: 90, startVelocity: 35, origin: { y: 0.6 }, colors: ["#F5C842", "#0d1a2e", "#ffffff"] });
                         canvas.remove();
                       }
-                    }} style={{ background: sel ? "#fffbeb" : "#fff", border: isPremier || sel ? "2px solid #F5C842" : "2px solid #e2e8f0", borderRadius: 16, padding: 0, cursor: "pointer", textAlign: "left", position: "relative", overflow: "hidden", transition: "all 0.2s", boxShadow: sel ? "0 4px 20px rgba(245,200,66,0.3)" : "none", transform: sel ? "scale(1.03)" : "scale(1)" }}>
+                    }} style={{ background: sel ? "#fffbeb" : "#fff", border: isPremier || sel ? "2px solid #F5C842" : "2px solid #e2e8f0", borderRadius: 16, padding: 0, cursor: "pointer", textAlign: "left", position: "relative", overflow: "hidden", transition: "all 0.2s", boxShadow: sel ? "0 4px 20px rgba(245,200,66,0.3)" : "none", transform: sel ? "scale(1.03)" : "scale(1)", width: "100%" }}>
                       {isPremier && <div style={{ position: "absolute", top: 10, right: 10, background: "#F5C842", color: "#0d1a2e", fontSize: 9, fontWeight: 800, padding: "3px 10px", borderRadius: 999 }}>Most Popular</div>}
                       <div style={{ height: 6, background: l.accent }} />
                       <div style={{ padding: "20px 16px" }}>
@@ -294,6 +311,15 @@ export default function ClientPortalPage() {
                         <p style={{ fontSize: 12, color: "#64748b", margin: 0 }}>{l.desc}</p>
                       </div>
                     </button>
+                    <a
+                      href={l.sampleUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ fontSize: 11, color: "#0091ae", fontWeight: 600, textDecoration: "none", textAlign: "center" }}
+                    >
+                      View Sample Site →
+                    </a>
+                    </div>
                   );
                 })}
               </div>
@@ -559,39 +585,94 @@ export default function ClientPortalPage() {
                   </div>
                 </div>
 
-                {/* Digital Marketing card — first 3 upsells vertical */}
-                <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: 24 }}>
-                  <div style={{ fontSize: 28 }}>📢</div>
-                  <h3 style={{ fontSize: 15, fontWeight: 700, color: "#0d1a2e", margin: "8px 0 16px" }}>Grow Your Campaign</h3>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    {UPSELLS.slice(0, 3).map((u) => (
-                      <div key={u.product} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: 14 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                          <span style={{ fontSize: 18 }}>{u.icon}</span>
-                          <h4 style={{ fontSize: 13, fontWeight: 700, color: "#0d1a2e", margin: 0 }}>{u.title}</h4>
-                        </div>
-                        <p style={{ fontSize: 12, color: "#64748b", lineHeight: 1.5, margin: "0 0 8px" }}>{u.desc}</p>
-                        {!interests.has(u.product) ? (
-                          <button onClick={() => postInterest(u.product)} style={{ background: "#F5C842", color: "#0d1a2e", border: "none", padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>I&apos;m Interested →</button>
-                        ) : <span style={{ fontSize: 12, color: "#22c55e", fontWeight: 600 }}>Rep notified</span>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
               </div>
 
-              {/* 5. Remaining upsells (UPSELLS[3], [4], [5]) — 3-column grid */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 24 }}>
-                {UPSELLS.slice(3).map((u) => (
-                  <div key={u.product} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: 20 }}>
-                    <div style={{ fontSize: 28, marginBottom: 12 }}>{u.icon}</div>
-                    <h3 style={{ fontSize: 15, fontWeight: 700, color: "#0d1a2e", margin: "0 0 8px" }}>{u.title}</h3>
-                    <p style={{ fontSize: 13, color: "#64748b", lineHeight: 1.6, margin: "0 0 16px" }}>{u.desc}</p>
-                    {!interests.has(u.product) ? (
-                      <button onClick={() => postInterest(u.product)} style={{ background: "#F5C842", color: "#0d1a2e", border: "none", padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>I&apos;m Interested →</button>
-                    ) : <span style={{ fontSize: 13, color: "#22c55e", fontWeight: 600 }}>Rep notified</span>}
-                  </div>
-                ))}
+              {/* ── GROW YOUR CAMPAIGN — stacked rows ───────────── */}
+              <div style={{ marginBottom: 24 }} id="grow">
+                <div style={{ marginBottom: 16 }}>
+                  <h2 style={{ fontSize: 20, fontWeight: 800, color: "#1f2937", margin: 0, display: "inline-block", paddingBottom: 6, borderBottom: "3px solid #0091ae" }}>
+                    Grow Your Campaign
+                  </h2>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {UPSELLS.map((u) => {
+                    const interested = interests.has(u.product);
+                    return (
+                      <div
+                        key={u.product}
+                        className="grow-row"
+                        style={{
+                          background: "#fff",
+                          border: "1px solid #e7edf3",
+                          borderRadius: 10,
+                          padding: 16,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 14,
+                        }}
+                      >
+                        <div style={{ fontSize: 24, flexShrink: 0, width: 32, textAlign: "center" }}>{u.icon}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: 14, fontWeight: 700, color: "#1f2937", margin: 0 }}>{u.title}</p>
+                          <p style={{ fontSize: 12, color: "#516f90", margin: "2px 0 0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{u.desc}</p>
+                          {u.preview === "social" && (
+                            <a
+                              href={`/social/${id}`}
+                              target="_blank"
+                              rel="noopener"
+                              style={{ fontSize: 11, color: "#0091ae", fontWeight: 600, textDecoration: "none", marginTop: 4, display: "inline-block" }}
+                            >
+                              Preview Content →
+                            </a>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#0091ae", flexShrink: 0, whiteSpace: "nowrap" }}>{u.price}</div>
+                        {interested ? (
+                          <span
+                            style={{
+                              fontSize: 12,
+                              color: "#00bda5",
+                              fontWeight: 700,
+                              flexShrink: 0,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            ✓ Rep notified
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => postInterest(u.product)}
+                            style={{
+                              background: "#ff7a59",
+                              color: "#fff",
+                              border: "none",
+                              padding: "9px 16px",
+                              borderRadius: 6,
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              flexShrink: 0,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            I&apos;m Interested →
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <style>{`
+                  @media (max-width: 640px) {
+                    .grow-row {
+                      flex-direction: column !important;
+                      align-items: stretch !important;
+                    }
+                    .grow-row button {
+                      width: 100% !important;
+                    }
+                  }
+                `}</style>
               </div>
 
             </div>{/* end left/center column */}

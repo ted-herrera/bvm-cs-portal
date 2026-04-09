@@ -1,0 +1,556 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { useParams } from "next/navigation";
+import type { ClientProfile } from "@/lib/pipeline";
+
+interface SocialPost {
+  day: number;
+  platform: "facebook" | "instagram" | "google_business";
+  type: "promotional" | "educational" | "community" | "behind_the_scenes" | "seasonal";
+  caption: string;
+  imagePrompt: string;
+  hashtags: string[];
+  characterCount: number;
+}
+
+interface SocialCalendar {
+  posts: SocialPost[];
+  businessName: string;
+  city: string;
+  generatedAt: string;
+}
+
+const PLATFORM_COLORS: Record<SocialPost["platform"], string> = {
+  facebook: "#1877f2",
+  instagram: "#833ab4",
+  google_business: "#00bda5",
+};
+
+const PLATFORM_LABELS: Record<SocialPost["platform"], string> = {
+  facebook: "FB",
+  instagram: "IG",
+  google_business: "GB",
+};
+
+export default function SocialCalendarPage() {
+  const params = useParams();
+  const id = params.id as string;
+
+  const [client, setClient] = useState<ClientProfile | null>(null);
+  const [calendar, setCalendar] = useState<SocialCalendar | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [approvedDays, setApprovedDays] = useState<Set<number>>(new Set());
+  const [editedCaptions, setEditedCaptions] = useState<Record<number, string>>({});
+
+  const generate = useCallback(
+    async (c: ClientProfile) => {
+      setGenerating(true);
+      const services = (c.intakeAnswers?.q3 || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const sbr = c.sbrData as Record<string, unknown> | null;
+      const tagline =
+        (sbr?.suggestedTagline as string) || (sbr?.tagline as string) || "";
+      try {
+        const res = await fetch("/api/social/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientId: c.id,
+            businessName: c.business_name,
+            city: c.city,
+            services,
+            look: c.selectedLook || "professional",
+            tagline,
+            sbrData: sbr || undefined,
+          }),
+        });
+        const data = (await res.json()) as SocialCalendar;
+        setCalendar(data);
+      } catch {
+        /* ignore */
+      }
+      setGenerating(false);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    fetch(`/api/profile/${id}`)
+      .then((r) => r.json())
+      .then((d) => {
+        const c = (d.client as ClientProfile | null) || null;
+        setClient(c);
+        setLoading(false);
+        if (c) generate(c);
+      })
+      .catch(() => setLoading(false));
+  }, [id, generate]);
+
+  function approveDay(day: number) {
+    setApprovedDays((prev) => new Set(prev).add(day));
+  }
+
+  function approveAll() {
+    if (!calendar) return;
+    setApprovedDays(new Set(calendar.posts.map((p) => p.day)));
+  }
+
+  const selectedPost = calendar?.posts.find((p) => p.day === selectedDay) || null;
+
+  if (loading) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          background: "#f5f8fa",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <div
+          style={{
+            width: 32,
+            height: 32,
+            border: "2px solid #0091ae",
+            borderTopColor: "transparent",
+            borderRadius: "50%",
+            animation: "spin 1s linear infinite",
+          }}
+        />
+        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      </div>
+    );
+  }
+
+  if (!client) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          background: "#f5f8fa",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <p style={{ color: "#516f90" }}>Client not found.</p>
+      </div>
+    );
+  }
+
+  const grid: (SocialPost | null)[] = Array.from({ length: 35 }, () => null);
+  if (calendar) {
+    for (const p of calendar.posts) {
+      if (p.day >= 1 && p.day <= 35) grid[p.day - 1] = p;
+    }
+  }
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#f5f8fa",
+        fontFamily:
+          '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          background: "#2d3e50",
+          padding: "16px 32px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          color: "#fff",
+        }}
+      >
+        <div>
+          <p
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: "0.12em",
+              color: "#00bda5",
+              margin: 0,
+            }}
+          >
+            GENERATED BY BRUNO
+          </p>
+          <h1
+            style={{
+              fontSize: 22,
+              fontWeight: 700,
+              color: "#fff",
+              margin: "4px 0 0",
+            }}
+          >
+            Social Content Calendar — {client.business_name}
+          </h1>
+          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", margin: "2px 0 0" }}>
+            {client.city} · {calendar?.posts.length || 0} posts
+          </p>
+        </div>
+        <div style={{ display: "flex", gap: 12 }}>
+          <button
+            onClick={() => client && generate(client)}
+            disabled={generating}
+            style={{
+              background: "transparent",
+              color: "#fff",
+              border: "1px solid rgba(255,255,255,0.3)",
+              padding: "9px 18px",
+              borderRadius: 6,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: generating ? "not-allowed" : "pointer",
+              opacity: generating ? 0.5 : 1,
+            }}
+          >
+            {generating ? "Regenerating..." : "Regenerate"}
+          </button>
+          <button
+            onClick={approveAll}
+            style={{
+              background: "#F5C842",
+              color: "#1a2332",
+              border: "none",
+              padding: "9px 22px",
+              borderRadius: 6,
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            Approve All
+          </button>
+        </div>
+      </div>
+
+      {/* Calendar grid */}
+      <div style={{ padding: 32 }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(7, 1fr)",
+            gap: 10,
+            maxWidth: 1200,
+            margin: "0 auto",
+          }}
+        >
+          {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+            <div
+              key={i}
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: "0.12em",
+                color: "#516f90",
+                textAlign: "center",
+                padding: "6px 0",
+              }}
+            >
+              {d}
+            </div>
+          ))}
+          {grid.map((post, idx) => {
+            const day = idx + 1;
+            const approved = approvedDays.has(day);
+            if (!post) {
+              return (
+                <div
+                  key={idx}
+                  style={{
+                    background: "#fff",
+                    border: "1px solid #e7edf3",
+                    borderRadius: 8,
+                    minHeight: 110,
+                    opacity: 0.35,
+                  }}
+                />
+              );
+            }
+            const cap = editedCaptions[day] || post.caption;
+            const snippet = cap.slice(0, 60) + (cap.length > 60 ? "…" : "");
+            return (
+              <div
+                key={idx}
+                onClick={() => setSelectedDay(day)}
+                style={{
+                  background: "#fff",
+                  border: `1px solid ${selectedDay === day ? "#0091ae" : "#e7edf3"}`,
+                  borderRadius: 8,
+                  padding: 10,
+                  minHeight: 110,
+                  cursor: "pointer",
+                  position: "relative",
+                  transition: "border-color 0.15s",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: "#516f90",
+                    }}
+                  >
+                    Day {day}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 9,
+                      fontWeight: 700,
+                      color: "#fff",
+                      background: PLATFORM_COLORS[post.platform],
+                      padding: "2px 6px",
+                      borderRadius: 3,
+                      letterSpacing: "0.04em",
+                    }}
+                  >
+                    {PLATFORM_LABELS[post.platform]}
+                  </span>
+                </div>
+                <p
+                  style={{
+                    fontSize: 11,
+                    color: "#1f2937",
+                    margin: 0,
+                    lineHeight: 1.4,
+                    flex: 1,
+                  }}
+                >
+                  {snippet}
+                </p>
+                {approved && (
+                  <span
+                    style={{
+                      fontSize: 10,
+                      color: "#00bda5",
+                      fontWeight: 700,
+                    }}
+                  >
+                    ✓ Approved
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Slide-out editor */}
+      {selectedPost && (
+        <>
+          <div
+            onClick={() => setSelectedDay(null)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.3)",
+              zIndex: 49,
+            }}
+          />
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              right: 0,
+              width: 420,
+              maxWidth: "90vw",
+              height: "100vh",
+              background: "#fff",
+              boxShadow: "-8px 0 32px rgba(0,0,0,0.12)",
+              zIndex: 50,
+              display: "flex",
+              flexDirection: "column",
+              overflowY: "auto",
+            }}
+          >
+            <div
+              style={{
+                padding: "20px 24px",
+                borderBottom: "1px solid #e7edf3",
+                background: "#f5f8fa",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <div>
+                <p
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    letterSpacing: "0.12em",
+                    color: "#516f90",
+                    margin: 0,
+                  }}
+                >
+                  DAY {selectedPost.day}
+                </p>
+                <h2
+                  style={{
+                    fontSize: 18,
+                    fontWeight: 700,
+                    color: "#1f2937",
+                    margin: "4px 0 0",
+                    textTransform: "capitalize",
+                  }}
+                >
+                  {selectedPost.type.replace(/_/g, " ")} —{" "}
+                  {selectedPost.platform.replace(/_/g, " ")}
+                </h2>
+              </div>
+              <button
+                onClick={() => setSelectedDay(null)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  fontSize: 22,
+                  color: "#516f90",
+                  cursor: "pointer",
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 20 }}>
+              <div>
+                <p
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    letterSpacing: "0.1em",
+                    color: "#516f90",
+                    margin: "0 0 6px",
+                  }}
+                >
+                  CAPTION
+                </p>
+                <textarea
+                  value={editedCaptions[selectedPost.day] ?? selectedPost.caption}
+                  onChange={(e) =>
+                    setEditedCaptions((prev) => ({ ...prev, [selectedPost.day]: e.target.value }))
+                  }
+                  rows={6}
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px",
+                    borderRadius: 6,
+                    border: "1px solid #e7edf3",
+                    fontSize: 13,
+                    color: "#1f2937",
+                    resize: "vertical",
+                    fontFamily: "inherit",
+                    outline: "none",
+                    boxSizing: "border-box",
+                  }}
+                />
+                <p style={{ fontSize: 11, color: "#516f90", margin: "6px 0 0" }}>
+                  {(editedCaptions[selectedPost.day] ?? selectedPost.caption).length} chars
+                </p>
+              </div>
+
+              <div>
+                <p
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    letterSpacing: "0.1em",
+                    color: "#516f90",
+                    margin: "0 0 6px",
+                  }}
+                >
+                  IMAGE PROMPT
+                </p>
+                <div
+                  style={{
+                    background: "#f5f8fa",
+                    border: "1px solid #e7edf3",
+                    borderRadius: 6,
+                    padding: 12,
+                    fontSize: 12,
+                    color: "#1f2937",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {selectedPost.imagePrompt}
+                </div>
+              </div>
+
+              <div>
+                <p
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    letterSpacing: "0.1em",
+                    color: "#516f90",
+                    margin: "0 0 6px",
+                  }}
+                >
+                  HASHTAGS
+                </p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {selectedPost.hashtags.map((h, i) => (
+                    <span
+                      key={i}
+                      style={{
+                        background: "#f5f8fa",
+                        border: "1px solid #e7edf3",
+                        borderRadius: 999,
+                        padding: "4px 10px",
+                        fontSize: 11,
+                        color: "#0091ae",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {h.startsWith("#") ? h : `#${h}`}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  approveDay(selectedPost.day);
+                  setSelectedDay(null);
+                }}
+                disabled={approvedDays.has(selectedPost.day)}
+                style={{
+                  background: approvedDays.has(selectedPost.day) ? "#e7edf3" : "#00bda5",
+                  color: approvedDays.has(selectedPost.day) ? "#516f90" : "#fff",
+                  border: "none",
+                  padding: "12px 0",
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: approvedDays.has(selectedPost.day) ? "default" : "pointer",
+                  letterSpacing: "0.04em",
+                }}
+              >
+                {approvedDays.has(selectedPost.day) ? "✓ Approved" : "Approve"}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}

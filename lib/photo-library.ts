@@ -1,3 +1,8 @@
+// ─── Photo library with multi-source fallback ───────────────────────────
+// Primary: Unsplash (direct hotlinks)
+// Fallback 1: Pexels free search
+// Fallback 2: Pixabay free search
+
 const PHOTO_LIBRARY: Record<string, string[]> = {
   restaurant: [
     "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&q=85&fit=crop",
@@ -34,6 +39,50 @@ const PHOTO_LIBRARY: Record<string, string[]> = {
     "https://images.unsplash.com/photo-1607962837359-5e7e89f86776?w=1200&q=85&fit=crop",
     "https://images.unsplash.com/photo-1616803689943-5601631c7fec?w=1200&q=85&fit=crop",
     "https://images.unsplash.com/photo-1595078475328-1ab05d0a6a0e?w=1200&q=85&fit=crop",
+  ],
+  dance_studio: [
+    "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=1200&q=85&fit=crop",
+    "https://images.unsplash.com/photo-1547153760-18fc86324498?w=1200&q=85&fit=crop",
+    "https://images.unsplash.com/photo-1518611012118-696072aa579a?w=1200&q=85&fit=crop",
+    "https://images.unsplash.com/photo-1517817748493-49ec54a32465?w=1200&q=85&fit=crop",
+  ],
+  yoga_pilates: [
+    "https://images.unsplash.com/photo-1545205597-3d9d02c29597?w=1200&q=85&fit=crop",
+    "https://images.unsplash.com/photo-1506629082955-511b1aa562c8?w=1200&q=85&fit=crop",
+    "https://images.unsplash.com/photo-1599447421416-3414500d18a5?w=1200&q=85&fit=crop",
+    "https://images.unsplash.com/photo-1593810450967-f9c42742e326?w=1200&q=85&fit=crop",
+    "https://images.unsplash.com/photo-1552196563-55cd4e45efb3?w=1200&q=85&fit=crop",
+  ],
+  tutoring: [
+    "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=1200&q=85&fit=crop",
+    "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1200&q=85&fit=crop",
+    "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=1200&q=85&fit=crop",
+    "https://images.unsplash.com/photo-1577896851231-70ef18881754?w=1200&q=85&fit=crop",
+  ],
+  cleaning: [
+    "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=1200&q=85&fit=crop",
+    "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1200&q=85&fit=crop",
+    "https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?w=1200&q=85&fit=crop",
+    "https://images.unsplash.com/photo-1585421514738-01798e348b17?w=1200&q=85&fit=crop",
+  ],
+  landscaping: [
+    "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=1200&q=85&fit=crop",
+    "https://images.unsplash.com/photo-1558904541-efa843a96f01?w=1200&q=85&fit=crop",
+    "https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?w=1200&q=85&fit=crop",
+    "https://images.unsplash.com/photo-1600693669105-b05ae7e0b7d9?w=1200&q=85&fit=crop",
+    "https://images.unsplash.com/photo-1523712999610-f77fbcfc3843?w=1200&q=85&fit=crop",
+  ],
+  auto_repair: [
+    "https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?w=1200&q=85&fit=crop",
+    "https://images.unsplash.com/photo-1632823471565-1ecdf7a6df0a?w=1200&q=85&fit=crop",
+    "https://images.unsplash.com/photo-1530046339160-ce3e530c7d2f?w=1200&q=85&fit=crop",
+    "https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?w=1200&q=85&fit=crop",
+  ],
+  insurance: [
+    "https://images.unsplash.com/photo-1556761175-b413da4baf72?w=1200&q=85&fit=crop",
+    "https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=1200&q=85&fit=crop",
+    "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=1200&q=85&fit=crop",
+    "https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=1200&q=85&fit=crop",
   ],
   dental: [
     "https://images.unsplash.com/photo-1606811841689-23dfddce3e95?w=1200&q=85&fit=crop",
@@ -162,16 +211,93 @@ const PHOTO_LIBRARY: Record<string, string[]> = {
   ],
 };
 
+// ─── Search terms for each category ─────────────────────────────────────
+
+const CATEGORY_SEARCH_TERMS: Record<string, string[]> = {
+  restaurant: ["restaurant", "food", "dining"],
+  fitness: ["fitness", "gym", "workout"],
+  martialarts: ["karate", "martial arts", "dojo"],
+  dance_studio: ["dance studio", "ballet", "dance class"],
+  yoga_pilates: ["yoga", "pilates", "wellness"],
+  tutoring: ["tutoring", "study", "education"],
+  cleaning: ["cleaning service", "house cleaning", "maid"],
+  landscaping: ["landscaping", "lawn care", "garden"],
+  auto_repair: ["auto repair", "mechanic", "garage"],
+  insurance: ["insurance", "office", "professional"],
+  dental: ["dentist", "dental office", "smile"],
+  medical: ["doctor", "medical", "clinic"],
+  roofing: ["roofing", "roof repair", "contractor"],
+  beauty: ["salon", "beauty", "haircut"],
+  automotive: ["car", "auto", "mechanic"],
+  legal: ["law office", "lawyer", "legal"],
+  financial: ["finance", "banking", "investment"],
+  realestate: ["real estate", "home", "property"],
+  homeservices: ["home services", "contractor", "plumber"],
+  retail: ["retail store", "shop", "boutique"],
+  education: ["school", "classroom", "learning"],
+  pet: ["pet", "dog", "veterinary"],
+  hvac: ["hvac", "heating", "air conditioning"],
+  business: ["business", "office", "professional"],
+};
+
+export type PhotoSource = "unsplash" | "pexels" | "pixabay";
+
+export interface PhotoSourceInfo {
+  source: PhotoSource;
+  url: string;
+}
+
 export function getPhotoLibraryKey(businessType: string, subType?: string): string {
   if (subType) {
-    if (subType.match(/karate|martialarts|boxing|mma|kickboxing|bjj/)) return "martialarts";
-    if (subType.match(/bakery|cupcake|cafe|coffee/)) return "restaurant";
-    if (subType.match(/yoga|pilates/)) return "fitness";
-    if (subType.match(/crossfit/)) return "fitness";
+    const s = subType.toLowerCase();
+    if (s.match(/karate|martial|boxing|mma|kickboxing|bjj|tae\s*kwon|jiu/)) return "martialarts";
+    if (s.match(/dance|ballet|ballroom/)) return "dance_studio";
+    if (s.match(/yoga|pilates|barre/)) return "yoga_pilates";
+    if (s.match(/tutor|study|academic/)) return "tutoring";
+    if (s.match(/clean|maid|janitorial/)) return "cleaning";
+    if (s.match(/landscap|lawn|garden/)) return "landscaping";
+    if (s.match(/auto.*repair|mechanic|oil.*change/)) return "auto_repair";
+    if (s.match(/insurance/)) return "insurance";
+    if (s.match(/bakery|cupcake|cafe|coffee/)) return "restaurant";
+    if (s.match(/crossfit/)) return "fitness";
   }
   if (businessType === "hvac") return "hvac";
   if (businessType === "homeservices") return "homeservices";
   return PHOTO_LIBRARY[businessType] ? businessType : "business";
+}
+
+export function getPexelsSearchUrl(category: string): string {
+  const term = (CATEGORY_SEARCH_TERMS[category]?.[0] || category).replace(/\s+/g, "-");
+  return `https://www.pexels.com/search/${encodeURIComponent(term)}/`;
+}
+
+export function getPixabaySearchUrl(category: string): string {
+  const term = (CATEGORY_SEARCH_TERMS[category]?.[0] || category).replace(/\s+/g, "-");
+  return `https://pixabay.com/images/search/${encodeURIComponent(term)}/`;
+}
+
+/**
+ * Returns a layered photo fallback list:
+ *   1. Unsplash direct URLs (hotlinked)
+ *   2. Pexels free search URL (fallback — browser navigates, cannot hotlink)
+ *   3. Pixabay free search URL (fallback)
+ *
+ * Each entry is tagged with its source so the dev knows where it came from.
+ */
+export function getPhotoSourceList(businessType: string, subType?: string): PhotoSourceInfo[] {
+  const key = getPhotoLibraryKey(businessType, subType);
+  const unsplash: PhotoSourceInfo[] = (PHOTO_LIBRARY[key] || PHOTO_LIBRARY.business).map((url) => ({
+    source: "unsplash" as const,
+    url,
+  }));
+  const fallbacks: PhotoSourceInfo[] = [
+    { source: "pexels", url: getPexelsSearchUrl(key) },
+    { source: "pixabay", url: getPixabaySearchUrl(key) },
+  ];
+  console.log(
+    `[photo-library] Category "${key}" — primary: unsplash (${unsplash.length}), fallbacks: pexels + pixabay`,
+  );
+  return [...unsplash, ...fallbacks];
 }
 
 export { getPhotoUrl } from "./studio-engine";

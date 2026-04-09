@@ -73,6 +73,13 @@ function getAction(c: ClientProfile): { label: string; href: string } {
   return { label: "View Profile →", href: `/tearsheet/${c.id}` };
 }
 
+const BVM_SAMPLE_SITES = [
+  { label: "Evergreen Landscapes (Local)", url: "https://evergreen-landscapes.bvmlocal.com/" },
+  { label: "Best Oishi Media (Premier)", url: "https://bestoishimedia-examplesite.bvmlocal.com/" },
+  { label: "Hurst Roofers (Community)", url: "https://hurstroofers-examplesite.bvmlocal.com/" },
+  { label: "Best Captain Law (Community)", url: "https://bestcaptainlaw-examplesite.bvmlocal.com/" },
+];
+
 function addToCalendar(title: string, details: string) {
   const start = new Date(Date.now() + 86400000).toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
   const end = new Date(Date.now() + 86400000 + 3600000).toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
@@ -1268,6 +1275,36 @@ export default function DashboardPage() {
                     <div><span style={{ color: "#7a8a9a" }}>Interests: </span><span style={{ color: "#F5C842", fontWeight: 600 }}>{Object.keys(selectedClient.interests).filter((k) => !k.endsWith("_at") && selectedClient.interests?.[k]).join(", ")}</span></div>
                   )}
 
+                  {/* BVM Sample Sites */}
+                  <div style={{ marginTop: 12, padding: 14, background: "#f8fafc", borderRadius: 10, border: "1px solid #e5e9ef" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#7a8a9a", margin: "0 0 10px" }}>
+                      BVM Sample Sites
+                    </p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {BVM_SAMPLE_SITES.map((s) => (
+                        <a
+                          key={s.url}
+                          href={s.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            fontSize: 12,
+                            color: "#0091ae",
+                            fontWeight: 600,
+                            textDecoration: "none",
+                            padding: "6px 10px",
+                            background: "#fff",
+                            border: "1px solid #e7edf3",
+                            borderRadius: 6,
+                            display: "block",
+                          }}
+                        >
+                          {s.label} →
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* Approval Receipt */}
                   <div style={{ marginTop: 12, padding: "16px", background: "#f8fafc", borderRadius: 10, border: "1px solid #e5e9ef" }}>
                     {selectedClient.approved_at ? (
@@ -1458,6 +1495,54 @@ export default function DashboardPage() {
                     setActionConfirm("Reminder logged in Close CRM"); setTimeout(() => setActionConfirm(""), 4000);
                   }} style={{ background: "#1a2332", border: "none", color: "#fff", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "center" }}>
                     📋 Send Reminder — Close CRM
+                  </button>
+
+                  {/* Escalate Website Issue */}
+                  <button
+                    onClick={async () => {
+                      const subject = `WEBSITE ISSUE – ${selectedClient.business_name}`;
+                      const body =
+                        `Hi Elizabeth and Sal,\n\n` +
+                        `Date of next client call: \n\n` +
+                        `Issue / delay / escalation:\n\n\n` +
+                        `What I need to move it forward:\n\n\n` +
+                        `Client: ${selectedClient.business_name}\n` +
+                        `Rep: Ted Herrera\n` +
+                        `Stage: ${STAGE_LABELS[selectedClient.stage]}\n\n` +
+                        `Sent from BVM Design Center`;
+                      const to = "elizabeth@bestversionmedia.com,sal@bestversionmedia.com";
+                      const mailto = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+                      window.open(mailto);
+                      // Log to activity feed
+                      try {
+                        await fetch(`/api/profile/message/${selectedClient.id}`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            message: "⚠ Escalation email opened to Elizabeth & Sal",
+                            from: "rep",
+                            repName: "Ted",
+                          }),
+                        });
+                      } catch {
+                        /* ignore */
+                      }
+                      setActionConfirm("Escalation email opened");
+                      setTimeout(() => setActionConfirm(""), 4000);
+                    }}
+                    style={{
+                      background: "#ff7a59",
+                      color: "#fff",
+                      border: "none",
+                      padding: "10px 16px",
+                      borderRadius: 8,
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      textAlign: "center",
+                    }}
+                  >
+                    ⚠ Escalate Website Issue
                   </button>
 
                   {/* Send Card — Handwrytten */}
