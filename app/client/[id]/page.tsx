@@ -771,21 +771,21 @@ export default function ClientPortalPage() {
 
             {/* Content area */}
             <div style={{ padding: 8 }}>
-              {/* Video player */}
+              {/* Video player — Module 0: Claire onboarding, always accessible */}
               <div style={{ background: "#000", border: "2px solid #808080", borderRightColor: "#fff", borderBottomColor: "#fff", maxWidth: 320 }}>
-                <iframe
-                  src="https://drive.google.com/file/d/1bx0wVHya0a6LbvzvZOOu_PfyI4SIDGP6/preview"
-                  style={{ width: "100%", height: 180, border: "none", display: "block" }}
-                  allow="autoplay"
-                  title="BVM Learning Video"
+                <video
+                  src="/claire-onboarding.mp4"
+                  controls
+                  preload="metadata"
+                  style={{ width: "100%", height: 180, display: "block", background: "#000" }}
                 />
               </div>
 
               {/* Lesson info */}
               <div style={{ marginTop: 8, padding: "6px 4px" }}>
-                <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#808080", margin: "0 0 3px" }}>Start Here — Module 0</p>
-                <p style={{ fontSize: 13, fontWeight: 700, color: "#000", margin: "0 0 4px" }}>Welcome to BVM Digital</p>
-                <p style={{ fontSize: 11, color: "#444", margin: "0 0 8px", lineHeight: 1.4 }}>Learn how to share your new site, drive traffic, and make the most of your BVM campaign.</p>
+                <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#808080", margin: "0 0 3px" }}>Module 0 — Start Here</p>
+                <p style={{ fontSize: 13, fontWeight: 700, color: "#000", margin: "0 0 4px" }}>Welcome to BVM Digital with Claire</p>
+                <p style={{ fontSize: 11, color: "#444", margin: "0 0 8px", lineHeight: 1.4 }}>Your onboarding walkthrough — play any time to revisit how BVM works.</p>
               </div>
 
               {/* Search bar */}
