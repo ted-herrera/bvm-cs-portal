@@ -11,6 +11,7 @@ interface Msg {
 }
 
 interface IntakeFields {
+  // Legacy/compat names still used in this page
   bizName: string;
   city: string;
   zip: string;
@@ -20,6 +21,20 @@ interface IntakeFields {
   look: string;
   tagline: string;
   domain: string;
+  // Extended BVMSiteVariables fields
+  businessName?: string;
+  ownerName?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  state?: string;
+  yearsInBusiness?: string;
+  heroHeadline?: string;
+  aboutText?: string;
+  heroPhotoUrl?: string;
+  businessType?: string;
+  subType?: string;
+  domainStatus?: "confirmed" | "needs-help" | "pending";
 }
 
 const LOOK_OPTIONS = [
@@ -28,39 +43,47 @@ const LOOK_OPTIONS = [
   { id: "bold_modern", label: "Premier", accent: "#F5C842", desc: "Bold & Premium" },
 ];
 
-const SYSTEM_PROMPT = `You are Bruno, an intake assistant for BVM Design Center. Your job is to collect exactly 6 pieces of information to build a local business website. Be conversational, warm, and natural — exactly like talking to a smart friend.
+const SYSTEM_PROMPT = `You are Bruno, an intake assistant for BVM Design Center. Your job is to collect the 7 core pieces of information to build a local business website. Be conversational, warm, and natural — exactly like talking to a smart friend.
 
-The 6 things you need:
-1. Business name (bizName)
+The 7 things you need:
+1. Business name (businessName)
 2. City and ZIP code (city, zip)
-3. What the business does (desc)
-4. 2-3 services they offer (services)
+3. What the business does (aboutText) — short description
+4. 2-3 services they offer (services) — array of strings
 5. Their call to action (cta) — Order Now, Book Now, Call Us, etc
-6. Their preferred look (look) — show as 3 clickable cards: Local, Community, Premier
+6. Their preferred look (template) — show as 3 clickable cards: Local, Community, Premier
+7. Domain (domain, domainStatus) — "do you have a domain name in mind?"
 
 ABSOLUTE RULES — DO NOT VIOLATE:
-1. Before asking ANY question, check the ALREADY COLLECTED list (injected by the system). NEVER ask for a field that's already been collected. If bizName is already "Ted's Tacos", do NOT ask "what's the business name?" again.
+1. Before asking ANY question, check the ALREADY COLLECTED list (injected by the system). NEVER ask for a field that's already been collected.
 2. When you receive a user message, first extract any new fields from it, merge them into what you already know, then ask ONLY for what's still missing.
-3. If all 6 fields are collected, skip directly to a confirmation summary. Do not ask additional questions.
+3. If all 7 fields are collected, skip directly to a confirmation summary. Do not ask additional questions.
 4. Never break flow no matter what the user types — handle anything gracefully and move forward.
-5. Collect the 6 fields in any natural order.
+5. Collect the 7 fields in any natural order.
 6. Never ask rigid scripted questions — just converse and extract.
 7. Your text response MUST be a plain conversational string (no JSON inside the text) — the JSON block goes at the very end between the markers.
 
+DOMAIN QUESTION (after the look is picked, before summary):
+Ask exactly: "Almost done — do you have a domain name in mind, like [businessname].com? If not, no problem — your rep can help sort that out. Just let me know either way."
+- If they give you a domain → set domain + domainStatus:"confirmed"
+- If they say no/unsure → set domain:"" + domainStatus:"needs-help"
+
 CRITICAL OUTPUT FORMAT: You must ALWAYS end every response with a JSON block on its own line in this exact format:
 ###FIELDS###
-{"bizName":"","city":"","zip":"","desc":"","services":[],"cta":"","look":"","tagline":"","complete":false}
+{"businessName":"","ownerName":"","phone":"","email":"","address":"","city":"","state":"","zip":"","yearsInBusiness":"","tagline":"","heroHeadline":"","cta":"","services":[],"aboutText":"","heroPhotoUrl":"","businessType":"","subType":"","domain":"","domainStatus":"","look":"","complete":false}
 ###END###
 
-Fill in whatever fields you've collected so far from the conversation (including anything from the ALREADY COLLECTED list, so the client state stays accurate). Leave uncollected fields as empty strings or empty arrays. Set "complete" to true ONLY when all 6 items (bizName, city, zip, desc, services, cta, look) are populated AND the user has confirmed your summary.
+LEGACY COMPATIBILITY: Also include "bizName" mirroring businessName, and "desc" mirroring aboutText in the JSON so older code keeps working.
 
-For "look", use one of: "warm_bold", "professional", "bold_modern" (or empty if not chosen yet).
+For "look", use one of: "warm_bold" (Local), "professional" (Community), "bold_modern" (Premier), or empty if not chosen.
 For "cta", use title case like "Order Now", "Book Now", "Call Us".
-For "tagline", generate a short catchy tagline based on what you know about the business.
+For "tagline" and "heroHeadline", generate short catchy lines based on what you know about the business.
+For "services", return an array of strings (just the names).
+For "domainStatus", use one of: "confirmed", "needs-help", "pending".
 
 When you're ready to show the look options, mention all three: Local (clean & classic), Community (professional & trusted), Premier (bold & premium). The UI will render them as clickable cards automatically when look hasn't been chosen yet and you mention them.
 
-When you have all 6 fields and the user confirms the summary, set complete to true and give a closing confirmation.`;
+When you have all 7 fields and the user confirms the summary, set complete to true and give a closing confirmation.`;
 
 function parseResponse(raw: string): { text: string; fields: Partial<IntakeFields> & { complete?: boolean } } {
   const marker = "###FIELDS###";
@@ -220,17 +243,33 @@ function IntakeInner() {
       }
       const { text, fields: newFields } = parseResponse(raw);
 
-      // Update fields with whatever Bruno extracted
+      // Update fields with whatever Bruno extracted — accept both legacy
+      // (bizName/desc) and new (businessName/aboutText) field names.
       setFields((prev) => {
         const updated = { ...prev };
-        if (newFields.bizName) updated.bizName = newFields.bizName;
-        if (newFields.city) updated.city = newFields.city;
-        if (newFields.zip) updated.zip = newFields.zip;
-        if (newFields.desc) updated.desc = newFields.desc;
-        if (newFields.services && newFields.services.length > 0) updated.services = newFields.services;
-        if (newFields.cta) updated.cta = newFields.cta;
-        if (newFields.look) updated.look = newFields.look;
-        if (newFields.tagline) updated.tagline = newFields.tagline;
+        const nf = newFields as Partial<IntakeFields>;
+        if (nf.businessName) updated.bizName = nf.businessName;
+        if (nf.bizName) updated.bizName = nf.bizName;
+        if (nf.ownerName) updated.ownerName = nf.ownerName;
+        if (nf.phone) updated.phone = nf.phone;
+        if (nf.email) updated.email = nf.email;
+        if (nf.address) updated.address = nf.address;
+        if (nf.city) updated.city = nf.city;
+        if (nf.state) updated.state = nf.state;
+        if (nf.zip) updated.zip = nf.zip;
+        if (nf.yearsInBusiness) updated.yearsInBusiness = nf.yearsInBusiness;
+        if (nf.aboutText) updated.desc = nf.aboutText;
+        if (nf.desc) updated.desc = nf.desc;
+        if (nf.services && nf.services.length > 0) updated.services = nf.services;
+        if (nf.cta) updated.cta = nf.cta;
+        if (nf.look) updated.look = nf.look;
+        if (nf.tagline) updated.tagline = nf.tagline;
+        if (nf.heroHeadline) updated.heroHeadline = nf.heroHeadline;
+        if (nf.heroPhotoUrl) updated.heroPhotoUrl = nf.heroPhotoUrl;
+        if (nf.businessType) updated.businessType = nf.businessType;
+        if (nf.subType) updated.subType = nf.subType;
+        if (nf.domain) updated.domain = nf.domain;
+        if (nf.domainStatus) updated.domainStatus = nf.domainStatus;
         return updated;
       });
 

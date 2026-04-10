@@ -66,9 +66,13 @@ export default function ClientPortalPage() {
   const [showNote, setShowNote] = useState(false);
   const [note, setNote] = useState("");
   const [siteHtml, setSiteHtml] = useState("");
+  const [siteLoading, setSiteLoading] = useState(false);
   const [logoSkipped, setLogoSkipped] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showLiveBanner, setShowLiveBanner] = useState(false);
+  const [customInterested, setCustomInterested] = useState(false);
+  const [domainChoice, setDomainChoice] = useState<"have" | "need" | null>(null);
+  const [domainInput, setDomainInput] = useState("");
 
   useEffect(() => {
     if (!localStorage.getItem("bvm_onboarding_seen")) setShowOnboarding(true);
@@ -121,13 +125,27 @@ export default function ClientPortalPage() {
     }).catch(() => setLoading(false));
   }, [id]);
 
-  // Fetch site preview for tearsheet modal
+  // Fetch site preview for tearsheet modal — full template swap
   useEffect(() => {
-    if (!client || !selectedLook) return;
-    fetch(`/api/site/generate?clientId=${client.id}&lookKey=${selectedLook}`)
-      .then((r) => r.text())
-      .then((html) => setSiteHtml(html))
-      .catch(() => {});
+    if (!client || !selectedLook || selectedLook === "custom") return;
+    const lookToTemplate =
+      selectedLook === "warm_bold"
+        ? "local"
+        : selectedLook === "bold_modern"
+          ? "premier"
+          : "community";
+    setSiteLoading(true);
+    fetch("/api/studio/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientId: client.id, template: lookToTemplate }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.html) setSiteHtml(d.html);
+        setSiteLoading(false);
+      })
+      .catch(() => setSiteLoading(false));
   }, [client?.id, selectedLook]);
 
   async function postInterest(type: string, extra?: Record<string, string>) {
@@ -149,8 +167,22 @@ export default function ClientPortalPage() {
     const allChecked = checks.every(Boolean);
     const lookSelected = selectedLook !== null;
     const logoResolved = client.hasLogo || logoSkipped;
-    if (!allChecked || !lookSelected || !logoResolved) return;
+    const domainResolved = domainChoice !== null && (domainChoice === "need" || (domainChoice === "have" && domainInput.trim().length > 0));
+    if (!allChecked || !lookSelected || !logoResolved || !domainResolved) return;
     setSubmitting(true);
+    // Persist domain state first
+    try {
+      await fetch(`/api/profile/update/${id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          domain: domainChoice === "have" ? domainInput.trim() : "",
+          domainStatus: domainChoice === "have" ? "confirmed" : "needs-help",
+        }),
+      });
+    } catch {
+      /* ignore — still proceed to approve */
+    }
     await fetch(`/api/profile/approve/${id}`, { method: "POST" });
     setApproved(true);
     setClient({ ...client, stage: "building" });
@@ -177,7 +209,8 @@ export default function ClientPortalPage() {
   const allChecked = checks.every(Boolean);
   const lookSelected = selectedLook !== null;
   const logoResolved = client.hasLogo || logoSkipped;
-  const canApprove = allChecked && lookSelected && logoResolved;
+  const domainResolved = domainChoice !== null && (domainChoice === "need" || (domainChoice === "have" && domainInput.trim().length > 0));
+  const canApprove = allChecked && lookSelected && logoResolved && domainResolved;
   const sbr = client.sbrData as Record<string, unknown> | null;
   const tagline = (sbr?.suggestedTagline as string) || (sbr?.tagline as string) || (sbr?.geoCopyBlock as string) || "";
   const cta = client.intakeAnswers?.q4 || "Contact Us";
@@ -262,7 +295,12 @@ export default function ClientPortalPage() {
                       <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#f59e0b" }} />
                       <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#22c55e" }} />
                     </div>
-                    <div style={{ background: "#fff", borderRadius: "4px 4px 0 0", width: "100%", height: 380, overflow: "hidden" }}>
+                    <div style={{ background: "#fff", borderRadius: "4px 4px 0 0", width: "100%", height: 380, overflow: "hidden", position: "relative" }}>
+                      {siteLoading && (
+                        <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
+                          <div style={{ width: 28, height: 28, border: "3px solid #0091ae", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+                        </div>
+                      )}
                       <iframe srcDoc={siteHtml} style={{ width: "250%", height: 950, border: "none", transform: "scale(0.4)", transformOrigin: "top left", pointerEvents: "none" }} title="Site preview" />
                     </div>
                   </div>
@@ -323,6 +361,40 @@ export default function ClientPortalPage() {
                   );
                 })}
               </div>
+
+              {/* Custom — fourth option */}
+              <div style={{ marginTop: 16, background: "#fff", border: selectedLook === "custom" ? "2px solid #F5C842" : "2px solid #e2e8f0", borderRadius: 16, padding: 20 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+                  <div style={{ flex: 1, minWidth: 220 }}>
+                    <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, fontWeight: 700, color: "#0d1a2e", margin: "0 0 4px" }}>Custom</p>
+                    <p style={{ fontSize: 12, color: "#64748b", margin: 0 }}>Fully bespoke — no template. Your rep will scope the build.</p>
+                  </div>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <a href="/demos/hank-moo-beans.html" target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: "#0091ae", fontWeight: 600, textDecoration: "none", padding: "6px 12px", border: "1px solid #0091ae", borderRadius: 6 }}>Hank, Moo &amp; Beans →</a>
+                    <a href="https://winkleandco.netlify.app" target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: "#0091ae", fontWeight: 600, textDecoration: "none", padding: "6px 12px", border: "1px solid #0091ae", borderRadius: 6 }}>Winkle &amp; Co. →</a>
+                  </div>
+                </div>
+                {!customInterested ? (
+                  <button
+                    onClick={async () => {
+                      setCustomInterested(true);
+                      setSelectedLook("custom");
+                      try {
+                        await fetch("/api/upsell/interest", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ clientId: id, type: "custom" }),
+                        });
+                      } catch { /* ignore */ }
+                    }}
+                    style={{ marginTop: 12, background: "#ff7a59", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+                  >
+                    Interested in Custom? Your rep will reach out →
+                  </button>
+                ) : (
+                  <p style={{ marginTop: 12, fontSize: 13, color: "#00bda5", fontWeight: 700 }}>✓ Rep notified — they&apos;ll reach out shortly</p>
+                )}
+              </div>
             </div>
 
             {/* Logo */}
@@ -359,13 +431,40 @@ export default function ClientPortalPage() {
               </div>
             </div>
 
+            {/* Domain confirmation */}
+            <div style={{ maxWidth: 600, margin: "16px auto 0" }}>
+              <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: "20px 24px" }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: "#0d1a2e", margin: "0 0 12px" }}>Domain</h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 13, color: "#475569" }}>
+                    <input type="radio" name="domain" checked={domainChoice === "have"} onChange={() => setDomainChoice("have")} style={{ accentColor: "#F5C842" }} />
+                    I have a domain name
+                  </label>
+                  {domainChoice === "have" && (
+                    <input
+                      type="text"
+                      value={domainInput}
+                      onChange={(e) => setDomainInput(e.target.value)}
+                      placeholder="yourbusiness.com"
+                      style={{ marginLeft: 24, padding: "8px 12px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13, maxWidth: 300 }}
+                    />
+                  )}
+                  <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 13, color: "#475569" }}>
+                    <input type="radio" name="domain" checked={domainChoice === "need"} onChange={() => setDomainChoice("need")} style={{ accentColor: "#F5C842" }} />
+                    I need help getting one
+                  </label>
+                </div>
+              </div>
+            </div>
+
             {/* Sticky Approve Bar */}
             <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#fff", borderTop: "1px solid #e2e8f0", padding: "16px 32px", zIndex: 250, boxShadow: "0 -4px 12px rgba(0,0,0,0.1)" }}>
               <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-                <div style={{ display: "flex", gap: 12, fontSize: 12 }}>
+                <div style={{ display: "flex", gap: 12, fontSize: 12, flexWrap: "wrap" }}>
                   <span style={{ color: allChecked ? "#22c55e" : "#ef4444" }}>{allChecked ? "✓" : "✗"} Confirmed</span>
                   <span style={{ color: lookSelected ? "#22c55e" : "#ef4444" }}>{lookSelected ? "✓" : "✗"} Look selected</span>
                   <span style={{ color: logoResolved ? "#22c55e" : "#ef4444" }}>{logoResolved ? "✓" : "✗"} Logo</span>
+                  <span style={{ color: domainResolved ? "#22c55e" : "#ef4444" }}>{domainResolved ? "✓" : "✗"} Domain</span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   {!showNote ? (
