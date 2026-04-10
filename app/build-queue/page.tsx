@@ -80,14 +80,121 @@ function scoreColor(score: number): string {
   return COLORS.danger;
 }
 
+// ─── Mock builds shown immediately on load ────────────────────────────
+// These populate the left column without waiting for the API so the dev
+// always sees something to click. Real builds from /api/build/list are
+// merged in on top, with mock IDs preserved.
+function daysAgoIso(n: number): string {
+  return new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString();
+}
+
+const MOCK_BUILDS: BuildRecord[] = [
+  {
+    id: "mock-rosalinda",
+    clientId: "client-001",
+    businessName: "Rosalinda's Tacos",
+    city: "Tulsa, OK",
+    zip: "74103",
+    services: ["Dine-In", "Takeout", "Catering"],
+    look: "warm_bold",
+    tagline: "Tulsa's Favorite Street Tacos",
+    cta: "Order Now",
+    sbrData: null,
+    generatedSiteHTML: "",
+    status: "unassigned",
+    assignedDev: null,
+    createdAt: daysAgoIso(2),
+    claimedAt: null,
+    readyAt: null,
+    liveAt: null,
+    liveUrl: null,
+    qaReport: null,
+  },
+  {
+    id: "mock-peak-dental",
+    clientId: "client-002",
+    businessName: "Peak Dental",
+    city: "Denver, CO",
+    zip: "80202",
+    services: ["Cleanings", "Whitening", "Implants"],
+    look: "professional",
+    tagline: "Denver's Trusted Family Dentist",
+    cta: "Book Now",
+    sbrData: { featured_placement: true },
+    generatedSiteHTML: "",
+    status: "unassigned",
+    assignedDev: null,
+    createdAt: daysAgoIso(4),
+    claimedAt: null,
+    readyAt: null,
+    liveAt: null,
+    liveUrl: null,
+    qaReport: null,
+  },
+  {
+    id: "mock-iron-ridge",
+    clientId: "client-003",
+    businessName: "Iron Ridge Roofing",
+    city: "Nashville, TN",
+    zip: "37201",
+    services: ["Roof Repair", "New Roofs", "Storm Damage"],
+    look: "bold_modern",
+    tagline: "Nashville's Storm-Ready Roofers",
+    cta: "Get Free Estimate",
+    sbrData: null,
+    generatedSiteHTML: "",
+    status: "unassigned",
+    assignedDev: null,
+    createdAt: daysAgoIso(1),
+    claimedAt: null,
+    readyAt: null,
+    liveAt: null,
+    liveUrl: null,
+    qaReport: {
+      passed: true,
+      score: 94,
+      runAt: new Date().toISOString(),
+      passes: [],
+    },
+  },
+  {
+    id: "mock-hanks",
+    clientId: "client-mock-hanks",
+    businessName: "Hanks Hamburgers",
+    city: "Tulsa, OK",
+    zip: "74104",
+    services: ["Burgers", "Shakes", "Catering"],
+    look: "professional",
+    tagline: "The Burger Tulsa Grew Up On",
+    cta: "Order Now",
+    sbrData: { featured_placement: true },
+    generatedSiteHTML: "",
+    status: "unassigned",
+    assignedDev: null,
+    createdAt: daysAgoIso(6),
+    claimedAt: null,
+    readyAt: null,
+    liveAt: null,
+    liveUrl: null,
+    qaReport: null,
+  },
+];
+
+function mergeBuilds(real: BuildRecord[]): BuildRecord[] {
+  const mockIds = new Set(MOCK_BUILDS.map((m) => m.id));
+  return [...MOCK_BUILDS, ...real.filter((r) => !mockIds.has(r.id))];
+}
+
 export default function BuildQueuePage() {
   const router = useRouter();
-  const [builds, setBuilds] = useState<BuildRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedBuild, setSelectedBuild] = useState<BuildRecord | null>(null);
+  const [builds, setBuilds] = useState<BuildRecord[]>(MOCK_BUILDS);
+  const [loading, setLoading] = useState(false);
+  const [selectedBuild, setSelectedBuild] = useState<BuildRecord | null>(
+    MOCK_BUILDS[0],
+  );
   const [toast, setToast] = useState("");
 
-  // 4-step flow
+  // 4-step flow — start on Step 1 so QA engine is immediately visible
   const [step, setStep] = useState<StepKey>(1);
 
   // Step 1: submit HTML
@@ -120,9 +227,9 @@ export default function BuildQueuePage() {
     try {
       const res = await fetch("/api/build/list");
       const data = (await res.json()) as { builds?: BuildRecord[] };
-      setBuilds(data.builds || []);
+      setBuilds(mergeBuilds(data.builds || []));
     } catch {
-      /* ignore */
+      /* ignore — keep mock builds visible */
     }
     setLoading(false);
   }, []);
