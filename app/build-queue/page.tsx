@@ -25,6 +25,136 @@ const COLORS = {
 
 const DEV_USERNAME = "dev";
 
+// ─── Line-numbered HTML editor ──────────────────────────────────────────
+function HtmlEditor({
+  value,
+  onChange,
+  placeholder,
+  minHeight = 260,
+  errorLines = [] as number[],
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  minHeight?: number;
+  errorLines?: number[];
+}) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const gutterRef = useRef<HTMLDivElement>(null);
+  const [highlightedLine, setHighlightedLine] = useState<number | null>(null);
+
+  const lines = value.split("\n");
+  const lineCount = Math.max(lines.length, 1);
+
+  function syncScroll() {
+    if (gutterRef.current && textareaRef.current) {
+      gutterRef.current.scrollTop = textareaRef.current.scrollTop;
+    }
+  }
+
+  function jumpToLine(lineNum: number) {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    setHighlightedLine(lineNum);
+    // Calculate character offset for the target line
+    let offset = 0;
+    for (let i = 0; i < lineNum - 1 && i < lines.length; i++) {
+      offset += lines[i].length + 1; // +1 for \n
+    }
+    ta.focus();
+    ta.setSelectionRange(offset, offset + (lines[lineNum - 1]?.length || 0));
+    // Scroll the line into view
+    const lineHeight = 18;
+    ta.scrollTop = Math.max(0, (lineNum - 5) * lineHeight);
+    setTimeout(() => setHighlightedLine(null), 2000);
+  }
+
+  const errorLineSet = new Set(errorLines);
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        border: `1px solid ${COLORS.cardBorder}`,
+        borderRadius: 8,
+        overflow: "hidden",
+        minHeight,
+        background: "#fff",
+      }}
+    >
+      {/* Gutter */}
+      <div
+        ref={gutterRef}
+        style={{
+          width: 48,
+          background: COLORS.pageBg,
+          borderRight: `1px solid ${COLORS.cardBorder}`,
+          overflow: "hidden",
+          paddingTop: 14,
+          flexShrink: 0,
+          userSelect: "none",
+        }}
+      >
+        {Array.from({ length: lineCount }, (_, i) => {
+          const ln = i + 1;
+          const isError = errorLineSet.has(ln);
+          const isHighlighted = highlightedLine === ln;
+          return (
+            <div
+              key={ln}
+              onClick={isError ? () => jumpToLine(ln) : undefined}
+              style={{
+                height: 18,
+                lineHeight: "18px",
+                fontSize: 11,
+                fontFamily: 'Menlo, Consolas, "Courier New", monospace',
+                textAlign: "right",
+                paddingRight: 8,
+                color: isError ? COLORS.danger : COLORS.secondary,
+                fontWeight: isError ? 700 : 400,
+                cursor: isError ? "pointer" : "default",
+                background: isHighlighted
+                  ? "rgba(245, 200, 66, 0.35)"
+                  : isError
+                    ? "rgba(255, 92, 119, 0.08)"
+                    : "transparent",
+                transition: "background 0.3s",
+              }}
+            >
+              {ln}
+            </div>
+          );
+        })}
+      </div>
+      {/* Textarea */}
+      <textarea
+        ref={textareaRef}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onScroll={syncScroll}
+        placeholder={placeholder}
+        style={{
+          flex: 1,
+          minHeight,
+          background: "#fff",
+          border: "none",
+          padding: "14px 16px",
+          fontSize: 12,
+          fontFamily: 'Menlo, Consolas, "Courier New", monospace',
+          lineHeight: "18px",
+          color: COLORS.body,
+          resize: "vertical",
+          outline: "none",
+          boxSizing: "border-box",
+          whiteSpace: "pre",
+          overflowWrap: "normal",
+          overflowX: "auto",
+        }}
+      />
+    </div>
+  );
+}
+
 interface BuildRecord {
   id: string;
   clientId: string;
@@ -352,6 +482,37 @@ export default function BuildQueuePage() {
   const [liveUrlVerified, setLiveUrlVerified] = useState<null | boolean>(null);
   const [verifyingLive, setVerifyingLive] = useState(false);
   const [buildCompleted, setBuildCompleted] = useState(false);
+
+  // Error lines from QA for editor highlighting
+  function getErrorLines(html: string, report: QAReport | null): number[] {
+    if (!report || !html) return [];
+    const lines = html.split("\n");
+    const errorLines: number[] = [];
+    for (const pass of report.passes) {
+      for (const check of pass.checks) {
+        if (check.passed) continue;
+        // Try to find relevant lines based on check name
+        const patterns: string[] = [];
+        if (/alt text/i.test(check.name)) patterns.push("<img ");
+        if (/canonical/i.test(check.name)) patterns.push("<link ");
+        if (/og:/i.test(check.name)) patterns.push("og:");
+        if (/title/i.test(check.name)) patterns.push("<title");
+        if (/meta desc/i.test(check.name)) patterns.push("meta ");
+        if (/heading/i.test(check.name)) patterns.push(/<h[1-6]/i.source);
+        if (/contrast|color/i.test(check.name)) patterns.push("color");
+        if (/placeholder/i.test(check.name)) patterns.push("Lorem");
+        if (patterns.length === 0) continue;
+        for (let i = 0; i < lines.length; i++) {
+          for (const pat of patterns) {
+            if (lines[i].toLowerCase().includes(pat.toLowerCase())) {
+              errorLines.push(i + 1);
+            }
+          }
+        }
+      }
+    }
+    return [...new Set(errorLines)];
+  }
 
   // Communications
   const [messages, setMessages] = useState<BuildMessage[]>([]);
@@ -1215,30 +1376,12 @@ export default function BuildQueuePage() {
                       Paste HTML from your dev pack or upload index.html
                     </p>
 
-                    <textarea
+                    <HtmlEditor
                       value={htmlInput}
-                      onChange={(e) => setHtmlInput(e.target.value)}
+                      onChange={setHtmlInput}
                       placeholder="Paste your site HTML here to run QA analysis..."
-                      style={{
-                        width: "100%",
-                        minHeight: 260,
-                        background: "#fff",
-                        border: `1px solid ${COLORS.cardBorder}`,
-                        borderRadius: 8,
-                        padding: "14px 16px",
-                        fontSize: 12,
-                        fontFamily: 'Menlo, Consolas, "Courier New", monospace',
-                        color: COLORS.body,
-                        resize: "vertical",
-                        outline: "none",
-                        boxSizing: "border-box",
-                      }}
-                      onFocus={(e) => {
-                        e.currentTarget.style.borderColor = COLORS.accent;
-                      }}
-                      onBlur={(e) => {
-                        e.currentTarget.style.borderColor = COLORS.cardBorder;
-                      }}
+                      minHeight={260}
+                      errorLines={getErrorLines(htmlInput, qaReport)}
                     />
 
                     <div
@@ -1350,24 +1493,12 @@ export default function BuildQueuePage() {
                       Paste the updated HTML — a score of 100 advances to final verification.
                     </p>
 
-                    <textarea
+                    <HtmlEditor
                       value={resubmitHtml}
-                      onChange={(e) => setResubmitHtml(e.target.value)}
+                      onChange={setResubmitHtml}
                       placeholder="Paste your updated HTML here..."
-                      style={{
-                        width: "100%",
-                        minHeight: 240,
-                        background: "#fff",
-                        border: `1px solid ${COLORS.cardBorder}`,
-                        borderRadius: 8,
-                        padding: "14px 16px",
-                        fontSize: 12,
-                        fontFamily: 'Menlo, Consolas, "Courier New", monospace',
-                        color: COLORS.body,
-                        resize: "vertical",
-                        outline: "none",
-                        boxSizing: "border-box",
-                      }}
+                      minHeight={240}
+                      errorLines={getErrorLines(resubmitHtml, resubmitReport)}
                     />
 
                     <button

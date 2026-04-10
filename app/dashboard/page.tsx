@@ -157,9 +157,14 @@ export default function DashboardPage() {
         const d = await r.json();
         setClients(d.clients || []);
       } catch {
-        const ids = ["client-001", "client-002", "client-003"];
-        const results = await Promise.all(ids.map((id) => fetch(`/api/profile/${id}`).then((r) => r.json()).then((d) => d.client as ClientProfile | null).catch(() => null)));
-        setClients(results.filter(Boolean) as ClientProfile[]);
+        // Retry once — covers race conditions on cold start
+        try {
+          const r2 = await fetch("/api/clients");
+          const d2 = await r2.json();
+          setClients(d2.clients || []);
+        } catch {
+          setClients([]);
+        }
       }
       try {
         const nr = await fetch("/api/notifications");
