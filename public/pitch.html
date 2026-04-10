@@ -182,6 +182,9 @@ img{max-width:100%;height:auto;display:block}
 .ticker-bar{width:100%;height:40px;background:#0C2340;overflow:hidden;position:relative;z-index:1000}
 .ticker-track{display:flex;width:max-content;animation:ticker 40s linear infinite}
 @keyframes ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+@keyframes pulse-gold{0%,100%{border-color:#d4a843;box-shadow:0 0 8px rgba(212,168,67,0.3)}50%{border-color:#f5d87a;box-shadow:0 0 20px rgba(212,168,67,0.6)}}
+@keyframes pulse-ring{0%{box-shadow:0 0 0 0 rgba(212,168,67,0.5)}70%{box-shadow:0 0 0 12px rgba(212,168,67,0)}100%{box-shadow:0 0 0 0 rgba(212,168,67,0)}}
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:0.4}}
 .ticker-track span{display:inline-flex;align-items:center;height:40px;white-space:nowrap;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;letter-spacing:0.08em;padding:0 6px}
 .ticker-track .tk-label{color:rgba(255,255,255,0.6)}
 .ticker-track .tk-old{color:rgba(255,255,255,0.5);text-decoration:line-through;padding:0 4px}
@@ -346,43 +349,46 @@ img{max-width:100%;height:auto;display:block}
 
       <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:20px">
 
-        <!-- Winkle — Featured -->
-        <div style="background:rgba(212,168,67,0.12);border:2px solid var(--gold);border-radius:14px;overflow:hidden;position:relative;transition:all 0.2s" onmouseover="this.querySelector('.lock-ov').style.opacity='1'" onmouseout="this.querySelector('.lock-ov').style.opacity='0'">
-          <span style="position:absolute;top:14px;left:14px;background:var(--gold);color:var(--navy);font-size:10px;font-weight:800;padding:4px 12px;border-radius:12px;letter-spacing:0.08em;text-transform:uppercase;z-index:2">Featured Build</span>
+        <!-- Winkle — Locked -->
+        <div style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:14px;overflow:hidden;position:relative;transition:all 0.2s" onmouseover="this.querySelector('.lock-ov').style.opacity='1'" onmouseout="this.querySelector('.lock-ov').style.opacity='0'">
           <img src="./winkle_hero.jpeg" alt="Winkle & Co." style="width:100%;height:280px;object-fit:cover;background:#1a1a1a" loading="lazy" onerror="this.style.background='#1a1a1a';this.alt='Winkle & Co.'">
           <div style="padding:20px 24px">
             <div style="font-size:20px;font-weight:700;color:#e8e4dc;margin-bottom:4px">Winkle &amp; Co.</div>
             <div style="font-size:13px;color:#777">Single malt whiskey · Premium e-commerce</div>
           </div>
-          <div class="lock-ov" style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(10,10,10,0.6);backdrop-filter:blur(12px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;opacity:0;transition:opacity 0.3s;z-index:1">
-            <span style="font-size:11px;color:#999;letter-spacing:0.08em;text-transform:uppercase">Custom Build · Preview Available</span>
-            <a href="mailto:therrera@bestversionmedia.com?subject=Custom%20Build%20Inquiry%20%E2%80%94%20Winkle%20%26%20Co." style="padding:8px 24px;border:1px solid #e8e4dc;color:#e8e4dc;font-size:12px;font-weight:500;letter-spacing:0.06em;border-radius:4px;transition:all 0.2s" onmouseover="this.style.background='#e8e4dc';this.style.color='#0a0a0a'" onmouseout="this.style.background='transparent';this.style.color='#e8e4dc'">Request Access</a>
+          <div class="lock-ov" style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(10,10,10,0.7);backdrop-filter:blur(12px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;opacity:0;transition:opacity 0.3s;z-index:1">
+            <span style="font-size:48px;color:#d4a843">&#128274;</span>
+            <a href="mailto:therrera@bestversionmedia.com?subject=Custom%20Build%20Inquiry%20%E2%80%94%20Winkle%20%26%20Co." style="color:#d4a843;font-size:12px;font-weight:600;letter-spacing:0.06em;text-decoration:none">Request Access</a>
           </div>
         </div>
 
         <!-- Real Estate Demo -->
-        <div style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:14px;overflow:hidden;position:relative;transition:all 0.2s" onmouseover="this.querySelector('.lock-ov').style.opacity='1'" onmouseout="this.querySelector('.lock-ov').style.opacity='0'">
+        <div style="background:rgba(212,168,67,0.08);border:2px solid #d4a843;border-radius:14px;overflow:hidden;position:relative;transition:all 0.2s;animation:pulse-ring 2s ease-out infinite" onmouseover="this.querySelector('.lock-ov').style.opacity='1'" onmouseout="this.querySelector('.lock-ov').style.opacity='0'">
+          <span style="position:absolute;top:14px;left:14px;font-size:20px;color:#d4a843;z-index:2">&#128275;</span>
+          <span style="position:absolute;top:14px;right:14px;background:var(--gold);color:var(--navy);font-size:10px;font-weight:800;padding:4px 12px;border-radius:12px;letter-spacing:0.08em;text-transform:uppercase;z-index:2;display:flex;align-items:center;gap:6px"><span style="width:6px;height:6px;border-radius:50%;background:#22c55e;animation:pulse-dot 1.5s ease-in-out infinite"></span>Live Demo</span>
           <img src="https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&auto=format&fit=crop" alt="Real Estate Demo" style="width:100%;height:240px;object-fit:cover" loading="lazy">
           <div style="padding:20px 24px">
             <div style="font-size:18px;font-weight:700;color:#e8e4dc;margin-bottom:4px">Real Estate Demo</div>
             <div style="font-size:13px;color:#777">Real estate · Premier custom build</div>
           </div>
-          <div class="lock-ov" style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(10,10,10,0.6);backdrop-filter:blur(12px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;opacity:0;transition:opacity 0.3s">
-            <span style="font-size:11px;color:#999;letter-spacing:0.08em;text-transform:uppercase">Custom Build · Preview Available</span>
+          <div class="lock-ov" style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(10,10,10,0.6);backdrop-filter:blur(12px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;opacity:0;transition:opacity 0.3s;z-index:1">
+            <span style="font-size:11px;color:#999;letter-spacing:0.08em;text-transform:uppercase">Custom Build · Live Preview</span>
             <a href="https://bvm-studio-app.vercel.app/demo-realestate.html" target="_blank" style="padding:8px 24px;border:1px solid #e8e4dc;color:#e8e4dc;font-size:12px;font-weight:500;letter-spacing:0.06em;border-radius:4px;transition:all 0.2s" onmouseover="this.style.background='#e8e4dc';this.style.color='#0a0a0a'" onmouseout="this.style.background='transparent';this.style.color='#e8e4dc'">View Site →</a>
           </div>
         </div>
 
-        <!-- Ted's Hamburgers -->
-        <div style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:14px;overflow:hidden;position:relative;transition:all 0.2s" onmouseover="this.querySelector('.lock-ov').style.opacity='1'" onmouseout="this.querySelector('.lock-ov').style.opacity='0'">
-          <img src="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800&auto=format" alt="Ted's Hamburgers" style="width:100%;height:240px;object-fit:cover" loading="lazy">
+        <!-- Bruno Intelligence Hub -->
+        <div style="background:rgba(212,168,67,0.08);border:2px solid #d4a843;border-radius:14px;overflow:hidden;position:relative;transition:all 0.2s;animation:pulse-gold 2.5s ease-in-out infinite" onmouseover="this.querySelector('.lock-ov').style.opacity='1'" onmouseout="this.querySelector('.lock-ov').style.opacity='0'">
+          <span style="position:absolute;top:14px;left:14px;background:var(--gold);color:var(--navy);font-size:10px;font-weight:800;padding:4px 12px;border-radius:12px;letter-spacing:0.08em;text-transform:uppercase;z-index:2">Live Demo</span>
+          <img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&auto=format&fit=crop" alt="Bruno Intelligence Hub" style="width:100%;height:240px;object-fit:cover" loading="lazy">
           <div style="padding:20px 24px">
-            <div style="font-size:18px;font-weight:700;color:#e8e4dc;margin-bottom:4px">Ted's Hamburgers</div>
-            <div style="font-size:13px;color:#777">Smash burgers · Custom build</div>
+            <div style="font-size:18px;font-weight:700;color:#e8e4dc;margin-bottom:4px">Bruno Intelligence Hub</div>
+            <div style="font-size:13px;color:#777">Internal tool · AI-powered territory intelligence</div>
+            <div style="font-size:11px;color:#d4a843;margin-top:6px;font-style:italic">Not just websites — Bruno builds internal tools too.</div>
           </div>
-          <div class="lock-ov" style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(10,10,10,0.6);backdrop-filter:blur(12px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;opacity:0;transition:opacity 0.3s">
-            <span style="font-size:11px;color:#999;letter-spacing:0.08em;text-transform:uppercase">Custom Build · Preview Available</span>
-            <a href="mailto:therrera@bestversionmedia.com?subject=Custom%20Build%20Inquiry%20%E2%80%94%20Ted%27s%20Hamburgers" style="padding:8px 24px;border:1px solid #e8e4dc;color:#e8e4dc;font-size:12px;font-weight:500;letter-spacing:0.06em;border-radius:4px;transition:all 0.2s" onmouseover="this.style.background='#e8e4dc';this.style.color='#0a0a0a'" onmouseout="this.style.background='transparent';this.style.color='#e8e4dc'">Request Access</a>
+          <div class="lock-ov" style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(10,10,10,0.6);backdrop-filter:blur(12px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;opacity:0;transition:opacity 0.3s;z-index:1">
+            <span style="font-size:11px;color:#999;letter-spacing:0.08em;text-transform:uppercase">Internal Tool · Live</span>
+            <a href="https://bruno-bvm.vercel.app/" target="_blank" style="padding:8px 24px;border:1px solid #e8e4dc;color:#e8e4dc;font-size:12px;font-weight:500;letter-spacing:0.06em;border-radius:4px;transition:all 0.2s" onmouseover="this.style.background='#e8e4dc';this.style.color='#0a0a0a'" onmouseout="this.style.background='transparent';this.style.color='#e8e4dc'">View Tool →</a>
           </div>
         </div>
 
