@@ -128,21 +128,6 @@ export default function DashboardPage() {
   const [storeNotifs, setStoreNotifs] = useState<StoreNotification[]>([]);
   const [pulseTimer, setPulseTimer] = useState<PulseTimerInfo | null>(null);
   const [pulseStatus, setPulseStatus] = useState("");
-
-  // Domain management
-  interface DomainResult {
-    domain: string;
-    available: boolean | null;
-    price: string;
-    purchaseUrl: string;
-  }
-  const [domainQuery, setDomainQuery] = useState("");
-  const [domainSearching, setDomainSearching] = useState(false);
-  const [domainResults, setDomainResults] = useState<{
-    primary: DomainResult | null;
-    alternatives: DomainResult[];
-  }>({ primary: null, alternatives: [] });
-  const [domainConfirmStatus, setDomainConfirmStatus] = useState("");
   const [affIdx, setAffIdx] = useState(Math.floor(new Date().getTime() / 86400000) % AFFIRMATIONS.length);
   const [selectedClient, setSelectedClient] = useState<ClientProfile | null>(null);
   const [slideOutOpen, setSlideOutOpen] = useState(false);
@@ -242,44 +227,6 @@ export default function DashboardPage() {
     } catch {
       setPulseStatus("Failed — try again");
       setTimeout(() => setPulseStatus(""), 3000);
-    }
-  }
-
-  async function searchDomains() {
-    if (!selectedClient) return;
-    const q = domainQuery.trim() || selectedClient.business_name;
-    setDomainSearching(true);
-    try {
-      const res = await fetch(
-        `/api/domain/search?query=${encodeURIComponent(q)}&city=${encodeURIComponent(selectedClient.city || "")}`,
-      );
-      const d = (await res.json()) as {
-        primary?: DomainResult;
-        alternatives?: DomainResult[];
-      };
-      setDomainResults({
-        primary: d.primary || null,
-        alternatives: d.alternatives || [],
-      });
-    } catch {
-      /* ignore */
-    }
-    setDomainSearching(false);
-  }
-
-  async function confirmDomain(domain: string) {
-    if (!selectedClient) return;
-    try {
-      await fetch(`/api/profile/update/${selectedClient.id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ domain, domainStatus: "confirmed" }),
-      });
-      setDomainConfirmStatus(`✓ Marked ${domain} as confirmed`);
-      setTimeout(() => setDomainConfirmStatus(""), 4000);
-    } catch {
-      setDomainConfirmStatus("Failed — try again");
-      setTimeout(() => setDomainConfirmStatus(""), 4000);
     }
   }
 
@@ -1356,117 +1303,6 @@ export default function DashboardPage() {
                   {selectedClient.interests && Object.keys(selectedClient.interests).filter((k) => !k.endsWith("_at") && selectedClient.interests?.[k]).length > 0 && (
                     <div><span style={{ color: "#7a8a9a" }}>Interests: </span><span style={{ color: "#F5C842", fontWeight: 600 }}>{Object.keys(selectedClient.interests).filter((k) => !k.endsWith("_at") && selectedClient.interests?.[k]).join(", ")}</span></div>
                   )}
-
-                  {/* Domain Management */}
-                  <div style={{ marginTop: 12, padding: 14, background: "#f8fafc", borderRadius: 10, border: "1px solid #e5e9ef" }}>
-                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#7a8a9a", margin: "0 0 10px" }}>
-                      Domain Management
-                    </p>
-                    <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-                      <input
-                        type="text"
-                        value={domainQuery}
-                        onChange={(e) => setDomainQuery(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && searchDomains()}
-                        placeholder={`Search domain for ${selectedClient.business_name}...`}
-                        style={{
-                          flex: 1,
-                          padding: "8px 10px",
-                          borderRadius: 6,
-                          border: "1px solid #e5e9ef",
-                          fontSize: 12,
-                        }}
-                      />
-                      <button
-                        onClick={searchDomains}
-                        disabled={domainSearching}
-                        style={{
-                          background: "#0091ae",
-                          color: "#fff",
-                          border: "none",
-                          borderRadius: 6,
-                          padding: "8px 14px",
-                          fontSize: 11,
-                          fontWeight: 700,
-                          cursor: "pointer",
-                          opacity: domainSearching ? 0.5 : 1,
-                        }}
-                      >
-                        {domainSearching ? "..." : "Search"}
-                      </button>
-                    </div>
-                    {domainResults.primary && (
-                      <div style={{ background: "#fff", border: "1px solid #e5e9ef", borderRadius: 6, padding: 10, marginBottom: 8 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                          <div style={{ minWidth: 0 }}>
-                            <p style={{ fontSize: 13, fontWeight: 700, color: "#1a2332", margin: 0 }}>{domainResults.primary.domain}</p>
-                            <p style={{ fontSize: 11, color: "#7a8a9a", margin: "2px 0 0" }}>
-                              {domainResults.primary.available === true
-                                ? `✓ Available · ${domainResults.primary.price}`
-                                : domainResults.primary.available === false
-                                  ? "✗ Taken"
-                                  : "Status unknown"}
-                            </p>
-                          </div>
-                          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                            {domainResults.primary.available === true && (
-                              <a
-                                href={domainResults.primary.purchaseUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                style={{
-                                  background: "#ff7a59",
-                                  color: "#fff",
-                                  textDecoration: "none",
-                                  padding: "6px 10px",
-                                  borderRadius: 4,
-                                  fontSize: 10,
-                                  fontWeight: 700,
-                                  whiteSpace: "nowrap",
-                                }}
-                              >
-                                Purchase →
-                              </a>
-                            )}
-                            <button
-                              onClick={() => domainResults.primary && confirmDomain(domainResults.primary.domain)}
-                              style={{
-                                background: "#00bda5",
-                                color: "#fff",
-                                border: "none",
-                                padding: "6px 10px",
-                                borderRadius: 4,
-                                fontSize: 10,
-                                fontWeight: 700,
-                                cursor: "pointer",
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              Mark Confirmed
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    {domainResults.alternatives.length > 0 && (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        {domainResults.alternatives.map((alt) => (
-                          <div
-                            key={alt.domain}
-                            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, padding: "6px 10px", background: "#fff", border: "1px solid #e5e9ef", borderRadius: 4 }}
-                          >
-                            <span style={{ color: "#1a2332", fontWeight: 600 }}>{alt.domain}</span>
-                            <span style={{ color: alt.available === true ? "#00bda5" : alt.available === false ? "#ef4444" : "#7a8a9a" }}>
-                              {alt.available === true ? "✓ Available" : alt.available === false ? "✗ Taken" : "—"}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {domainConfirmStatus && (
-                      <p style={{ fontSize: 11, color: "#00bda5", margin: "8px 0 0", fontWeight: 700 }}>{domainConfirmStatus}</p>
-                    )}
-                  </div>
 
                   {/* BVM Sample Sites */}
                   <div style={{ marginTop: 12, padding: 14, background: "#f8fafc", borderRadius: 10, border: "1px solid #e5e9ef" }}>

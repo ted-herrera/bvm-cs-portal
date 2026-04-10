@@ -3,21 +3,8 @@ import JSZip from "jszip";
 import { getClient } from "@/lib/mock-data";
 import { getBuildByClientId } from "@/lib/store";
 import { generateSiteHTML } from "@/lib/studio-engine";
-import { renderTemplate } from "@/lib/template-engine";
-import type { BVMTemplate } from "@/lib/types/bvm-site-variables";
-import {
-  classifyBusinessType,
-  detectSubType,
-  getDefaultTemplate,
-} from "@/lib/business-classifier";
 
 type LookKey = "warm_bold" | "professional" | "bold_modern";
-
-function lookToTemplate(look: string): BVMTemplate {
-  if (look === "warm_bold") return "local";
-  if (look === "bold_modern") return "premier";
-  return "community";
-}
 
 function buildBriefMarkdown(params: {
   businessName: string;
@@ -104,19 +91,13 @@ Once every box is checked, re-upload \`index.html\` to the QA tool, confirm the 
 `;
 }
 
-function buildReadmeMarkdown(businessName: string, template: string): string {
+function buildReadmeMarkdown(businessName: string): string {
   return `# ${businessName} — BVM Dev Pack
 
 This ZIP contains everything you need to build and ship this site.
 
-TEMPLATE: ${template}
-All variable slots in index.html correspond to variables.json.
-QA engine validates against variables.json automatically.
-Do not change section structure — template is locked.
-
 ## Files
 - \`index.html\` — the generated site HTML, ready to open in a browser
-- \`variables.json\` — the full BVMSiteVariables source of truth (edit this and re-render rather than patching HTML)
 - \`brief.md\` — client brief with business details, tagline, look, CTA, and SBR market intelligence
 - \`qa-checklist.md\` — pre-filled QA checklist with known issues flagged
 - \`sbr-data.json\` — full SBR market intelligence (raw JSON)
@@ -149,7 +130,7 @@ export async function GET(request: Request) {
   const build = getBuildByClientId(clientId);
 
   const lookKey = ((client.selectedLook || build?.look || "professional") as LookKey);
-  const templateKey = lookToTemplate(lookKey);
+  const siteHTML = build?.generatedSiteHTML || generateSiteHTML(client, lookKey);
 
   const services =
     build?.services ||
@@ -166,52 +147,8 @@ export async function GET(request: Request) {
     "";
   const cta = client.intakeAnswers?.q4 || build?.cta || "Contact Us";
 
-  // Render the locked template with full BVMSiteVariables
-  const q2 = client.intakeAnswers?.q2 || "";
-  const businessType = classifyBusinessType(client.business_name, q2);
-  const subType = detectSubType(client.business_name, q2);
-  const resolvedTemplate: BVMTemplate = templateKey || getDefaultTemplate(subType, businessType);
-
-  let siteHTML = "";
-  let variables;
-  try {
-    const rendered = await renderTemplate({
-      businessName: client.business_name,
-      ownerName: client.contact_name,
-      phone: client.phone,
-      email: client.contact_email,
-      address: (client.intakeAnswers?.q7 || "").split(",")[1]?.trim() || "",
-      city: client.city,
-      zip: client.zip,
-      tagline,
-      heroHeadline: tagline || `Welcome to ${client.business_name}`,
-      cta,
-      services: services.slice(0, 3).map((name, i) => ({
-        name,
-        description: `${name} — delivered with the quality and care ${client.business_name} is known for.`,
-        photoUrl: `https://images.unsplash.com/photo-${
-          ["1497366216548-37526070297c", "1497366754035-f200968a6e72", "1560066984-138dadb4c035"][i % 3]
-        }?w=800`,
-      })),
-      aboutText: q2,
-      heroPhotoUrl: "https://images.unsplash.com/photo-1497366216548-37526070297c?w=1600",
-      template: resolvedTemplate,
-      businessType,
-      subType,
-    });
-    siteHTML = rendered.html;
-    variables = rendered.variables;
-  } catch (err) {
-    console.error("[build/package] renderTemplate failed, falling back:", err);
-    siteHTML = build?.generatedSiteHTML || generateSiteHTML(client, lookKey);
-    variables = null;
-  }
-
   const zip = new JSZip();
   zip.file("index.html", siteHTML);
-  if (variables) {
-    zip.file("variables.json", JSON.stringify(variables, null, 2));
-  }
   zip.file(
     "brief.md",
     buildBriefMarkdown({
@@ -220,7 +157,7 @@ export async function GET(request: Request) {
       zip: client.zip,
       services,
       tagline,
-      look: resolvedTemplate,
+      look: lookKey,
       cta,
       sbr,
       phone: client.phone,
@@ -228,7 +165,7 @@ export async function GET(request: Request) {
   );
   zip.file("qa-checklist.md", buildQaChecklistMarkdown(client.business_name, services, client.phone));
   zip.file("sbr-data.json", JSON.stringify(sbr || {}, null, 2));
-  zip.file("README.md", buildReadmeMarkdown(client.business_name, resolvedTemplate));
+  zip.file("README.md", buildReadmeMarkdown(client.business_name));
 
   const buf = await zip.generateAsync({ type: "uint8array" });
 
