@@ -7,6 +7,7 @@ import {
   setPulseTimer,
 } from "@/lib/store";
 import type { BuildLogEntry } from "@/lib/pipeline";
+import { sendEmailViaAppsScript, goLiveNotificationEmail } from "@/lib/email";
 
 export async function POST(request: Request) {
   const { buildId, clientId, liveUrl } = (await request.json()) as {
@@ -92,6 +93,18 @@ export async function POST(request: Request) {
       read: false,
       dismissed: false,
     });
+
+    // Fire go-live notification email (best-effort)
+    if (client.contact_email && (liveUrl || client.published_url)) {
+      sendEmailViaAppsScript(
+        goLiveNotificationEmail({
+          clientName: client.business_name,
+          repName: client.assigned_rep || "your BVM rep",
+          liveUrl: liveUrl || client.published_url || "",
+          toEmail: client.contact_email,
+        }),
+      ).catch((err) => console.error("[build/complete] email failed:", err));
+    }
   }
 
   return NextResponse.json({ success: true });

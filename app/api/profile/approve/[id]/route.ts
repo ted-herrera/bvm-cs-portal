@@ -1,5 +1,6 @@
 import { getClient, updateClient } from "@/lib/mock-data";
 import type { NextRequest } from "next/server";
+import { sendEmailViaAppsScript, approvalConfirmationEmail } from "@/lib/email";
 
 export async function POST(
   _req: NextRequest,
@@ -21,6 +22,17 @@ export async function POST(
     ],
     buildNotes: [...client.buildNotes, "Tear sheet approved by client"],
   });
+
+  // Fire approval confirmation email (best-effort, don't block on failure)
+  if (client.contact_email) {
+    sendEmailViaAppsScript(
+      approvalConfirmationEmail({
+        clientName: client.business_name,
+        repName: client.assigned_rep || "your BVM rep",
+        toEmail: client.contact_email,
+      }),
+    ).catch((err) => console.error("[approve] email failed:", err));
+  }
 
   return Response.json({ success: true });
 }

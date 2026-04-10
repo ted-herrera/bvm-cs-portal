@@ -1529,35 +1529,37 @@ export default function DashboardPage() {
                   {/* Escalate Website Issue */}
                   <button
                     onClick={async () => {
-                      const subject = `WEBSITE ISSUE – ${selectedClient.business_name}`;
-                      const body =
-                        `Hi Elizabeth and Sal,\n\n` +
-                        `Date of next client call: \n\n` +
-                        `Issue / delay / escalation:\n\n\n` +
-                        `What I need to move it forward:\n\n\n` +
-                        `Client: ${selectedClient.business_name}\n` +
-                        `Rep: Ted Herrera\n` +
-                        `Stage: ${STAGE_LABELS[selectedClient.stage]}\n\n` +
-                        `Sent from BVM Design Center`;
-                      const to = "enorman@bestversionmedia.com,sfaiella@bestversionmedia.com";
-                      const mailto = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-                      window.open(mailto);
-                      // Log to activity feed
+                      setActionConfirm("Sending...");
                       try {
-                        await fetch(`/api/profile/message/${selectedClient.id}`, {
+                        const res = await fetch("/api/email/escalate", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({
-                            message: "⚠ Escalation email opened to Elizabeth & Sal",
-                            from: "rep",
-                            repName: "Ted",
+                            clientName: selectedClient.business_name,
+                            repName: "Ted Herrera",
+                            stage: STAGE_LABELS[selectedClient.stage],
                           }),
                         });
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        // Log to activity feed
+                        try {
+                          await fetch(`/api/profile/message/${selectedClient.id}`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              message: "⚠ Escalation email sent to Elizabeth & Sal",
+                              from: "rep",
+                              repName: "Ted",
+                            }),
+                          });
+                        } catch {
+                          /* ignore */
+                        }
+                        setActionConfirm("✓ Escalation sent to Elizabeth and Sal");
                       } catch {
-                        /* ignore */
+                        setActionConfirm("Email failed — try again");
                       }
-                      setActionConfirm("Escalation email opened");
-                      setTimeout(() => setActionConfirm(""), 4000);
+                      setTimeout(() => setActionConfirm(""), 5000);
                     }}
                     style={{
                       background: "#ff7a59",
