@@ -1251,9 +1251,14 @@ export default function DashboardPage() {
               </div>
               <button
                 onClick={() => setSlideOutOpen(false)}
-                style={{ background: "none", border: "none", fontSize: 22, color: "#7a8a9a", cursor: "pointer" }}
+                style={{
+                  width: 32, height: 32, borderRadius: "50%", border: "none",
+                  background: "#e5e9ef", fontSize: 16, color: "#475569",
+                  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                  flexShrink: 0,
+                }}
               >
-                ×
+                ✕
               </button>
             </div>
 

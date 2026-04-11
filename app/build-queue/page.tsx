@@ -1750,8 +1750,8 @@ export default function BuildQueuePage() {
               </div>
             ) : (
               <>
-                {/* Left: Editor */}
-                <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", borderRight: `1px solid ${COLORS.cardBorder}` }}>
+                {/* Editor */}
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
                   <div style={{ flex: 1, overflow: "auto", padding: "12px 16px 0" }}>
                     <HtmlEditor
                       value={editedHtml}
@@ -1810,19 +1810,6 @@ export default function BuildQueuePage() {
                       {qaGateMessage}
                     </div>
                   )}
-                </div>
-
-                {/* Right: Live Preview */}
-                <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-                  <div style={{ padding: "8px 16px", background: COLORS.pageBg, borderBottom: `1px solid ${COLORS.cardBorder}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", color: COLORS.secondary, textTransform: "uppercase" }}>Live Preview</span>
-                    {qaEditedScore != null && (
-                      <span style={{ fontSize: 11, fontWeight: 700, color: scoreColor(qaEditedScore) }}>Score: {qaEditedScore}/100</span>
-                    )}
-                  </div>
-                  <div style={{ flex: 1, overflow: "hidden" }}>
-                    <iframe srcDoc={editedHtml} title="Preview" sandbox="allow-same-origin" style={{ width: "100%", height: "100%", border: "none" }} />
-                  </div>
                 </div>
               </>
             )}
