@@ -616,7 +616,9 @@ export default function BuildQueuePage() {
   function selectBuild(b: BuildRecord) {
     setSelectedBuild(b);
     // Bruno rule: if editedHtml is null, copy generatedSiteHTML to local state
-    setEditedHtml(b.editedHtml ?? b.generatedSiteHTML ?? "");
+    // If generatedSiteHTML is also empty, generate fallback HTML
+    const html = b.editedHtml ?? b.generatedSiteHTML ?? "";
+    setEditedHtml(html || buildFallbackIndexHtml(b));
     setLocalUpdatedAt(b.updatedAt ?? null);
     setQaReport(null);
     setQaEditedScore(b.qaEditedScore ?? null);
