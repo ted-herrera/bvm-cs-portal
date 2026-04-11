@@ -155,6 +155,13 @@ function HtmlEditor({
   );
 }
 
+interface EditHistoryEntry {
+  timestamp: string;
+  dev: string;
+  hash: string;
+  action: string;
+}
+
 interface BuildRecord {
   id: string;
   clientId: string;
@@ -175,6 +182,13 @@ interface BuildRecord {
   liveAt: string | null;
   liveUrl: string | null;
   qaReport: QAReport | null;
+  editedHtml: string | null;
+  editorStatus: "generated" | "editing" | "qa-passed" | "complete";
+  qaEditedScore: number | null;
+  qaEditedAt: string | null;
+  qaHash: string | null;
+  updatedAt: string | null;
+  editHistory: EditHistoryEntry[];
 }
 
 interface BuildMessage {
@@ -185,7 +199,7 @@ interface BuildMessage {
   timestamp: string;
 }
 
-type StepKey = 1 | 2 | 3 | 4;
+type TabKey = "overview" | "editor" | "qa" | "history";
 
 function daysSince(dateStr: string): number {
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
@@ -374,6 +388,13 @@ const MOCK_BUILDS: BuildRecord[] = [
     liveAt: null,
     liveUrl: null,
     qaReport: null,
+    editedHtml: null,
+    editorStatus: "generated",
+    qaEditedScore: null,
+    qaEditedAt: null,
+    qaHash: null,
+    updatedAt: null,
+    editHistory: [],
   },
   {
     id: "mock-peak-dental",
@@ -395,6 +416,13 @@ const MOCK_BUILDS: BuildRecord[] = [
     liveAt: null,
     liveUrl: null,
     qaReport: null,
+    editedHtml: null,
+    editorStatus: "generated",
+    qaEditedScore: null,
+    qaEditedAt: null,
+    qaHash: null,
+    updatedAt: null,
+    editHistory: [],
   },
   {
     id: "mock-iron-ridge",
@@ -421,6 +449,13 @@ const MOCK_BUILDS: BuildRecord[] = [
       runAt: new Date().toISOString(),
       passes: [],
     },
+    editedHtml: null,
+    editorStatus: "generated",
+    qaEditedScore: null,
+    qaEditedAt: null,
+    qaHash: null,
+    updatedAt: null,
+    editHistory: [],
   },
   {
     id: "mock-hanks",
@@ -442,8 +477,22 @@ const MOCK_BUILDS: BuildRecord[] = [
     liveAt: null,
     liveUrl: null,
     qaReport: null,
+    editedHtml: null,
+    editorStatus: "generated",
+    qaEditedScore: null,
+    qaEditedAt: null,
+    qaHash: null,
+    updatedAt: null,
+    editHistory: [],
   },
 ];
+
+// ─── SHA-256 hash via Web Crypto API ─────────────────────────────────
+async function sha256(text: string): Promise<string> {
+  const data = new TextEncoder().encode(text);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
 
 function mergeBuilds(real: BuildRecord[]): BuildRecord[] {
   const mockIds = new Set(MOCK_BUILDS.map((m) => m.id));
@@ -459,29 +508,32 @@ export default function BuildQueuePage() {
   );
   const [toast, setToast] = useState("");
 
-  // 4-step flow — start on Step 1 so QA engine is immediately visible
-  const [step, setStep] = useState<StepKey>(1);
+  // 4-tab panel
+  const [activeTab, setActiveTab] = useState<TabKey>("overview");
 
-  // Step 1: submit HTML
-  const [htmlInput, setHtmlInput] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Editor state — editedHtml is the local working copy
+  const [editedHtml, setEditedHtml] = useState("");
+  const [editorStatus, setEditorStatus] = useState<BuildRecord["editorStatus"]>("generated");
+  const [localUpdatedAt, setLocalUpdatedAt] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
-  // Step 2: QA results
+  // QA state
   const [qaReport, setQaReport] = useState<QAReport | null>(null);
   const [qaRunning, setQaRunning] = useState(false);
   const [autofixing, setAutofixing] = useState(false);
   const [fixesApplied, setFixesApplied] = useState<number | null>(null);
+  const [qaEditedScore, setQaEditedScore] = useState<number | null>(null);
+  const [qaHash, setQaHash] = useState<string | null>(null);
+  const [qaGateMessage, setQaGateMessage] = useState("");
 
-  // Step 3: resubmit
-  const [previousScore, setPreviousScore] = useState<number | null>(null);
-  const [resubmitHtml, setResubmitHtml] = useState("");
-  const [resubmitReport, setResubmitReport] = useState<QAReport | null>(null);
+  // History state
+  const [editHistory, setEditHistory] = useState<EditHistoryEntry[]>([]);
 
-  // Step 4: final verification
+  // Final verification
   const [liveUrlInput, setLiveUrlInput] = useState("");
-  const [liveUrlVerified, setLiveUrlVerified] = useState<null | boolean>(null);
-  const [verifyingLive, setVerifyingLive] = useState(false);
   const [buildCompleted, setBuildCompleted] = useState(false);
+
 
   // Error lines from QA for editor highlighting
   function getErrorLines(html: string, report: QAReport | null): number[] {
@@ -548,16 +600,20 @@ export default function BuildQueuePage() {
 
   function selectBuild(b: BuildRecord) {
     setSelectedBuild(b);
-    setStep(1);
-    setHtmlInput(b.generatedSiteHTML || "");
+    setActiveTab("overview");
+    // Bruno rule: if editedHtml is null, copy generatedSiteHTML to local state
+    setEditedHtml(b.editedHtml ?? b.generatedSiteHTML ?? "");
+    setEditorStatus(b.editorStatus ?? "generated");
+    setLocalUpdatedAt(b.updatedAt ?? null);
     setQaReport(null);
-    setResubmitHtml("");
-    setResubmitReport(null);
-    setPreviousScore(null);
-    setLiveUrlInput(b.liveUrl || "");
-    setLiveUrlVerified(null);
-    setBuildCompleted(false);
+    setQaEditedScore(b.qaEditedScore ?? null);
+    setQaHash(b.qaHash ?? null);
+    setQaGateMessage("");
     setFixesApplied(null);
+    setSaveError("");
+    setLiveUrlInput(b.liveUrl || "");
+    setBuildCompleted(false);
+    setEditHistory(b.editHistory ?? []);
     loadMessages(b.id);
   }
 
@@ -588,80 +644,152 @@ export default function BuildQueuePage() {
     }
   }
 
-  async function runQa(html: string, isResubmit: boolean) {
-    if (!html.trim()) return;
+  // ─── Save editedHtml to server with optimistic lock ───────────────
+  async function saveEditedHtml(htmlToSave?: string, extraUpdates?: Record<string, unknown>): Promise<boolean> {
+    if (!selectedBuild) return false;
+    setSaving(true);
+    setSaveError("");
+    try {
+      const payload: Record<string, unknown> = {
+        buildId: selectedBuild.id,
+        editedHtml: htmlToSave ?? editedHtml,
+        editorStatus: "editing",
+        updatedAt: localUpdatedAt,
+        ...(extraUpdates || {}),
+      };
+      const res = await fetch("/api/build/update", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.status === 409) {
+        setSaveError("Build modified by another user — refresh to continue");
+        setSaving(false);
+        return false;
+      }
+      const data = await res.json();
+      if (data.build) {
+        setLocalUpdatedAt(data.build.updatedAt);
+        setEditorStatus(data.build.editorStatus ?? "editing");
+        // Add history entry
+        const hash = await sha256(htmlToSave ?? editedHtml);
+        addHistoryEntry(hash.slice(0, 8), "HTML saved");
+      }
+      setSaving(false);
+      return true;
+    } catch {
+      setSaveError("Save failed — check connection");
+      setSaving(false);
+      return false;
+    }
+  }
+
+  function addHistoryEntry(hash: string, action: string) {
+    const entry: EditHistoryEntry = {
+      timestamp: new Date().toISOString(),
+      dev: DEV_USERNAME,
+      hash,
+      action,
+    };
+    setEditHistory(prev => [entry, ...prev]);
+  }
+
+  // ─── Run QA on editedHtml ────────────────────────────────────────
+  async function runQa() {
+    if (!editedHtml.trim() || !selectedBuild) return;
     setQaRunning(true);
+    setQaGateMessage("");
+
+    // 1. Optimistic lock check
+    try {
+      const checkRes = await fetch(`/api/build/list`);
+      const checkData = await checkRes.json();
+      const currentBuild = (checkData.builds || []).find((b: BuildRecord) => b.id === selectedBuild.id);
+      if (currentBuild?.updatedAt && localUpdatedAt && currentBuild.updatedAt !== localUpdatedAt) {
+        setQaGateMessage("Build modified by another user — refresh to continue");
+        setQaRunning(false);
+        return;
+      }
+    } catch { /* proceed — best effort lock check */ }
+
+    // 2. Save first
+    const saved = await saveEditedHtml();
+    if (!saved) {
+      setQaRunning(false);
+      return;
+    }
+
+    // 3. Compute hash
+    const hash = await sha256(editedHtml);
+
+    // 4. Run QA
     try {
       const res = await fetch("/api/qa/standalone", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ htmlContent: html }),
+        body: JSON.stringify({ htmlContent: editedHtml }),
       });
       const data = (await res.json()) as { report?: QAReport };
-      if (isResubmit) {
-        setResubmitReport(data.report || null);
-        if (data.report?.score === 100) {
-          setStep(4);
-        }
-      } else {
-        setQaReport(data.report || null);
-        setPreviousScore(data.report?.score ?? null);
-        if (data.report) setStep(2);
+      if (data.report) {
+        setQaReport(data.report);
+        setQaEditedScore(data.report.score);
+        setQaHash(hash);
+
+        // 5. Store QA results on server
+        await fetch("/api/build/update", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            buildId: selectedBuild.id,
+            qaEditedScore: data.report.score,
+            qaEditedAt: new Date().toISOString(),
+            qaHash: hash,
+            updatedAt: localUpdatedAt,
+          }),
+        }).then(r => r.json()).then(d => {
+          if (d.build) setLocalUpdatedAt(d.build.updatedAt);
+        });
+
+        addHistoryEntry(hash.slice(0, 8), `QA run — score ${data.report.score}`);
       }
     } catch {
-      /* ignore */
+      setQaGateMessage("QA service unavailable — try again");
     }
     setQaRunning(false);
   }
 
-  async function handleFileDrop(file: File) {
-    const text = await file.text();
-    if (step === 1) setHtmlInput(text);
-    if (step === 3) setResubmitHtml(text);
-  }
-
+  // ─── Autofix ─────────────────────────────────────────────────────
   async function autofix() {
-    const source = step === 3 ? resubmitHtml : htmlInput;
-    if (!source) return;
+    if (!editedHtml || !selectedBuild) return;
     setAutofixing(true);
     try {
       const res = await fetch("/api/qa/standalone", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          htmlContent: source,
+          htmlContent: editedHtml,
           autofix: true,
-          businessName: selectedBuild?.businessName,
+          businessName: selectedBuild.businessName,
         }),
       });
       const data = (await res.json()) as { report?: QAReport; fixedHtml?: string };
       if (data.fixedHtml && data.report) {
-        const priorReport = step === 3 ? resubmitReport : qaReport;
-        const priorFails = priorReport
-          ? priorReport.passes.reduce(
-              (s, p) => s + p.checks.filter((c) => !c.passed).length,
-              0,
-            )
+        const priorFails = qaReport
+          ? qaReport.passes.reduce((s, p) => s + p.checks.filter((c) => !c.passed).length, 0)
           : 0;
         const newFails = data.report.passes.reduce(
-          (s, p) => s + p.checks.filter((c) => !c.passed).length,
-          0,
+          (s, p) => s + p.checks.filter((c) => !c.passed).length, 0,
         );
         setFixesApplied(Math.max(priorFails - newFails, 0));
-        if (step === 3) {
-          setResubmitHtml(data.fixedHtml);
-          setResubmitReport(data.report);
-        } else {
-          setHtmlInput(data.fixedHtml);
-          setQaReport(data.report);
-        }
-        const blob = new Blob([data.fixedHtml], { type: "text/html" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${selectedBuild?.businessName || "site"}-fixed.html`;
-        a.click();
-        URL.revokeObjectURL(url);
+        // Write to editedHtml — NEVER to generatedSiteHTML
+        setEditedHtml(data.fixedHtml);
+        setQaReport(data.report);
+        setQaEditedScore(data.report.score);
+        // Reset hash since HTML changed
+        setQaHash(null);
+
+        const hash = await sha256(data.fixedHtml);
+        addHistoryEntry(hash.slice(0, 8), `Auto-fix applied — ${Math.max(priorFails - newFails, 0)} fixes`);
       }
     } catch {
       /* ignore */
@@ -670,9 +798,8 @@ export default function BuildQueuePage() {
   }
 
   function downloadQaReport() {
-    const report = step === 3 ? resubmitReport : qaReport;
-    if (!report) return;
-    const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+    if (!qaReport) return;
+    const blob = new Blob([JSON.stringify(qaReport, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -681,22 +808,40 @@ export default function BuildQueuePage() {
     URL.revokeObjectURL(url);
   }
 
-  async function verifyLiveUrl() {
-    if (!liveUrlInput.trim()) return;
-    setVerifyingLive(true);
-    try {
-      // Can't fetch cross-origin reliably from client — use a HEAD via no-cors
-      // and treat "no network error" as a best-effort verification.
-      await fetch(liveUrlInput, { mode: "no-cors" });
-      setLiveUrlVerified(true);
-    } catch {
-      setLiveUrlVerified(false);
-    }
-    setVerifyingLive(false);
-  }
-
+  // ─── Mark Complete with all gates ────────────────────────────────
   async function markBuildComplete() {
     if (!selectedBuild) return;
+    setQaGateMessage("");
+
+    // Gate: QA score >= 70
+    if (qaEditedScore == null || qaEditedScore < 70) {
+      setQaGateMessage("QA score must be >= 70");
+      return;
+    }
+
+    // Gate: no hard fails (blocker checks)
+    if (qaReport) {
+      const hasBlockers = qaReport.passes.some(p =>
+        p.checks.some(c => !c.passed && c.severity === "blocker")
+      );
+      if (hasBlockers) {
+        setQaGateMessage("Blocker checks must all pass before completion");
+        return;
+      }
+    }
+
+    // Gate: hash match
+    if (qaHash) {
+      const currentHash = await sha256(editedHtml);
+      if (currentHash !== qaHash) {
+        setQaGateMessage("HTML changed since last QA — re-run QA");
+        return;
+      }
+    } else {
+      setQaGateMessage("QA required before completion");
+      return;
+    }
+
     try {
       await fetch("/api/build/complete", {
         method: "POST",
@@ -710,7 +855,23 @@ export default function BuildQueuePage() {
     } catch {
       /* ignore */
     }
+
+    // Update editor status to complete
+    await fetch("/api/build/update", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        buildId: selectedBuild.id,
+        editorStatus: "complete",
+        updatedAt: localUpdatedAt,
+      }),
+    }).then(r => r.json()).then(d => {
+      if (d.build) setLocalUpdatedAt(d.build.updatedAt);
+    }).catch(() => {});
+
+    setEditorStatus("complete");
     setBuildCompleted(true);
+    addHistoryEntry(qaHash || "", "Build marked complete");
     setToast(`${selectedBuild.businessName} marked live — rep notified`);
     setTimeout(() => setToast(""), 4000);
 
@@ -1239,7 +1400,7 @@ export default function BuildQueuePage() {
           </div>
         </aside>
 
-        {/* ── CENTER COLUMN — QA ENGINE ───────────────── */}
+        {/* ── CENTER COLUMN — EDITOR PANEL ────────────── */}
         <main
           style={{
             flex: 1,
@@ -1261,7 +1422,7 @@ export default function BuildQueuePage() {
             }}
           >
             <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.12em" }}>
-              QA ENGINE
+              BUILD EDITOR
             </span>
             {selectedBuild && (
               <span style={{ fontSize: 13, color: "rgba(255,255,255,0.85)" }}>
@@ -1270,62 +1431,44 @@ export default function BuildQueuePage() {
             )}
           </div>
 
-          {/* Step indicator */}
+          {/* Tab bar */}
           {selectedBuild && (
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 8,
-                padding: "16px 24px",
+                gap: 0,
                 borderBottom: `1px solid ${COLORS.cardBorder}`,
                 background: COLORS.pageBg,
+                flexShrink: 0,
               }}
             >
-              {[
-                { key: 1, label: "Submit HTML" },
-                { key: 2, label: "QA Results" },
-                { key: 3, label: "Re-Submit" },
-                { key: 4, label: "Final Verify" },
-              ].map((s, i) => {
-                const active = step === s.key;
-                const done = step > s.key;
+              {([
+                { key: "overview" as TabKey, label: "Overview" },
+                { key: "editor" as TabKey, label: "HTML Editor" },
+                { key: "qa" as TabKey, label: "QA" },
+                { key: "history" as TabKey, label: "History" },
+              ]).map((t) => {
+                const active = activeTab === t.key;
                 return (
-                  <div
-                    key={s.key}
-                    style={{ display: "flex", alignItems: "center", gap: 8 }}
+                  <button
+                    key={t.key}
+                    onClick={() => setActiveTab(t.key)}
+                    style={{
+                      padding: "12px 24px",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      letterSpacing: "0.04em",
+                      color: active ? COLORS.accent : COLORS.secondary,
+                      background: active ? COLORS.cardBg : "transparent",
+                      border: "none",
+                      borderBottom: active ? `2px solid ${COLORS.accent}` : "2px solid transparent",
+                      cursor: "pointer",
+                      transition: "color 0.15s, border-color 0.15s",
+                    }}
                   >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        padding: "6px 14px",
-                        borderRadius: 999,
-                        background: active
-                          ? COLORS.accent
-                          : done
-                            ? COLORS.success
-                            : "#fff",
-                        color: active || done ? "#fff" : COLORS.secondary,
-                        border: active || done ? "none" : `1px solid ${COLORS.cardBorder}`,
-                        fontSize: 11,
-                        fontWeight: 700,
-                      }}
-                    >
-                      <span>{done ? "✓" : s.key}</span>
-                      <span style={{ letterSpacing: "0.04em" }}>{s.label}</span>
-                    </div>
-                    {i < 3 && (
-                      <div
-                        style={{
-                          width: 16,
-                          height: 2,
-                          background: step > s.key ? COLORS.success : COLORS.cardBorder,
-                        }}
-                      />
-                    )}
-                  </div>
+                    {t.label}
+                  </button>
                 );
               })}
             </div>
@@ -1343,503 +1486,390 @@ export default function BuildQueuePage() {
                 }}
               >
                 <p style={{ fontSize: 14, color: COLORS.secondary, margin: 0 }}>
-                  Select a build from the queue to begin QA
+                  Select a build from the queue to begin
                 </p>
               </div>
             ) : (
               <>
-                {/* STEP 1 ──────────────────────────── */}
-                {step === 1 && (
+                {/* ── TAB 1: OVERVIEW ──────────────────── */}
+                {activeTab === "overview" && (
                   <div>
-                    <p
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 700,
-                        letterSpacing: "0.12em",
-                        color: COLORS.secondary,
-                        margin: "0 0 6px",
-                      }}
-                    >
-                      STEP 1 OF 4
-                    </p>
-                    <h2
-                      style={{
-                        fontSize: 22,
-                        fontWeight: 700,
-                        color: COLORS.body,
-                        margin: "0 0 6px",
-                      }}
-                    >
-                      Submit HTML for QA
+                    <h2 style={{ fontSize: 22, fontWeight: 700, color: COLORS.body, margin: "0 0 20px" }}>
+                      Job Overview
                     </h2>
-                    <p style={{ fontSize: 13, color: COLORS.secondary, margin: "0 0 20px" }}>
-                      Paste HTML from your dev pack or upload index.html
-                    </p>
+
+                    {/* Info grid */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 24 }}>
+                      {[
+                        { label: "Business Name", value: selectedBuild.businessName },
+                        { label: "City", value: selectedBuild.city },
+                        { label: "Look / Subtype", value: selectedBuild.look.replace(/_/g, " ") },
+                        { label: "CTA", value: selectedBuild.cta },
+                        { label: "Services", value: selectedBuild.services.join(", ") || "(none)" },
+                        { label: "Tagline", value: selectedBuild.tagline || "(none)" },
+                      ].map((item) => (
+                        <div key={item.label} style={{ background: COLORS.pageBg, borderRadius: 8, padding: "12px 16px" }}>
+                          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: COLORS.secondary, margin: "0 0 4px", textTransform: "uppercase" }}>
+                            {item.label}
+                          </p>
+                          <p style={{ fontSize: 13, color: COLORS.body, margin: 0, fontWeight: 600 }}>
+                            {item.value}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Status badges */}
+                    <div style={{ display: "flex", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
+                      <div style={{ background: COLORS.pageBg, borderRadius: 8, padding: "12px 20px" }}>
+                        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: COLORS.secondary, margin: "0 0 6px", textTransform: "uppercase" }}>
+                          Job Status
+                        </p>
+                        <span style={{
+                          fontSize: 11, fontWeight: 700, padding: "4px 12px", borderRadius: 999,
+                          background: selectedBuild.status === "live" ? COLORS.success : selectedBuild.status === "claimed" ? COLORS.accent : COLORS.secondary,
+                          color: "#fff", textTransform: "uppercase", letterSpacing: "0.06em",
+                        }}>
+                          {selectedBuild.status}
+                        </span>
+                      </div>
+
+                      <div style={{ background: COLORS.pageBg, borderRadius: 8, padding: "12px 20px" }}>
+                        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: COLORS.secondary, margin: "0 0 6px", textTransform: "uppercase" }}>
+                          Editor Status
+                        </p>
+                        <span style={{
+                          fontSize: 11, fontWeight: 700, padding: "4px 12px", borderRadius: 999,
+                          background: editorStatus === "complete" ? COLORS.success : editorStatus === "qa-passed" ? "#F5C842" : editorStatus === "editing" ? COLORS.accent : COLORS.secondary,
+                          color: editorStatus === "qa-passed" ? COLORS.body : "#fff",
+                          textTransform: "uppercase", letterSpacing: "0.06em",
+                        }}>
+                          {editorStatus}
+                        </span>
+                      </div>
+
+                      {qaEditedScore != null && (
+                        <div style={{ background: COLORS.pageBg, borderRadius: 8, padding: "12px 20px" }}>
+                          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: COLORS.secondary, margin: "0 0 6px", textTransform: "uppercase" }}>
+                            QA Score
+                          </p>
+                          <span style={{ fontSize: 20, fontWeight: 800, color: scoreColor(qaEditedScore) }}>
+                            {qaEditedScore}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Dates */}
+                    <div style={{ background: COLORS.pageBg, borderRadius: 8, padding: "14px 20px" }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: COLORS.secondary, margin: "0 0 8px", textTransform: "uppercase" }}>
+                        Timeline
+                      </p>
+                      <div style={{ fontSize: 12, color: COLORS.body, lineHeight: 1.8 }}>
+                        <div>Created: {new Date(selectedBuild.createdAt).toLocaleDateString()} ({daysSince(selectedBuild.createdAt)}d ago)</div>
+                        {selectedBuild.claimedAt && <div>Claimed: {new Date(selectedBuild.claimedAt).toLocaleDateString()}</div>}
+                        {selectedBuild.readyAt && <div>Ready: {new Date(selectedBuild.readyAt).toLocaleDateString()}</div>}
+                        {selectedBuild.liveAt && <div>Live: {new Date(selectedBuild.liveAt).toLocaleDateString()}</div>}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── TAB 2: HTML EDITOR ───────────────── */}
+                {activeTab === "editor" && (
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: "4px 10px", borderRadius: 4,
+                        background: "#e7edf3", color: COLORS.secondary, letterSpacing: "0.06em",
+                      }}>
+                        Generated (Read Only)
+                      </span>
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: "4px 10px", borderRadius: 4,
+                        background: COLORS.accent, color: "#fff", letterSpacing: "0.06em",
+                      }}>
+                        Edited (Active)
+                      </span>
+                      <span style={{ fontSize: 11, color: COLORS.secondary, marginLeft: "auto" }}>
+                        Edits write to editedHtml — generatedSiteHTML is never modified
+                      </span>
+                    </div>
 
                     <HtmlEditor
-                      value={htmlInput}
-                      onChange={setHtmlInput}
-                      placeholder="Paste your site HTML here to run QA analysis..."
-                      minHeight={260}
-                      errorLines={getErrorLines(htmlInput, qaReport)}
+                      value={editedHtml}
+                      onChange={(v) => { setEditedHtml(v); setSaveError(""); }}
+                      placeholder="HTML content..."
+                      minHeight={320}
+                      errorLines={getErrorLines(editedHtml, qaReport)}
                     />
 
-                    <div
-                      onClick={() => fileInputRef.current?.click()}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        const file = e.dataTransfer.files[0];
-                        if (file) handleFileDrop(file);
-                      }}
+                    {/* Live preview */}
+                    <div style={{ marginTop: 16 }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: COLORS.secondary, margin: "0 0 8px", textTransform: "uppercase" }}>
+                        Live Preview
+                      </p>
+                      <div style={{ border: `1px solid ${COLORS.cardBorder}`, borderRadius: 8, overflow: "hidden", height: 300 }}>
+                        <iframe
+                          srcDoc={editedHtml}
+                          title="Preview"
+                          sandbox="allow-same-origin"
+                          style={{ width: "100%", height: "100%", border: "none" }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Save button */}
+                    {saveError && (
+                      <div style={{ marginTop: 12, padding: "10px 16px", background: "#ffe5e5", border: `1px solid ${COLORS.danger}`, borderRadius: 6, fontSize: 12, color: COLORS.danger, fontWeight: 600 }}>
+                        {saveError}
+                      </div>
+                    )}
+                    <button
+                      onClick={() => saveEditedHtml()}
+                      disabled={saving || !editedHtml.trim()}
                       style={{
-                        border: `2px dashed ${COLORS.accent}`,
-                        borderRadius: 8,
-                        padding: "18px 24px",
-                        textAlign: "center",
-                        cursor: "pointer",
-                        marginTop: 12,
-                        background: COLORS.pageBg,
+                        width: "100%",
+                        marginTop: 14,
+                        background: editedHtml.trim() && !saving ? COLORS.action : "#e7edf3",
+                        color: editedHtml.trim() && !saving ? "#fff" : COLORS.secondary,
+                        border: "none",
+                        borderRadius: 6,
+                        padding: "14px 0",
+                        fontSize: 13,
+                        fontWeight: 700,
+                        letterSpacing: "0.08em",
+                        cursor: editedHtml.trim() && !saving ? "pointer" : "not-allowed",
                       }}
                     >
-                      <p
-                        style={{
-                          color: COLORS.accent,
-                          fontSize: 12,
-                          margin: 0,
-                          fontWeight: 600,
-                        }}
-                      >
-                        or drag index.html here
-                      </p>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".html,.htm"
-                        style={{ display: "none" }}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleFileDrop(file);
+                      {saving ? "SAVING..." : "SAVE EDITED HTML"}
+                    </button>
+                  </div>
+                )}
+
+                {/* ── TAB 3: QA ────────────────────────── */}
+                {activeTab === "qa" && (
+                  <div>
+                    <h2 style={{ fontSize: 22, fontWeight: 700, color: COLORS.body, margin: "0 0 6px" }}>
+                      QA Analysis
+                    </h2>
+                    <p style={{ fontSize: 13, color: COLORS.secondary, margin: "0 0 20px" }}>
+                      Run QA against your edited HTML. Score must be &gt;= 70 with no blockers to mark complete.
+                    </p>
+
+                    {qaEditedScore != null && (
+                      <div style={{
+                        background: "#fff",
+                        border: `1px solid ${scoreColor(qaEditedScore)}`,
+                        borderRadius: 10,
+                        padding: "18px 24px",
+                        marginBottom: 20,
+                        textAlign: "center",
+                      }}>
+                        <p style={{ fontSize: 10, letterSpacing: "0.12em", color: COLORS.secondary, margin: "0 0 6px" }}>
+                          EDITED HTML QA SCORE
+                        </p>
+                        <p style={{ fontSize: 48, fontWeight: 800, color: scoreColor(qaEditedScore), margin: 0, lineHeight: 1 }}>
+                          {qaEditedScore}<span style={{ fontSize: 18, color: COLORS.secondary }}>/100</span>
+                        </p>
+                      </div>
+                    )}
+
+                    {qaGateMessage && (
+                      <div style={{ marginBottom: 16, padding: "10px 16px", background: "#ffe5e5", border: `1px solid ${COLORS.danger}`, borderRadius: 6, fontSize: 12, color: COLORS.danger, fontWeight: 600 }}>
+                        {qaGateMessage}
+                      </div>
+                    )}
+
+                    <button
+                      onClick={runQa}
+                      disabled={!editedHtml.trim() || qaRunning}
+                      style={{
+                        width: "100%",
+                        marginBottom: 20,
+                        background: editedHtml.trim() && !qaRunning ? COLORS.action : "#e7edf3",
+                        color: editedHtml.trim() && !qaRunning ? "#fff" : COLORS.secondary,
+                        border: "none",
+                        borderRadius: 6,
+                        padding: "14px 0",
+                        fontSize: 13,
+                        fontWeight: 700,
+                        letterSpacing: "0.08em",
+                        cursor: editedHtml.trim() && !qaRunning ? "pointer" : "not-allowed",
+                      }}
+                    >
+                      {qaRunning ? "RUNNING QA..." : "RUN QA ANALYSIS"}
+                    </button>
+
+                    {qaReport && (
+                      <QaResults
+                        title=""
+                        subtitle=""
+                        report={qaReport}
+                        onAutofix={autofix}
+                        autofixing={autofixing}
+                        fixesApplied={fixesApplied}
+                        onDownload={downloadQaReport}
+                        actionLabel={null}
+                        onAction={() => {}}
+                        onErrorLineClick={() => {
+                          setActiveTab("editor");
                         }}
                       />
-                    </div>
+                    )}
 
-                    <button
-                      onClick={() => runQa(htmlInput, false)}
-                      disabled={!htmlInput.trim() || qaRunning}
-                      style={{
-                        width: "100%",
-                        marginTop: 18,
-                        background: htmlInput.trim() ? COLORS.action : "#e7edf3",
-                        color: htmlInput.trim() ? "#fff" : COLORS.secondary,
-                        border: "none",
-                        borderRadius: 6,
-                        padding: "14px 0",
-                        fontSize: 13,
-                        fontWeight: 700,
-                        letterSpacing: "0.08em",
-                        cursor: htmlInput.trim() ? "pointer" : "not-allowed",
-                      }}
-                    >
-                      {qaRunning ? "RUNNING QA..." : "RUN QA ANALYSIS →"}
-                    </button>
-                  </div>
-                )}
+                    {/* Mark Complete section */}
+                    <div style={{ marginTop: 24, padding: "20px 24px", background: COLORS.pageBg, borderRadius: 10, border: `1px solid ${COLORS.cardBorder}` }}>
+                      <h3 style={{ fontSize: 14, fontWeight: 700, color: COLORS.body, margin: "0 0 12px" }}>
+                        Mark Complete
+                      </h3>
 
-                {/* STEP 2 ──────────────────────────── */}
-                {step === 2 && qaReport && (
-                  <QaResults
-                    title="Step 2 — QA Results"
-                    subtitle="Review issues, auto-fix, and advance when ready"
-                    report={qaReport}
-                    onAutofix={autofix}
-                    autofixing={autofixing}
-                    fixesApplied={fixesApplied}
-                    onDownload={downloadQaReport}
-                    actionLabel="I've made my fixes →"
-                    onAction={() => {
-                      setStep(3);
-                      setResubmitHtml(htmlInput);
-                      setFixesApplied(null);
-                    }}
-                  />
-                )}
+                      {/* Gate indicators */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+                          <span style={{ color: qaEditedScore != null && qaEditedScore >= 70 ? COLORS.success : COLORS.danger, fontWeight: 700 }}>
+                            {qaEditedScore != null && qaEditedScore >= 70 ? "PASS" : "FAIL"}
+                          </span>
+                          <span style={{ color: COLORS.body }}>QA score &gt;= 70 {qaEditedScore != null ? `(current: ${qaEditedScore})` : "(not run)"}</span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+                          <span style={{ color: qaReport && !qaReport.passes.some(p => p.checks.some(c => !c.passed && c.severity === "blocker")) ? COLORS.success : COLORS.danger, fontWeight: 700 }}>
+                            {qaReport && !qaReport.passes.some(p => p.checks.some(c => !c.passed && c.severity === "blocker")) ? "PASS" : "FAIL"}
+                          </span>
+                          <span style={{ color: COLORS.body }}>No blocker failures</span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+                          <span style={{ color: qaHash ? COLORS.success : COLORS.danger, fontWeight: 700 }}>
+                            {qaHash ? "PASS" : "FAIL"}
+                          </span>
+                          <span style={{ color: COLORS.body }}>HTML hash matches last QA run</span>
+                        </div>
+                      </div>
 
-                {/* STEP 3 ──────────────────────────── */}
-                {step === 3 && (
-                  <div>
-                    <p
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 700,
-                        letterSpacing: "0.12em",
-                        color: COLORS.secondary,
-                        margin: "0 0 6px",
-                      }}
-                    >
-                      STEP 3 OF 4
-                    </p>
-                    <h2
-                      style={{
-                        fontSize: 22,
-                        fontWeight: 700,
-                        color: COLORS.body,
-                        margin: "0 0 6px",
-                      }}
-                    >
-                      Re-Submit After Fixes
-                    </h2>
-                    <p style={{ fontSize: 13, color: COLORS.secondary, margin: "0 0 20px" }}>
-                      Paste the updated HTML — a score of 100 advances to final verification.
-                    </p>
-
-                    <HtmlEditor
-                      value={resubmitHtml}
-                      onChange={setResubmitHtml}
-                      placeholder="Paste your updated HTML here..."
-                      minHeight={240}
-                      errorLines={getErrorLines(resubmitHtml, resubmitReport)}
-                    />
-
-                    <button
-                      onClick={() => runQa(resubmitHtml, true)}
-                      disabled={!resubmitHtml.trim() || qaRunning}
-                      style={{
-                        width: "100%",
-                        marginTop: 18,
-                        background: resubmitHtml.trim() ? COLORS.action : "#e7edf3",
-                        color: resubmitHtml.trim() ? "#fff" : COLORS.secondary,
-                        border: "none",
-                        borderRadius: 6,
-                        padding: "14px 0",
-                        fontSize: 13,
-                        fontWeight: 700,
-                        letterSpacing: "0.08em",
-                        cursor: resubmitHtml.trim() ? "pointer" : "not-allowed",
-                      }}
-                    >
-                      {qaRunning ? "RUNNING QA..." : "RUN QA ANALYSIS →"}
-                    </button>
-
-                    {resubmitReport && previousScore != null && (
-                      <>
-                        <div
+                      {/* Live URL input for completion */}
+                      <div style={{ marginBottom: 14 }}>
+                        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: COLORS.secondary, margin: "0 0 6px", textTransform: "uppercase" }}>
+                          Live URL (optional)
+                        </p>
+                        <input
+                          type="url"
+                          value={liveUrlInput}
+                          onChange={(e) => setLiveUrlInput(e.target.value)}
+                          placeholder="https://client-site.vercel.app"
                           style={{
+                            width: "100%",
                             background: "#fff",
                             border: `1px solid ${COLORS.cardBorder}`,
-                            borderRadius: 10,
-                            padding: "18px 24px",
-                            marginTop: 24,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: 20,
+                            borderRadius: 4,
+                            padding: "8px 12px",
+                            fontSize: 12,
+                            color: COLORS.body,
+                            outline: "none",
+                            boxSizing: "border-box",
+                          }}
+                        />
+                      </div>
+
+                      <button
+                        onClick={markBuildComplete}
+                        disabled={buildCompleted}
+                        style={{
+                          width: "100%",
+                          background: !buildCompleted ? COLORS.success : "#e7edf3",
+                          color: !buildCompleted ? "#fff" : COLORS.secondary,
+                          border: "none",
+                          borderRadius: 6,
+                          padding: "14px 0",
+                          fontSize: 13,
+                          fontWeight: 700,
+                          letterSpacing: "0.08em",
+                          cursor: !buildCompleted ? "pointer" : "not-allowed",
+                        }}
+                      >
+                        {buildCompleted ? "BUILD COMPLETE" : "MARK COMPLETE"}
+                      </button>
+
+                      {buildCompleted && (
+                        <button
+                          onClick={downloadFinalPack}
+                          style={{
+                            width: "100%",
+                            marginTop: 10,
+                            background: "transparent",
+                            color: COLORS.accent,
+                            border: `1px solid ${COLORS.accent}`,
+                            borderRadius: 6,
+                            padding: "12px 0",
+                            fontSize: 12,
+                            fontWeight: 700,
+                            letterSpacing: "0.08em",
+                            cursor: "pointer",
                           }}
                         >
-                          <div style={{ textAlign: "center" }}>
-                            <p
-                              style={{
-                                fontSize: 10,
-                                letterSpacing: "0.12em",
-                                color: COLORS.secondary,
-                                margin: "0 0 4px",
-                              }}
-                            >
-                              PREVIOUS
-                            </p>
-                            <p
-                              style={{
-                                fontSize: 32,
-                                fontWeight: 800,
-                                color: scoreColor(previousScore),
-                                margin: 0,
-                                lineHeight: 1,
-                              }}
-                            >
-                              {previousScore}
-                            </p>
-                          </div>
-                          <div style={{ fontSize: 28, color: COLORS.secondary }}>→</div>
-                          <div style={{ textAlign: "center" }}>
-                            <p
-                              style={{
-                                fontSize: 10,
-                                letterSpacing: "0.12em",
-                                color: COLORS.secondary,
-                                margin: "0 0 4px",
-                              }}
-                            >
-                              NEW
-                            </p>
-                            <p
-                              style={{
-                                fontSize: 32,
-                                fontWeight: 800,
-                                color: scoreColor(resubmitReport.score),
-                                margin: 0,
-                                lineHeight: 1,
-                              }}
-                            >
-                              {resubmitReport.score}
-                            </p>
-                          </div>
-                        </div>
-
-                        {resubmitReport.score < 100 ? (
-                          <QaResults
-                            title=""
-                            subtitle=""
-                            report={resubmitReport}
-                            onAutofix={autofix}
-                            autofixing={autofixing}
-                            fixesApplied={fixesApplied}
-                            onDownload={downloadQaReport}
-                            actionLabel={null}
-                            onAction={() => {}}
-                          />
-                        ) : (
-                          <div
-                            style={{
-                              marginTop: 20,
-                              padding: 20,
-                              background: "#e6fff9",
-                              border: `1px solid ${COLORS.success}`,
-                              borderRadius: 8,
-                              textAlign: "center",
-                              animation: "flashGreen 1.5s",
-                            }}
-                          >
-                            <p
-                              style={{
-                                fontSize: 14,
-                                fontWeight: 700,
-                                color: COLORS.success,
-                                margin: 0,
-                              }}
-                            >
-                              Perfect score — advancing to final verification
-                            </p>
-                          </div>
-                        )}
-                      </>
-                    )}
+                          ASSEMBLE FINAL PACK
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
 
-                {/* STEP 4 ──────────────────────────── */}
-                {step === 4 && (
+                {/* ── TAB 4: HISTORY ───────────────────── */}
+                {activeTab === "history" && (
                   <div>
-                    <p
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 700,
-                        letterSpacing: "0.12em",
-                        color: COLORS.secondary,
-                        margin: "0 0 6px",
-                      }}
-                    >
-                      STEP 4 OF 4
-                    </p>
-                    <h2
-                      style={{
-                        fontSize: 22,
-                        fontWeight: 700,
-                        color: COLORS.body,
-                        margin: "0 0 6px",
-                      }}
-                    >
-                      Final Verification
+                    <h2 style={{ fontSize: 22, fontWeight: 700, color: COLORS.body, margin: "0 0 20px" }}>
+                      Edit History
                     </h2>
-                    <p style={{ fontSize: 13, color: COLORS.secondary, margin: "0 0 20px" }}>
-                      All three checks must pass before marking complete.
-                    </p>
 
-                    {[
-                      {
-                        label: "Structure & Meta",
-                        detail: "All meta tags, alt texts, and canonical present",
-                        passed: true,
-                      },
-                      {
-                        label: "Content Accuracy",
-                        detail: `Business name, phone, CTA match brief for ${selectedBuild.businessName}`,
-                        passed: (htmlInput || resubmitHtml).includes(selectedBuild.businessName),
-                      },
-                    ].map((check, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          background: "#fff",
-                          border: `1px solid ${COLORS.cardBorder}`,
-                          borderRadius: 8,
-                          padding: "14px 18px",
-                          marginBottom: 10,
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 14,
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: "50%",
-                            background: check.passed ? COLORS.success : COLORS.danger,
-                            color: "#fff",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: 14,
-                            fontWeight: 700,
-                            flexShrink: 0,
-                          }}
-                        >
-                          {check.passed ? "✓" : "✗"}
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <p
-                            style={{
-                              fontSize: 13,
-                              fontWeight: 700,
-                              color: COLORS.body,
-                              margin: "0 0 2px",
-                            }}
-                          >
-                            Pass {i + 1}: {check.label}
-                          </p>
-                          <p style={{ fontSize: 11, color: COLORS.secondary, margin: 0 }}>
-                            {check.detail}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-
-                    {/* Live URL row */}
-                    <div
-                      style={{
-                        background: "#fff",
-                        border: `1px solid ${COLORS.cardBorder}`,
+                    {editHistory.length === 0 ? (
+                      <div style={{
+                        border: `1px dashed ${COLORS.cardBorder}`,
                         borderRadius: 8,
-                        padding: "14px 18px",
-                        marginBottom: 20,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 14,
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: 28,
-                          height: 28,
-                          borderRadius: "50%",
-                          background:
-                            liveUrlVerified === true
-                              ? COLORS.success
-                              : liveUrlVerified === false
-                                ? COLORS.danger
-                                : COLORS.cardBorder,
-                          color: liveUrlVerified == null ? COLORS.secondary : "#fff",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: 14,
-                          fontWeight: 700,
-                          flexShrink: 0,
-                        }}
-                      >
-                        {liveUrlVerified == null ? "3" : liveUrlVerified ? "✓" : "✗"}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <p
-                          style={{
-                            fontSize: 13,
-                            fontWeight: 700,
-                            color: COLORS.body,
-                            margin: "0 0 4px",
-                          }}
-                        >
-                          Pass 3: Live URL
+                        padding: 40,
+                        textAlign: "center",
+                        background: COLORS.pageBg,
+                      }}>
+                        <p style={{ fontSize: 12, color: COLORS.secondary, margin: 0 }}>
+                          No history entries yet. Save HTML or run QA to create entries.
                         </p>
-                        <div style={{ display: "flex", gap: 8 }}>
-                          <input
-                            type="url"
-                            value={liveUrlInput}
-                            onChange={(e) => {
-                              setLiveUrlInput(e.target.value);
-                              setLiveUrlVerified(null);
-                            }}
-                            placeholder="https://client-site.vercel.app"
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                        {editHistory.map((entry, i) => (
+                          <div
+                            key={`${entry.timestamp}-${i}`}
                             style={{
-                              flex: 1,
-                              background: "#fff",
-                              border: `1px solid ${COLORS.cardBorder}`,
-                              borderRadius: 4,
-                              padding: "6px 10px",
-                              fontSize: 11,
-                              color: COLORS.body,
-                              outline: "none",
-                            }}
-                          />
-                          <button
-                            onClick={verifyLiveUrl}
-                            disabled={!liveUrlInput.trim() || verifyingLive}
-                            style={{
-                              background: COLORS.accent,
-                              color: "#fff",
-                              border: "none",
-                              borderRadius: 4,
-                              padding: "6px 16px",
-                              fontSize: 10,
-                              fontWeight: 700,
-                              letterSpacing: "0.06em",
-                              cursor: liveUrlInput.trim() ? "pointer" : "not-allowed",
-                              opacity: liveUrlInput.trim() ? 1 : 0.5,
+                              display: "flex",
+                              alignItems: "flex-start",
+                              gap: 14,
+                              padding: "14px 0",
+                              borderBottom: i < editHistory.length - 1 ? `1px solid ${COLORS.cardBorder}` : "none",
                             }}
                           >
-                            {verifyingLive ? "..." : "VERIFY →"}
-                          </button>
-                        </div>
+                            {/* Timeline dot */}
+                            <div style={{
+                              width: 10, height: 10, borderRadius: "50%",
+                              background: COLORS.accent, marginTop: 4, flexShrink: 0,
+                            }} />
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                                <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.body }}>
+                                  {entry.action}
+                                </span>
+                                <span style={{
+                                  fontSize: 10, fontFamily: 'Menlo, Consolas, "Courier New", monospace',
+                                  color: COLORS.accent, background: COLORS.pageBg, padding: "2px 6px",
+                                  borderRadius: 3,
+                                }}>
+                                  {entry.hash.slice(0, 8)}
+                                </span>
+                              </div>
+                              <div style={{ fontSize: 11, color: COLORS.secondary }}>
+                                {entry.dev} · {new Date(entry.timestamp).toLocaleString()}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    </div>
-
-                    <button
-                      onClick={markBuildComplete}
-                      disabled={!liveUrlVerified || buildCompleted}
-                      style={{
-                        width: "100%",
-                        background: liveUrlVerified ? COLORS.success : "#e7edf3",
-                        color: liveUrlVerified ? "#fff" : COLORS.secondary,
-                        border: "none",
-                        borderRadius: 6,
-                        padding: "14px 0",
-                        fontSize: 13,
-                        fontWeight: 700,
-                        letterSpacing: "0.08em",
-                        cursor: liveUrlVerified && !buildCompleted ? "pointer" : "not-allowed",
-                      }}
-                    >
-                      {buildCompleted ? "✓ BUILD COMPLETE" : "MARK BUILD COMPLETE →"}
-                    </button>
-
-                    {buildCompleted && (
-                      <button
-                        onClick={downloadFinalPack}
-                        style={{
-                          width: "100%",
-                          marginTop: 10,
-                          background: "transparent",
-                          color: COLORS.accent,
-                          border: `1px solid ${COLORS.accent}`,
-                          borderRadius: 6,
-                          padding: "12px 0",
-                          fontSize: 12,
-                          fontWeight: 700,
-                          letterSpacing: "0.08em",
-                          cursor: "pointer",
-                        }}
-                      >
-                        ASSEMBLE FINAL PACK →
-                      </button>
                     )}
                   </div>
                 )}
@@ -2097,6 +2127,7 @@ function QaResults({
   onDownload,
   actionLabel,
   onAction,
+  onErrorLineClick,
 }: {
   title: string;
   subtitle: string;
@@ -2107,6 +2138,7 @@ function QaResults({
   onDownload: () => void;
   actionLabel: string | null;
   onAction: () => void;
+  onErrorLineClick?: (lineNum: number) => void;
 }) {
   const color = scoreColor(report.score);
   return (
@@ -2306,7 +2338,15 @@ function QaResults({
                       >
                         {sev.label}
                       </span>
-                      <span style={{ color: check.passed ? COLORS.success : COLORS.body }}>
+                      <span
+                        onClick={!check.passed && onErrorLineClick ? () => onErrorLineClick(1) : undefined}
+                        style={{
+                          color: check.passed ? COLORS.success : COLORS.body,
+                          cursor: !check.passed && onErrorLineClick ? "pointer" : "default",
+                          textDecoration: !check.passed && onErrorLineClick ? "underline" : "none",
+                          textDecorationStyle: "dotted" as const,
+                        }}
+                      >
                         {check.passed ? "✓" : "✗"} {check.message}
                       </span>
                     </div>

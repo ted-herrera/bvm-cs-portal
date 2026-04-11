@@ -26,6 +26,13 @@ export interface BuildRecord {
   liveAt: string | null;
   liveUrl: string | null;
   qaReport: QAReport | null;
+  editedHtml?: string | null;
+  editorStatus?: "generated" | "editing" | "qa-passed" | "complete";
+  qaEditedScore?: number | null;
+  qaEditedAt?: string | null;
+  qaHash?: string | null;
+  updatedAt?: string | null;
+  editHistory?: { timestamp: string; dev: string; hash: string; action: string }[];
 }
 
 export interface BuildMessage {
@@ -81,6 +88,13 @@ function rowToBuild(r: any): BuildRecord {
     liveAt: r.live_at ?? null,
     liveUrl: r.live_url ?? null,
     qaReport: r.qa_report ?? null,
+    editedHtml: r.edited_html ?? null,
+    editorStatus: r.editor_status ?? "generated",
+    qaEditedScore: r.qa_edited_score ?? null,
+    qaEditedAt: r.qa_edited_at ?? null,
+    qaHash: r.qa_hash ?? null,
+    updatedAt: r.updated_at ?? null,
+    editHistory: r.edit_history ?? [],
   };
 }
 
@@ -105,6 +119,13 @@ function buildToRow(b: BuildRecord): Record<string, unknown> {
     live_at: b.liveAt,
     live_url: b.liveUrl,
     qa_report: b.qaReport,
+    edited_html: b.editedHtml,
+    editor_status: b.editorStatus,
+    qa_edited_score: b.qaEditedScore,
+    qa_edited_at: b.qaEditedAt,
+    qa_hash: b.qaHash,
+    updated_at: b.updatedAt,
+    edit_history: b.editHistory,
   };
 }
 
