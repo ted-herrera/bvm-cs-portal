@@ -187,10 +187,12 @@ interface BuildRecord {
   cta: string;
   sbrData: Record<string, unknown> | null;
   generatedSiteHTML: string;
-  status: "unassigned" | "claimed" | "ready-for-qa" | "live";
+  status: "unassigned" | "claimed" | "ready-for-qa" | "live" | "completed" | "flagged";
   assignedDev: string | null;
   createdAt: string;
   claimedAt: string | null;
+  completedAt: string | null;
+  amNote: string | null;
   readyAt: string | null;
   liveAt: string | null;
   liveUrl: string | null;
@@ -416,6 +418,8 @@ const MOCK_BUILDS: BuildRecord[] = [
     qaHash: null,
     updatedAt: null,
     editHistory: [],
+    completedAt: null,
+    amNote: null,
   },
   {
     id: "mock-peak-dental",
@@ -444,6 +448,8 @@ const MOCK_BUILDS: BuildRecord[] = [
     qaHash: null,
     updatedAt: null,
     editHistory: [],
+    completedAt: null,
+    amNote: null,
   },
   {
     id: "mock-iron-ridge",
@@ -477,6 +483,8 @@ const MOCK_BUILDS: BuildRecord[] = [
     qaHash: null,
     updatedAt: null,
     editHistory: [],
+    completedAt: null,
+    amNote: null,
   },
   {
     id: "mock-hanks",
@@ -505,6 +513,8 @@ const MOCK_BUILDS: BuildRecord[] = [
     qaHash: null,
     updatedAt: null,
     editHistory: [],
+    completedAt: null,
+    amNote: null,
   },
 ];
 
@@ -1318,8 +1328,9 @@ export default function BuildQueuePage() {
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   const myBuilds = builds.filter(
     (b) =>
-      (b.status === "claimed" || b.status === "ready-for-qa") && b.assignedDev === DEV_USERNAME,
+      (b.status === "claimed" || b.status === "ready-for-qa" || b.status === "flagged") && b.assignedDev === DEV_USERNAME,
   );
+  const completedBuilds = builds.filter((b) => b.status === "completed" && b.assignedDev === DEV_USERNAME);
 
   const liveBuilds = builds.filter((b) => b.status === "live").length;
   const avgScore = builds.reduce((acc, b) => acc + (b.qaReport?.score || 0), 0) / Math.max(builds.filter((b) => b.qaReport).length, 1);
@@ -1483,13 +1494,22 @@ export default function BuildQueuePage() {
             {/* Close & Return */}
             <div style={{ padding: "14px 24px", borderTop: `1px solid ${COLORS.cardBorder}`, display: "flex", justifyContent: "center", flexShrink: 0 }}>
               <button
-                onClick={() => { setShowDeliveryModal(false); setSelectedBuild(null); setGateStep(0); setBuildCompleted(false); setEditedHtml(""); setIssues([]); setQaReport(null); setQaEditedScore(null); }}
+                onClick={() => {
+                  if (selectedBuild) {
+                    const now = new Date().toISOString();
+                    setBuilds(prev => prev.map(b => b.id === selectedBuild.id ? { ...b, status: "completed" as const, completedAt: now } : b));
+                    fetch("/api/build/update", { method: "PUT", headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ buildId: selectedBuild.id, editorStatus: "complete", updatedAt: localUpdatedAt }),
+                    }).catch(() => {});
+                  }
+                  setShowDeliveryModal(false); setSelectedBuild(null); setGateStep(0); setBuildCompleted(false); setEditedHtml(""); setIssues([]); setQaReport(null); setQaEditedScore(null);
+                }}
                 style={{
-                  background: COLORS.headerBar, color: "#fff", border: "none", borderRadius: 8,
+                  background: COLORS.success, color: "#fff", border: "none", borderRadius: 8,
                   padding: "12px 40px", fontSize: 13, fontWeight: 700, letterSpacing: "0.04em", cursor: "pointer",
                 }}
               >
-                Close & Return to Queue
+                Delivered ✓
               </button>
             </div>
           </div>
@@ -1720,9 +1740,9 @@ export default function BuildQueuePage() {
                 {myBuilds.map((b) => {
                   const hrs = b.claimedAt ? hoursSince(b.claimedAt) : 0;
                   const statusLabel =
-                    b.status === "ready-for-qa" ? "READY" : "IN PROGRESS";
+                    b.status === "flagged" ? "FLAGGED" : b.status === "ready-for-qa" ? "READY" : "IN PROGRESS";
                   const statusBg =
-                    b.status === "ready-for-qa" ? COLORS.success : COLORS.accent;
+                    b.status === "flagged" ? COLORS.warn : b.status === "ready-for-qa" ? COLORS.success : COLORS.accent;
                   return (
                     <div
                       key={b.id}
@@ -1809,6 +1829,32 @@ export default function BuildQueuePage() {
                 })}
               </div>
             )}
+
+            {/* ── COMPLETED ─────────────────────────── */}
+            {completedBuilds.length > 0 && (
+              <>
+                <div style={{ height: 1, background: COLORS.cardBorder, margin: "18px 0" }} />
+                <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: COLORS.secondary, margin: "0 0 10px" }}>
+                  Completed ({completedBuilds.length})
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {completedBuilds.map((b) => (
+                    <div key={b.id} style={{ background: COLORS.cardBg, border: `1px solid ${COLORS.cardBorder}`, borderRadius: 8, padding: "10px 12px", opacity: 0.7 }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: COLORS.body, margin: "0 0 2px" }}>{b.businessName}</p>
+                      <p style={{ fontSize: 10, color: COLORS.secondary, margin: "0 0 4px" }}>
+                        {b.completedAt ? new Date(b.completedAt).toLocaleDateString() + " " + new Date(b.completedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
+                      </p>
+                      <button
+                        onClick={() => { selectBuild(b); }}
+                        style={{ background: "none", border: "none", color: COLORS.accent, fontSize: 10, fontWeight: 600, cursor: "pointer", padding: 0 }}
+                      >
+                        View →
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </aside>
 
@@ -1835,6 +1881,17 @@ export default function BuildQueuePage() {
               <span style={{ fontSize: 9, fontWeight: 700, padding: "3px 8px", borderRadius: 3, background: COLORS.accent, color: "#fff", letterSpacing: "0.06em" }}>EDITED — ACTIVE</span>
               <span style={{ flex: 1 }} />
               <span style={{ fontSize: 10, color: COLORS.secondary }}>generatedSiteHTML is never modified</span>
+            </div>
+          )}
+
+          {/* AM Flag Banner */}
+          {selectedBuild && selectedBuild.status === "flagged" && selectedBuild.amNote && (
+            <div style={{ padding: "10px 24px", background: "#fef3e0", borderBottom: `2px solid ${COLORS.warn}`, display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+              <span style={{ fontSize: 16 }}>🚩</span>
+              <div>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#92400e", letterSpacing: "0.06em" }}>AM FLAGGED: </span>
+                <span style={{ fontSize: 12, color: "#78350f" }}>{selectedBuild.amNote}</span>
+              </div>
             </div>
           )}
 

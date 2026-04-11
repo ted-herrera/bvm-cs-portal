@@ -371,7 +371,12 @@ export default function DashboardPage() {
   }
 
   // ── Center panel tab state ─────────────────────────────────────────────────
-  const [centerTab, setCenterTab] = useState<"priority" | "pipeline" | "stats">("priority");
+  const [centerTab, setCenterTab] = useState<"priority" | "pipeline" | "stats" | "review">("priority");
+  const [toast, setToast] = useState("");
+  const [sendBackId, setSendBackId] = useState<string | null>(null);
+  const [sendBackNote, setSendBackNote] = useState("");
+  const [sendingBack, setSendingBack] = useState(false);
+  const [approving, setApproving] = useState<string | null>(null);
 
   // ── Right panel collapse state ─────────────────────────────────────────────
   const [followUpsOpen, setFollowUpsOpen] = useState(true);
@@ -425,6 +430,13 @@ export default function DashboardPage() {
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
       `}</style>
+
+      {/* Toast */}
+      {toast && (
+        <div style={{ position: "fixed", top: 72, left: "50%", transform: "translateX(-50%)", background: "#22c55e", color: "#fff", padding: "10px 20px", borderRadius: 6, fontSize: 12, fontWeight: 700, zIndex: 500, boxShadow: "0 4px 20px rgba(0,0,0,0.15)" }}>
+          ✓ {toast}
+        </div>
+      )}
 
       {/* ── TOP NAV ──────────────────────────────────────────────────────────── */}
       <nav style={{
@@ -799,8 +811,8 @@ export default function DashboardPage() {
             display: "flex", borderBottom: "2px solid #e5e9ef",
             padding: "0 24px", background: "#fff", flexShrink: 0,
           }}>
-            {(["priority", "pipeline", "stats"] as const).map((tab) => {
-              const labels = { priority: "Priority Queue", pipeline: "Pipeline", stats: "Stats" };
+            {(["priority", "pipeline", "review", "stats"] as const).map((tab) => {
+              const labels = { priority: "Priority Queue", pipeline: "Pipeline", review: "AM Review", stats: "Stats" };
               const active = centerTab === tab;
               return (
                 <button
@@ -941,6 +953,106 @@ export default function DashboardPage() {
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {/* AM REVIEW TAB */}
+            {centerTab === "review" && (
+              <div>
+                <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#7a8a9a", marginBottom: 14 }}>
+                  Ready for Review
+                </p>
+                {(() => {
+                  const reviewClients = clients.filter((c) => c.stage === "review" || c.stage === "delivered");
+                  if (reviewClients.length === 0) return (
+                    <div style={{ background: "#f8fafc", border: "1px dashed #e5e9ef", borderRadius: 10, padding: 40, textAlign: "center" }}>
+                      <p style={{ fontSize: 13, color: "#7a8a9a", margin: 0 }}>No builds awaiting AM review</p>
+                    </div>
+                  );
+                  return (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                      {reviewClients.map((c) => (
+                        <div key={c.id} style={{ background: "#fff", border: "1px solid #e5e9ef", borderRadius: 10, padding: "16px 20px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                            <div>
+                              <p style={{ fontSize: 15, fontWeight: 700, color: "#1a2332", margin: 0 }}>{c.business_name}</p>
+                              <p style={{ fontSize: 11, color: "#7a8a9a", margin: "2px 0 0" }}>{c.city} · {c.selectedLook?.replace(/_/g, " ") || "—"}</p>
+                            </div>
+                            <a href={`/tearsheet/${c.id}`} target="_blank" style={{ fontSize: 11, color: "#0091ae", fontWeight: 600, textDecoration: "none" }}>
+                              Preview →
+                            </a>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#7a8a9a", marginBottom: 12 }}>
+                            <span>QA: {c.qaReport?.score ?? "—"}</span>
+                            <span>·</span>
+                            <span>Services: {c.intakeAnswers?.q3 || "—"}</span>
+                          </div>
+
+                          {sendBackId === c.id ? (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                              <textarea
+                                value={sendBackNote}
+                                onChange={(e) => setSendBackNote(e.target.value)}
+                                placeholder="What needs to be fixed?"
+                                style={{ width: "100%", padding: "8px 12px", border: "1px solid #e5e9ef", borderRadius: 6, fontSize: 12, resize: "none", outline: "none", boxSizing: "border-box" }}
+                                rows={2}
+                              />
+                              <div style={{ display: "flex", gap: 8 }}>
+                                <button
+                                  onClick={async () => {
+                                    if (!sendBackNote.trim()) return;
+                                    setSendingBack(true);
+                                    try {
+                                      await fetch(`/api/profile/update/${c.id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stage: "building" }) });
+                                      await fetch("/api/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "build-complete", clientId: c.id, businessName: c.business_name, message: `AM flagged: ${sendBackNote}` }) }).catch(() => {});
+                                      setClients(prev => prev.map(cl => cl.id === c.id ? { ...cl, stage: "building" as const } : cl));
+                                      setSendBackId(null); setSendBackNote("");
+                                      setToast(`${c.business_name} sent back to dev`);
+                                      setTimeout(() => setToast(""), 3000);
+                                    } catch { /* ignore */ }
+                                    setSendingBack(false);
+                                  }}
+                                  disabled={sendingBack || !sendBackNote.trim()}
+                                  style={{ flex: 1, background: "#ff7a59", color: "#fff", border: "none", borderRadius: 6, padding: "8px 0", fontSize: 11, fontWeight: 700, cursor: sendBackNote.trim() ? "pointer" : "not-allowed", opacity: sendBackNote.trim() ? 1 : 0.5 }}
+                                >
+                                  {sendingBack ? "Sending..." : "Send Back →"}
+                                </button>
+                                <button onClick={() => { setSendBackId(null); setSendBackNote(""); }} style={{ background: "#f8fafc", border: "1px solid #e5e9ef", borderRadius: 6, padding: "8px 14px", fontSize: 11, color: "#7a8a9a", cursor: "pointer" }}>
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ display: "flex", gap: 8 }}>
+                              <button
+                                onClick={async () => {
+                                  setApproving(c.id);
+                                  try {
+                                    await fetch(`/api/profile/update/${c.id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stage: "live", published_url: c.published_url || null }) });
+                                    setClients(prev => prev.map(cl => cl.id === c.id ? { ...cl, stage: "live" as const } : cl));
+                                    setToast(`${c.business_name} approved — client notified`);
+                                    setTimeout(() => setToast(""), 3000);
+                                  } catch { /* ignore */ }
+                                  setApproving(null);
+                                }}
+                                disabled={approving === c.id}
+                                style={{ flex: 1, background: "#22c55e", color: "#fff", border: "none", borderRadius: 6, padding: "10px 0", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                              >
+                                {approving === c.id ? "Approving..." : "Approve →"}
+                              </button>
+                              <button
+                                onClick={() => setSendBackId(c.id)}
+                                style={{ flex: 1, background: "#fff", color: "#ff7a59", border: "1px solid #ff7a59", borderRadius: 6, padding: "10px 0", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                              >
+                                Send Back →
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
