@@ -125,13 +125,6 @@ export default function LoginPage() {
             </form>
 
             <div style={{ textAlign: "center", marginTop: 20 }}>
-              <button
-                type="button"
-                onClick={demoLogin}
-                style={{ background: "none", border: "none", color: "#94a3b8", fontSize: 12, cursor: "pointer", padding: 0 }}
-              >
-                Just exploring? <span style={{ color: "#F5C842", fontWeight: 600 }}>Demo Login →</span>
-              </button>
             </div>
           </div>
         </div>
