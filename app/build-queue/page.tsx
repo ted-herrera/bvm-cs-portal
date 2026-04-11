@@ -32,16 +32,25 @@ function HtmlEditor({
   placeholder,
   minHeight = 260,
   errorLines = [] as number[],
+  greenLines = new Set<number>(),
+  editorRefCb,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   minHeight?: number;
   errorLines?: number[];
+  greenLines?: Set<number>;
+  editorRefCb?: (ref: { jumpToLine: (n: number) => void }) => void;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
   const [highlightedLine, setHighlightedLine] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (editorRefCb) editorRefCb({ jumpToLine });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const lines = value.split("\n");
   const lineCount = Math.max(lines.length, 1);
@@ -98,6 +107,7 @@ function HtmlEditor({
         {Array.from({ length: lineCount }, (_, i) => {
           const ln = i + 1;
           const isError = errorLineSet.has(ln);
+          const isGreen = greenLines.has(ln);
           const isHighlighted = highlightedLine === ln;
           return (
             <div
@@ -110,14 +120,17 @@ function HtmlEditor({
                 fontFamily: 'Menlo, Consolas, "Courier New", monospace',
                 textAlign: "right",
                 paddingRight: 8,
-                color: isError ? COLORS.danger : COLORS.secondary,
-                fontWeight: isError ? 700 : 400,
+                color: isGreen ? COLORS.success : isError ? COLORS.danger : COLORS.secondary,
+                fontWeight: isError || isGreen ? 700 : 400,
                 cursor: isError ? "pointer" : "default",
                 background: isHighlighted
                   ? "rgba(245, 200, 66, 0.35)"
-                  : isError
-                    ? "rgba(255, 92, 119, 0.08)"
-                    : "transparent",
+                  : isGreen
+                    ? "rgba(0, 189, 165, 0.1)"
+                    : isError
+                      ? "rgba(255, 92, 119, 0.08)"
+                      : "transparent",
+                borderLeft: isGreen ? `3px solid ${COLORS.success}` : isError ? `3px solid ${COLORS.danger}` : "3px solid transparent",
                 transition: "background 0.3s",
               }}
             >
@@ -199,7 +212,15 @@ interface BuildMessage {
   timestamp: string;
 }
 
-type TabKey = "overview" | "editor" | "qa" | "history";
+type GateStep = 0 | 1 | 2 | 3 | 4; // 0=idle, 1=scanned, 2=autofixed, 3=rescored, 4=complete
+
+interface QaIssue {
+  line: number;
+  message: string;
+  fix: string;
+  severity: "blocker" | "warning" | "optimization";
+  fixed?: boolean;
+}
 
 function daysSince(dateStr: string): number {
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
@@ -508,31 +529,25 @@ export default function BuildQueuePage() {
   );
   const [toast, setToast] = useState("");
 
-  // 4-tab panel
-  const [activeTab, setActiveTab] = useState<TabKey>("overview");
-
   // Editor state — editedHtml is the local working copy
   const [editedHtml, setEditedHtml] = useState("");
-  const [editorStatus, setEditorStatus] = useState<BuildRecord["editorStatus"]>("generated");
   const [localUpdatedAt, setLocalUpdatedAt] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
 
-  // QA state
+  // Gated workflow state
+  const [gateStep, setGateStep] = useState<GateStep>(0);
   const [qaReport, setQaReport] = useState<QAReport | null>(null);
   const [qaRunning, setQaRunning] = useState(false);
   const [autofixing, setAutofixing] = useState(false);
-  const [fixesApplied, setFixesApplied] = useState<number | null>(null);
   const [qaEditedScore, setQaEditedScore] = useState<number | null>(null);
   const [qaHash, setQaHash] = useState<string | null>(null);
   const [qaGateMessage, setQaGateMessage] = useState("");
-
-  // History state
-  const [editHistory, setEditHistory] = useState<EditHistoryEntry[]>([]);
-
-  // Final verification
-  const [liveUrlInput, setLiveUrlInput] = useState("");
+  const [issues, setIssues] = useState<QaIssue[]>([]);
+  const [fixedLines, setFixedLines] = useState<Set<number>>(new Set());
   const [buildCompleted, setBuildCompleted] = useState(false);
+  const [editHistory, setEditHistory] = useState<EditHistoryEntry[]>([]);
+  const editorRef = useRef<{ jumpToLine: (n: number) => void } | null>(null);
 
 
   // Error lines from QA for editor highlighting
@@ -600,20 +615,19 @@ export default function BuildQueuePage() {
 
   function selectBuild(b: BuildRecord) {
     setSelectedBuild(b);
-    setActiveTab("overview");
     // Bruno rule: if editedHtml is null, copy generatedSiteHTML to local state
     setEditedHtml(b.editedHtml ?? b.generatedSiteHTML ?? "");
-    setEditorStatus(b.editorStatus ?? "generated");
     setLocalUpdatedAt(b.updatedAt ?? null);
     setQaReport(null);
     setQaEditedScore(b.qaEditedScore ?? null);
     setQaHash(b.qaHash ?? null);
     setQaGateMessage("");
-    setFixesApplied(null);
     setSaveError("");
-    setLiveUrlInput(b.liveUrl || "");
     setBuildCompleted(false);
     setEditHistory(b.editHistory ?? []);
+    setGateStep(0);
+    setIssues([]);
+    setFixedLines(new Set());
     loadMessages(b.id);
   }
 
@@ -670,7 +684,7 @@ export default function BuildQueuePage() {
       const data = await res.json();
       if (data.build) {
         setLocalUpdatedAt(data.build.updatedAt);
-        setEditorStatus(data.build.editorStatus ?? "editing");
+        // editorStatus tracked on server
         // Add history entry
         const hash = await sha256(htmlToSave ?? editedHtml);
         addHistoryEntry(hash.slice(0, 8), "HTML saved");
@@ -694,7 +708,253 @@ export default function BuildQueuePage() {
     setEditHistory(prev => [entry, ...prev]);
   }
 
-  // ─── Run QA on editedHtml ────────────────────────────────────────
+  // ─── Extract issues with line numbers from QA report ──────────────
+  function extractIssues(html: string, report: QAReport): QaIssue[] {
+    const lines = html.split("\n");
+    const result: QaIssue[] = [];
+    for (const pass of report.passes) {
+      for (const check of pass.checks) {
+        if (check.passed) continue;
+        const patterns: { pat: string; fix: string }[] = [];
+        if (/alt text/i.test(check.name)) patterns.push({ pat: "<img ", fix: "Add a descriptive alt attribute to this <img> tag" });
+        if (/canonical/i.test(check.name)) patterns.push({ pat: "<head", fix: "Add <link rel=\"canonical\" href=\"/\"> inside <head>" });
+        if (/og:title/i.test(check.name)) patterns.push({ pat: "<head", fix: "Add <meta property=\"og:title\" content=\"...\"> inside <head>" });
+        if (/og:desc/i.test(check.name)) patterns.push({ pat: "<head", fix: "Add <meta property=\"og:description\" content=\"...\"> inside <head>" });
+        if (/title tag/i.test(check.name)) patterns.push({ pat: "<title", fix: "Ensure <title> contains the business name" });
+        if (/meta desc/i.test(check.name)) patterns.push({ pat: "<head", fix: "Add <meta name=\"description\" content=\"...\"> inside <head>" });
+        if (/viewport/i.test(check.name)) patterns.push({ pat: "<head", fix: "Add <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">" });
+        if (/heading/i.test(check.name)) patterns.push({ pat: "<h", fix: "Fix heading hierarchy — use h1 then h2 then h3 in order" });
+        if (/placeholder/i.test(check.name)) patterns.push({ pat: "lorem", fix: "Replace placeholder text with real content" });
+        if (/button.*label/i.test(check.name)) patterns.push({ pat: "<button", fix: "Add visible text or aria-label to this button" });
+        if (/script.*head/i.test(check.name)) patterns.push({ pat: "<script", fix: "Move script to end of body or add defer attribute" });
+        if (/dimension|width.*height/i.test(check.name)) patterns.push({ pat: "<img ", fix: "Add width and height attributes to this image" });
+        if (/contrast|color/i.test(check.name)) patterns.push({ pat: "color", fix: "Adjust text/background color for WCAG AA contrast" });
+
+        if (patterns.length === 0) {
+          result.push({ line: 1, message: check.message, fix: check.autofix || "Fix this issue manually", severity: check.severity });
+          continue;
+        }
+        let found = false;
+        for (let i = 0; i < lines.length; i++) {
+          for (const { pat, fix } of patterns) {
+            if (lines[i].toLowerCase().includes(pat.toLowerCase())) {
+              result.push({ line: i + 1, message: check.message, fix, severity: check.severity });
+              found = true;
+            }
+          }
+        }
+        if (!found) {
+          result.push({ line: 1, message: check.message, fix: check.autofix || "Fix manually", severity: check.severity });
+        }
+      }
+    }
+    // Deduplicate by line
+    const seen = new Set<string>();
+    return result.filter(r => {
+      const key = `${r.line}:${r.message}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  // ─── Button 1: Scan for Issues ──────────────────────────────────
+  async function scanForIssues() {
+    if (!editedHtml.trim() || !selectedBuild) return;
+    setQaRunning(true);
+    setQaGateMessage("");
+    setIssues([]);
+    setFixedLines(new Set());
+
+    // Save first with optimistic lock
+    const saved = await saveEditedHtml();
+    if (!saved) { setQaRunning(false); return; }
+
+    try {
+      const res = await fetch("/api/qa/standalone", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ htmlContent: editedHtml }),
+      });
+      const data = (await res.json()) as { report?: QAReport };
+      if (data.report) {
+        setQaReport(data.report);
+        const extracted = extractIssues(editedHtml, data.report);
+        setIssues(extracted);
+        setGateStep(1);
+        const hash = await sha256(editedHtml);
+        addHistoryEntry(hash.slice(0, 8), `Scan — ${extracted.length} issues found`);
+      }
+    } catch {
+      setQaGateMessage("QA service unavailable — try again");
+    }
+    setQaRunning(false);
+  }
+
+  // ─── Button 2: Auto Fix ────────────────────────────────────────
+  async function runAutoFix() {
+    if (!editedHtml || !selectedBuild) return;
+    setAutofixing(true);
+    try {
+      const res = await fetch("/api/qa/standalone", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ htmlContent: editedHtml, autofix: true, businessName: selectedBuild.businessName }),
+      });
+      const data = (await res.json()) as { report?: QAReport; fixedHtml?: string };
+      if (data.fixedHtml && data.report) {
+        // Find which lines changed (green)
+        const oldLines = editedHtml.split("\n");
+        const newLines = data.fixedHtml.split("\n");
+        const green = new Set<number>();
+        for (let i = 0; i < Math.max(oldLines.length, newLines.length); i++) {
+          if (oldLines[i] !== newLines[i]) green.add(i + 1);
+        }
+        setFixedLines(green);
+        setEditedHtml(data.fixedHtml);
+        setQaReport(data.report);
+        // Update issues — mark fixed ones
+        const newIssues = extractIssues(data.fixedHtml, data.report);
+        const remainingLines = new Set(newIssues.map(i => i.line));
+        setIssues(prev => {
+          const merged = prev.map(i => ({ ...i, fixed: !remainingLines.has(i.line) }));
+          // Add any new issues from rescan
+          for (const ni of newIssues) {
+            if (!merged.some(m => m.line === ni.line && m.message === ni.message)) {
+              merged.push({ ...ni, fixed: false });
+            }
+          }
+          return merged;
+        });
+        setQaHash(null); // HTML changed, force rescore
+        setGateStep(2);
+        const hash = await sha256(data.fixedHtml);
+        addHistoryEntry(hash.slice(0, 8), `Auto-fix — ${green.size} lines fixed`);
+      }
+    } catch { /* ignore */ }
+    setAutofixing(false);
+  }
+
+  // ─── Button 3: Re-Score ─────────────────────────────────────────
+  async function reScore() {
+    if (!editedHtml.trim() || !selectedBuild) return;
+    setQaRunning(true);
+    setQaGateMessage("");
+
+    // Optimistic lock + save
+    const saved = await saveEditedHtml();
+    if (!saved) { setQaRunning(false); return; }
+
+    const hash = await sha256(editedHtml);
+
+    try {
+      const res = await fetch("/api/qa/standalone", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ htmlContent: editedHtml }),
+      });
+      const data = (await res.json()) as { report?: QAReport };
+      if (data.report) {
+        setQaReport(data.report);
+        setQaEditedScore(data.report.score);
+        setQaHash(hash);
+        const newIssues = extractIssues(editedHtml, data.report);
+        setIssues(newIssues);
+        setFixedLines(new Set());
+
+        // Store on server
+        await fetch("/api/build/update", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            buildId: selectedBuild.id, qaEditedScore: data.report.score,
+            qaEditedAt: new Date().toISOString(), qaHash: hash, updatedAt: localUpdatedAt,
+          }),
+        }).then(r => r.json()).then(d => { if (d.build) setLocalUpdatedAt(d.build.updatedAt); }).catch(() => {});
+
+        const hasBlockers = data.report.passes.some(p => p.checks.some(c => !c.passed && c.severity === "blocker"));
+        if (data.report.score >= 70 && !hasBlockers) {
+          setGateStep(3);
+        } else {
+          setQaGateMessage(data.report.score < 70 ? `Score ${data.report.score} — needs >= 70. Fix remaining issues and re-score.` : "Blocker issues remain. Fix red items and re-score.");
+        }
+        addHistoryEntry(hash.slice(0, 8), `Re-score — ${data.report.score}/100`);
+      }
+    } catch {
+      setQaGateMessage("QA service unavailable — try again");
+    }
+    setQaRunning(false);
+  }
+
+  // ─── Button 4: Complete & Deliver ────────────────────────────────
+  async function completeAndDeliver() {
+    if (!selectedBuild) return;
+    setQaGateMessage("");
+
+    // Gate: score >= 70
+    if (qaEditedScore == null || qaEditedScore < 70) {
+      setQaGateMessage("QA score must be >= 70"); return;
+    }
+    // Gate: no blockers
+    if (qaReport) {
+      const hasBlockers = qaReport.passes.some(p => p.checks.some(c => !c.passed && c.severity === "blocker"));
+      if (hasBlockers) { setQaGateMessage("Blocker checks must all pass"); return; }
+    }
+    // Gate: hash match
+    if (qaHash) {
+      const currentHash = await sha256(editedHtml);
+      if (currentHash !== qaHash) { setQaGateMessage("HTML changed since last QA — re-score first"); return; }
+    } else { setQaGateMessage("QA required before completion"); return; }
+
+    // Generate and download final pack
+    const zip = new JSZip();
+    const slug = selectedBuild.businessName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "");
+    const dateStr = new Date().toISOString().split("T")[0];
+    zip.file("index.html", editedHtml);
+    zip.file("build-brief.json", JSON.stringify({
+      businessName: selectedBuild.businessName, city: selectedBuild.city, zip: selectedBuild.zip,
+      services: selectedBuild.services, look: selectedBuild.look, tagline: selectedBuild.tagline,
+      cta: selectedBuild.cta, createdAt: selectedBuild.createdAt,
+    }, null, 2));
+    zip.file("postflight-report.json", JSON.stringify(qaReport, null, 2));
+    zip.file("image-manifest.json", JSON.stringify({ images: [], note: "No external images in this build" }, null, 2));
+    const buf = await zip.generateAsync({ type: "blob" });
+    const url = URL.createObjectURL(buf);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `BVM_${slug}_PASS_${dateStr}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    // Call /api/build/complete
+    try {
+      await fetch("/api/build/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ buildId: selectedBuild.id, clientId: selectedBuild.clientId, liveUrl: null }),
+      });
+    } catch { /* ignore */ }
+
+    // Update editor status
+    await fetch("/api/build/update", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ buildId: selectedBuild.id, editorStatus: "complete", updatedAt: localUpdatedAt }),
+    }).then(r => r.json()).then(d => { if (d.build) setLocalUpdatedAt(d.build.updatedAt); }).catch(() => {});
+
+    setGateStep(4);
+    setBuildCompleted(true);
+    addHistoryEntry(qaHash || "", "Build complete — delivered");
+    setToast(`${selectedBuild.businessName} — COMPLETE. Rep, AM, and client notified.`);
+    setTimeout(() => setToast(""), 5000);
+
+    try { const mod = await import("canvas-confetti"); mod.default({ particleCount: 120, spread: 80, colors: [COLORS.success, COLORS.accent, "#F5C842"] }); } catch { /* ignore */ }
+    loadBuilds();
+  }
+
+  // ─── Run QA on editedHtml (legacy, kept for compatibility) ──────
   async function runQa() {
     if (!editedHtml.trim() || !selectedBuild) return;
     setQaRunning(true);
@@ -780,7 +1040,6 @@ export default function BuildQueuePage() {
         const newFails = data.report.passes.reduce(
           (s, p) => s + p.checks.filter((c) => !c.passed).length, 0,
         );
-        setFixesApplied(Math.max(priorFails - newFails, 0));
         // Write to editedHtml — NEVER to generatedSiteHTML
         setEditedHtml(data.fixedHtml);
         setQaReport(data.report);
@@ -849,7 +1108,7 @@ export default function BuildQueuePage() {
         body: JSON.stringify({
           buildId: selectedBuild.id,
           clientId: selectedBuild.clientId,
-          liveUrl: liveUrlInput || null,
+          liveUrl: null,
         }),
       });
     } catch {
@@ -869,7 +1128,6 @@ export default function BuildQueuePage() {
       if (d.build) setLocalUpdatedAt(d.build.updatedAt);
     }).catch(() => {});
 
-    setEditorStatus("complete");
     setBuildCompleted(true);
     addHistoryEntry(qaHash || "", "Build marked complete");
     setToast(`${selectedBuild.businessName} marked live — rep notified`);
@@ -1401,481 +1659,188 @@ export default function BuildQueuePage() {
         </aside>
 
         {/* ── CENTER COLUMN — EDITOR PANEL ────────────── */}
-        <main
-          style={{
-            flex: 1,
-            background: COLORS.cardBg,
-            display: "flex",
-            flexDirection: "column",
-            minWidth: 0,
-          }}
-        >
-          <div
-            style={{
-              background: COLORS.headerBar,
-              color: "#fff",
-              padding: "12px 24px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              flexShrink: 0,
-            }}
-          >
-            <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.12em" }}>
-              BUILD EDITOR
-            </span>
+        <main style={{ flex: 1, background: COLORS.cardBg, display: "flex", flexDirection: "column", minWidth: 0 }}>
+          {/* Header */}
+          <div style={{ background: COLORS.headerBar, color: "#fff", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.12em" }}>BUILD EDITOR</span>
+              {selectedBuild && <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 3, background: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.8)" }}>{selectedBuild.look.replace(/_/g, " ").toUpperCase()}</span>}
+            </div>
             {selectedBuild && (
-              <span style={{ fontSize: 13, color: "rgba(255,255,255,0.85)" }}>
-                {selectedBuild.businessName} · {selectedBuild.city}
-              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 13, color: "rgba(255,255,255,0.85)" }}>{selectedBuild.businessName} · {selectedBuild.city}</span>
+                {qaEditedScore != null && <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 3, background: scoreColor(qaEditedScore), color: "#fff" }}>QA: {qaEditedScore}</span>}
+              </div>
             )}
           </div>
 
-          {/* Tab bar */}
+          {/* Labels bar */}
           {selectedBuild && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 0,
-                borderBottom: `1px solid ${COLORS.cardBorder}`,
-                background: COLORS.pageBg,
-                flexShrink: 0,
-              }}
-            >
-              {([
-                { key: "overview" as TabKey, label: "Overview" },
-                { key: "editor" as TabKey, label: "HTML Editor" },
-                { key: "qa" as TabKey, label: "QA" },
-                { key: "history" as TabKey, label: "History" },
-              ]).map((t) => {
-                const active = activeTab === t.key;
-                return (
-                  <button
-                    key={t.key}
-                    onClick={() => setActiveTab(t.key)}
-                    style={{
-                      padding: "12px 24px",
-                      fontSize: 12,
-                      fontWeight: 700,
-                      letterSpacing: "0.04em",
-                      color: active ? COLORS.accent : COLORS.secondary,
-                      background: active ? COLORS.cardBg : "transparent",
-                      border: "none",
-                      borderBottom: active ? `2px solid ${COLORS.accent}` : "2px solid transparent",
-                      cursor: "pointer",
-                      transition: "color 0.15s, border-color 0.15s",
-                    }}
-                  >
-                    {t.label}
-                  </button>
-                );
-              })}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 24px", borderBottom: `1px solid ${COLORS.cardBorder}`, background: COLORS.pageBg, flexShrink: 0 }}>
+              <span style={{ fontSize: 9, fontWeight: 700, padding: "3px 8px", borderRadius: 3, background: "#e7edf3", color: COLORS.secondary, letterSpacing: "0.06em" }}>GENERATED — READ ONLY</span>
+              <span style={{ fontSize: 9, fontWeight: 700, padding: "3px 8px", borderRadius: 3, background: COLORS.accent, color: "#fff", letterSpacing: "0.06em" }}>EDITED — ACTIVE</span>
+              <span style={{ flex: 1 }} />
+              <span style={{ fontSize: 10, color: COLORS.secondary }}>generatedSiteHTML is never modified</span>
             </div>
           )}
 
-          <div style={{ flex: 1, overflowY: "auto", padding: 28 }}>
+          {/* Editor + Preview split */}
+          <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
             {!selectedBuild ? (
-              <div
-                style={{
-                  border: `1px dashed ${COLORS.cardBorder}`,
-                  borderRadius: 12,
-                  padding: 80,
-                  textAlign: "center",
-                  background: COLORS.pageBg,
-                }}
-              >
-                <p style={{ fontSize: 14, color: COLORS.secondary, margin: 0 }}>
-                  Select a build from the queue to begin
-                </p>
+              <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ border: `1px dashed ${COLORS.cardBorder}`, borderRadius: 12, padding: 80, textAlign: "center", background: COLORS.pageBg }}>
+                  <p style={{ fontSize: 14, color: COLORS.secondary, margin: 0 }}>Select a build from the queue to begin</p>
+                </div>
               </div>
             ) : (
               <>
-                {/* ── TAB 1: OVERVIEW ──────────────────── */}
-                {activeTab === "overview" && (
-                  <div>
-                    <h2 style={{ fontSize: 22, fontWeight: 700, color: COLORS.body, margin: "0 0 20px" }}>
-                      Job Overview
-                    </h2>
-
-                    {/* Info grid */}
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 24 }}>
-                      {[
-                        { label: "Business Name", value: selectedBuild.businessName },
-                        { label: "City", value: selectedBuild.city },
-                        { label: "Look / Subtype", value: selectedBuild.look.replace(/_/g, " ") },
-                        { label: "CTA", value: selectedBuild.cta },
-                        { label: "Services", value: selectedBuild.services.join(", ") || "(none)" },
-                        { label: "Tagline", value: selectedBuild.tagline || "(none)" },
-                      ].map((item) => (
-                        <div key={item.label} style={{ background: COLORS.pageBg, borderRadius: 8, padding: "12px 16px" }}>
-                          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: COLORS.secondary, margin: "0 0 4px", textTransform: "uppercase" }}>
-                            {item.label}
-                          </p>
-                          <p style={{ fontSize: 13, color: COLORS.body, margin: 0, fontWeight: 600 }}>
-                            {item.value}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Status badges */}
-                    <div style={{ display: "flex", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
-                      <div style={{ background: COLORS.pageBg, borderRadius: 8, padding: "12px 20px" }}>
-                        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: COLORS.secondary, margin: "0 0 6px", textTransform: "uppercase" }}>
-                          Job Status
-                        </p>
-                        <span style={{
-                          fontSize: 11, fontWeight: 700, padding: "4px 12px", borderRadius: 999,
-                          background: selectedBuild.status === "live" ? COLORS.success : selectedBuild.status === "claimed" ? COLORS.accent : COLORS.secondary,
-                          color: "#fff", textTransform: "uppercase", letterSpacing: "0.06em",
-                        }}>
-                          {selectedBuild.status}
-                        </span>
-                      </div>
-
-                      <div style={{ background: COLORS.pageBg, borderRadius: 8, padding: "12px 20px" }}>
-                        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: COLORS.secondary, margin: "0 0 6px", textTransform: "uppercase" }}>
-                          Editor Status
-                        </p>
-                        <span style={{
-                          fontSize: 11, fontWeight: 700, padding: "4px 12px", borderRadius: 999,
-                          background: editorStatus === "complete" ? COLORS.success : editorStatus === "qa-passed" ? "#F5C842" : editorStatus === "editing" ? COLORS.accent : COLORS.secondary,
-                          color: editorStatus === "qa-passed" ? COLORS.body : "#fff",
-                          textTransform: "uppercase", letterSpacing: "0.06em",
-                        }}>
-                          {editorStatus}
-                        </span>
-                      </div>
-
-                      {qaEditedScore != null && (
-                        <div style={{ background: COLORS.pageBg, borderRadius: 8, padding: "12px 20px" }}>
-                          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: COLORS.secondary, margin: "0 0 6px", textTransform: "uppercase" }}>
-                            QA Score
-                          </p>
-                          <span style={{ fontSize: 20, fontWeight: 800, color: scoreColor(qaEditedScore) }}>
-                            {qaEditedScore}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Dates */}
-                    <div style={{ background: COLORS.pageBg, borderRadius: 8, padding: "14px 20px" }}>
-                      <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: COLORS.secondary, margin: "0 0 8px", textTransform: "uppercase" }}>
-                        Timeline
-                      </p>
-                      <div style={{ fontSize: 12, color: COLORS.body, lineHeight: 1.8 }}>
-                        <div>Created: {new Date(selectedBuild.createdAt).toLocaleDateString()} ({daysSince(selectedBuild.createdAt)}d ago)</div>
-                        {selectedBuild.claimedAt && <div>Claimed: {new Date(selectedBuild.claimedAt).toLocaleDateString()}</div>}
-                        {selectedBuild.readyAt && <div>Ready: {new Date(selectedBuild.readyAt).toLocaleDateString()}</div>}
-                        {selectedBuild.liveAt && <div>Live: {new Date(selectedBuild.liveAt).toLocaleDateString()}</div>}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* ── TAB 2: HTML EDITOR ───────────────── */}
-                {activeTab === "editor" && (
-                  <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-                      <span style={{
-                        fontSize: 10, fontWeight: 700, padding: "4px 10px", borderRadius: 4,
-                        background: "#e7edf3", color: COLORS.secondary, letterSpacing: "0.06em",
-                      }}>
-                        Generated (Read Only)
-                      </span>
-                      <span style={{
-                        fontSize: 10, fontWeight: 700, padding: "4px 10px", borderRadius: 4,
-                        background: COLORS.accent, color: "#fff", letterSpacing: "0.06em",
-                      }}>
-                        Edited (Active)
-                      </span>
-                      <span style={{ fontSize: 11, color: COLORS.secondary, marginLeft: "auto" }}>
-                        Edits write to editedHtml — generatedSiteHTML is never modified
-                      </span>
-                    </div>
-
+                {/* Left: Editor */}
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", borderRight: `1px solid ${COLORS.cardBorder}` }}>
+                  <div style={{ flex: 1, overflow: "auto", padding: "12px 16px 0" }}>
                     <HtmlEditor
                       value={editedHtml}
-                      onChange={(v) => { setEditedHtml(v); setSaveError(""); }}
-                      placeholder="HTML content..."
-                      minHeight={320}
-                      errorLines={getErrorLines(editedHtml, qaReport)}
+                      onChange={(v) => { setEditedHtml(v); setSaveError(""); if (gateStep >= 1) setQaHash(null); }}
+                      placeholder="HTML content loads on claim..."
+                      minHeight={400}
+                      errorLines={issues.filter(i => !i.fixed).map(i => i.line)}
+                      greenLines={fixedLines}
+                      editorRefCb={(ref) => { editorRef.current = ref; }}
                     />
+                  </div>
 
-                    {/* Live preview */}
-                    <div style={{ marginTop: 16 }}>
-                      <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: COLORS.secondary, margin: "0 0 8px", textTransform: "uppercase" }}>
-                        Live Preview
+                  {/* Error list below editor */}
+                  {issues.length > 0 && (
+                    <div style={{ maxHeight: 180, overflowY: "auto", borderTop: `1px solid ${COLORS.cardBorder}`, background: COLORS.pageBg, padding: "8px 16px" }}>
+                      <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", color: COLORS.secondary, margin: "0 0 6px", textTransform: "uppercase" }}>
+                        ISSUES ({issues.filter(i => !i.fixed).length} remaining / {issues.length} total)
                       </p>
-                      <div style={{ border: `1px solid ${COLORS.cardBorder}`, borderRadius: 8, overflow: "hidden", height: 300 }}>
-                        <iframe
-                          srcDoc={editedHtml}
-                          title="Preview"
-                          sandbox="allow-same-origin"
-                          style={{ width: "100%", height: "100%", border: "none" }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Save button */}
-                    {saveError && (
-                      <div style={{ marginTop: 12, padding: "10px 16px", background: "#ffe5e5", border: `1px solid ${COLORS.danger}`, borderRadius: 6, fontSize: 12, color: COLORS.danger, fontWeight: 600 }}>
-                        {saveError}
-                      </div>
-                    )}
-                    <button
-                      onClick={() => saveEditedHtml()}
-                      disabled={saving || !editedHtml.trim()}
-                      style={{
-                        width: "100%",
-                        marginTop: 14,
-                        background: editedHtml.trim() && !saving ? COLORS.action : "#e7edf3",
-                        color: editedHtml.trim() && !saving ? "#fff" : COLORS.secondary,
-                        border: "none",
-                        borderRadius: 6,
-                        padding: "14px 0",
-                        fontSize: 13,
-                        fontWeight: 700,
-                        letterSpacing: "0.08em",
-                        cursor: editedHtml.trim() && !saving ? "pointer" : "not-allowed",
-                      }}
-                    >
-                      {saving ? "SAVING..." : "SAVE EDITED HTML"}
-                    </button>
-                  </div>
-                )}
-
-                {/* ── TAB 3: QA ────────────────────────── */}
-                {activeTab === "qa" && (
-                  <div>
-                    <h2 style={{ fontSize: 22, fontWeight: 700, color: COLORS.body, margin: "0 0 6px" }}>
-                      QA Analysis
-                    </h2>
-                    <p style={{ fontSize: 13, color: COLORS.secondary, margin: "0 0 20px" }}>
-                      Run QA against your edited HTML. Score must be &gt;= 70 with no blockers to mark complete.
-                    </p>
-
-                    {qaEditedScore != null && (
-                      <div style={{
-                        background: "#fff",
-                        border: `1px solid ${scoreColor(qaEditedScore)}`,
-                        borderRadius: 10,
-                        padding: "18px 24px",
-                        marginBottom: 20,
-                        textAlign: "center",
-                      }}>
-                        <p style={{ fontSize: 10, letterSpacing: "0.12em", color: COLORS.secondary, margin: "0 0 6px" }}>
-                          EDITED HTML QA SCORE
-                        </p>
-                        <p style={{ fontSize: 48, fontWeight: 800, color: scoreColor(qaEditedScore), margin: 0, lineHeight: 1 }}>
-                          {qaEditedScore}<span style={{ fontSize: 18, color: COLORS.secondary }}>/100</span>
-                        </p>
-                      </div>
-                    )}
-
-                    {qaGateMessage && (
-                      <div style={{ marginBottom: 16, padding: "10px 16px", background: "#ffe5e5", border: `1px solid ${COLORS.danger}`, borderRadius: 6, fontSize: 12, color: COLORS.danger, fontWeight: 600 }}>
-                        {qaGateMessage}
-                      </div>
-                    )}
-
-                    <button
-                      onClick={runQa}
-                      disabled={!editedHtml.trim() || qaRunning}
-                      style={{
-                        width: "100%",
-                        marginBottom: 20,
-                        background: editedHtml.trim() && !qaRunning ? COLORS.action : "#e7edf3",
-                        color: editedHtml.trim() && !qaRunning ? "#fff" : COLORS.secondary,
-                        border: "none",
-                        borderRadius: 6,
-                        padding: "14px 0",
-                        fontSize: 13,
-                        fontWeight: 700,
-                        letterSpacing: "0.08em",
-                        cursor: editedHtml.trim() && !qaRunning ? "pointer" : "not-allowed",
-                      }}
-                    >
-                      {qaRunning ? "RUNNING QA..." : "RUN QA ANALYSIS"}
-                    </button>
-
-                    {qaReport && (
-                      <QaResults
-                        title=""
-                        subtitle=""
-                        report={qaReport}
-                        onAutofix={autofix}
-                        autofixing={autofixing}
-                        fixesApplied={fixesApplied}
-                        onDownload={downloadQaReport}
-                        actionLabel={null}
-                        onAction={() => {}}
-                        onErrorLineClick={() => {
-                          setActiveTab("editor");
-                        }}
-                      />
-                    )}
-
-                    {/* Mark Complete section */}
-                    <div style={{ marginTop: 24, padding: "20px 24px", background: COLORS.pageBg, borderRadius: 10, border: `1px solid ${COLORS.cardBorder}` }}>
-                      <h3 style={{ fontSize: 14, fontWeight: 700, color: COLORS.body, margin: "0 0 12px" }}>
-                        Mark Complete
-                      </h3>
-
-                      {/* Gate indicators */}
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
-                          <span style={{ color: qaEditedScore != null && qaEditedScore >= 70 ? COLORS.success : COLORS.danger, fontWeight: 700 }}>
-                            {qaEditedScore != null && qaEditedScore >= 70 ? "PASS" : "FAIL"}
-                          </span>
-                          <span style={{ color: COLORS.body }}>QA score &gt;= 70 {qaEditedScore != null ? `(current: ${qaEditedScore})` : "(not run)"}</span>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
-                          <span style={{ color: qaReport && !qaReport.passes.some(p => p.checks.some(c => !c.passed && c.severity === "blocker")) ? COLORS.success : COLORS.danger, fontWeight: 700 }}>
-                            {qaReport && !qaReport.passes.some(p => p.checks.some(c => !c.passed && c.severity === "blocker")) ? "PASS" : "FAIL"}
-                          </span>
-                          <span style={{ color: COLORS.body }}>No blocker failures</span>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
-                          <span style={{ color: qaHash ? COLORS.success : COLORS.danger, fontWeight: 700 }}>
-                            {qaHash ? "PASS" : "FAIL"}
-                          </span>
-                          <span style={{ color: COLORS.body }}>HTML hash matches last QA run</span>
-                        </div>
-                      </div>
-
-                      {/* Live URL input for completion */}
-                      <div style={{ marginBottom: 14 }}>
-                        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: COLORS.secondary, margin: "0 0 6px", textTransform: "uppercase" }}>
-                          Live URL (optional)
-                        </p>
-                        <input
-                          type="url"
-                          value={liveUrlInput}
-                          onChange={(e) => setLiveUrlInput(e.target.value)}
-                          placeholder="https://client-site.vercel.app"
-                          style={{
-                            width: "100%",
-                            background: "#fff",
-                            border: `1px solid ${COLORS.cardBorder}`,
-                            borderRadius: 4,
-                            padding: "8px 12px",
-                            fontSize: 12,
-                            color: COLORS.body,
-                            outline: "none",
-                            boxSizing: "border-box",
-                          }}
-                        />
-                      </div>
-
-                      <button
-                        onClick={markBuildComplete}
-                        disabled={buildCompleted}
-                        style={{
-                          width: "100%",
-                          background: !buildCompleted ? COLORS.success : "#e7edf3",
-                          color: !buildCompleted ? "#fff" : COLORS.secondary,
-                          border: "none",
-                          borderRadius: 6,
-                          padding: "14px 0",
-                          fontSize: 13,
-                          fontWeight: 700,
-                          letterSpacing: "0.08em",
-                          cursor: !buildCompleted ? "pointer" : "not-allowed",
-                        }}
-                      >
-                        {buildCompleted ? "BUILD COMPLETE" : "MARK COMPLETE"}
-                      </button>
-
-                      {buildCompleted && (
-                        <button
-                          onClick={downloadFinalPack}
-                          style={{
-                            width: "100%",
-                            marginTop: 10,
-                            background: "transparent",
-                            color: COLORS.accent,
-                            border: `1px solid ${COLORS.accent}`,
-                            borderRadius: 6,
-                            padding: "12px 0",
-                            fontSize: 12,
-                            fontWeight: 700,
-                            letterSpacing: "0.08em",
-                            cursor: "pointer",
-                          }}
-                        >
-                          ASSEMBLE FINAL PACK
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* ── TAB 4: HISTORY ───────────────────── */}
-                {activeTab === "history" && (
-                  <div>
-                    <h2 style={{ fontSize: 22, fontWeight: 700, color: COLORS.body, margin: "0 0 20px" }}>
-                      Edit History
-                    </h2>
-
-                    {editHistory.length === 0 ? (
-                      <div style={{
-                        border: `1px dashed ${COLORS.cardBorder}`,
-                        borderRadius: 8,
-                        padding: 40,
-                        textAlign: "center",
-                        background: COLORS.pageBg,
-                      }}>
-                        <p style={{ fontSize: 12, color: COLORS.secondary, margin: 0 }}>
-                          No history entries yet. Save HTML or run QA to create entries.
-                        </p>
-                      </div>
-                    ) : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-                        {editHistory.map((entry, i) => (
+                      {issues.map((issue, i) => {
+                        const sev = severityStyle(issue.severity);
+                        return (
                           <div
-                            key={`${entry.timestamp}-${i}`}
+                            key={`${issue.line}-${i}`}
+                            onClick={() => editorRef.current?.jumpToLine(issue.line)}
                             style={{
-                              display: "flex",
-                              alignItems: "flex-start",
-                              gap: 14,
-                              padding: "14px 0",
-                              borderBottom: i < editHistory.length - 1 ? `1px solid ${COLORS.cardBorder}` : "none",
+                              display: "flex", alignItems: "flex-start", gap: 8, padding: "6px 0",
+                              cursor: "pointer", opacity: issue.fixed ? 0.4 : 1,
+                              textDecoration: issue.fixed ? "line-through" : "none",
+                              borderBottom: i < issues.length - 1 ? `1px solid ${COLORS.cardBorder}` : "none",
                             }}
                           >
-                            {/* Timeline dot */}
-                            <div style={{
-                              width: 10, height: 10, borderRadius: "50%",
-                              background: COLORS.accent, marginTop: 4, flexShrink: 0,
-                            }} />
+                            <span style={{ fontSize: 10, fontWeight: 700, color: issue.fixed ? COLORS.success : sev.color, fontFamily: "monospace", minWidth: 36, flexShrink: 0 }}>
+                              L{issue.line}
+                            </span>
+                            <span style={{ fontSize: 8, fontWeight: 800, padding: "1px 5px", borderRadius: 3, background: issue.fixed ? COLORS.success : sev.bg, color: issue.fixed ? "#fff" : sev.color, flexShrink: 0 }}>
+                              {issue.fixed ? "FIXED" : sev.label}
+                            </span>
                             <div style={{ flex: 1 }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-                                <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.body }}>
-                                  {entry.action}
-                                </span>
-                                <span style={{
-                                  fontSize: 10, fontFamily: 'Menlo, Consolas, "Courier New", monospace',
-                                  color: COLORS.accent, background: COLORS.pageBg, padding: "2px 6px",
-                                  borderRadius: 3,
-                                }}>
-                                  {entry.hash.slice(0, 8)}
-                                </span>
-                              </div>
-                              <div style={{ fontSize: 11, color: COLORS.secondary }}>
-                                {entry.dev} · {new Date(entry.timestamp).toLocaleString()}
-                              </div>
+                              <span style={{ fontSize: 11, color: COLORS.body }}>{issue.message}</span>
+                              {!issue.fixed && <span style={{ fontSize: 10, color: COLORS.accent, display: "block", marginTop: 1 }}>{issue.fix}</span>}
                             </div>
                           </div>
-                        ))}
-                      </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Save error */}
+                  {saveError && (
+                    <div style={{ padding: "8px 16px", background: "#ffe5e5", borderTop: `1px solid ${COLORS.danger}`, fontSize: 11, color: COLORS.danger, fontWeight: 600 }}>
+                      {saveError}
+                    </div>
+                  )}
+                  {qaGateMessage && (
+                    <div style={{ padding: "8px 16px", background: "#ffe5e5", borderTop: `1px solid ${COLORS.danger}`, fontSize: 11, color: COLORS.danger, fontWeight: 600 }}>
+                      {qaGateMessage}
+                    </div>
+                  )}
+                </div>
+
+                {/* Right: Live Preview */}
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                  <div style={{ padding: "8px 16px", background: COLORS.pageBg, borderBottom: `1px solid ${COLORS.cardBorder}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", color: COLORS.secondary, textTransform: "uppercase" }}>Live Preview</span>
+                    {qaEditedScore != null && (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: scoreColor(qaEditedScore) }}>Score: {qaEditedScore}/100</span>
                     )}
                   </div>
-                )}
+                  <div style={{ flex: 1, overflow: "hidden" }}>
+                    <iframe srcDoc={editedHtml} title="Preview" sandbox="allow-same-origin" style={{ width: "100%", height: "100%", border: "none" }} />
+                  </div>
+                </div>
               </>
             )}
           </div>
+
+          {/* ── BOTTOM BAR — 4 GATED BUTTONS ──────────────── */}
+          {selectedBuild && selectedBuild.status !== "unassigned" && (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 0, padding: 0,
+              borderTop: `2px solid ${COLORS.cardBorder}`, background: COLORS.pageBg, flexShrink: 0,
+            }}>
+              {/* Button 1: Scan */}
+              <button
+                onClick={scanForIssues}
+                disabled={qaRunning || !editedHtml.trim()}
+                style={{
+                  flex: 1, padding: "16px 0", border: "none", borderRight: `1px solid ${COLORS.cardBorder}`,
+                  background: gateStep >= 1 ? "#e6fff9" : COLORS.cardBg,
+                  color: qaRunning ? COLORS.secondary : COLORS.body,
+                  fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", cursor: qaRunning ? "wait" : "pointer",
+                }}
+              >
+                {qaRunning && gateStep < 1 ? "Scanning..." : gateStep >= 1 ? "Scanned" : "1. Scan for Issues →"}
+              </button>
+
+              {/* Button 2: Auto Fix */}
+              <button
+                onClick={runAutoFix}
+                disabled={gateStep < 1 || autofixing}
+                style={{
+                  flex: 1, padding: "16px 0", border: "none", borderRight: `1px solid ${COLORS.cardBorder}`,
+                  background: gateStep >= 2 ? "#e6fff9" : gateStep < 1 ? "#f0f0f0" : COLORS.cardBg,
+                  color: gateStep < 1 ? "#bbb" : autofixing ? COLORS.secondary : COLORS.body,
+                  fontSize: 12, fontWeight: 700, letterSpacing: "0.04em",
+                  cursor: gateStep < 1 || autofixing ? "not-allowed" : "pointer",
+                  opacity: gateStep < 1 ? 0.5 : 1,
+                }}
+              >
+                {autofixing ? "Fixing..." : gateStep >= 2 ? "Auto-Fixed" : "2. Auto Fix →"}
+              </button>
+
+              {/* Button 3: Re-Score */}
+              <button
+                onClick={reScore}
+                disabled={gateStep < 2 || qaRunning}
+                style={{
+                  flex: 1, padding: "16px 0", border: "none", borderRight: `1px solid ${COLORS.cardBorder}`,
+                  background: gateStep >= 3 ? "#e6fff9" : gateStep < 2 ? "#f0f0f0" : COLORS.cardBg,
+                  color: gateStep < 2 ? "#bbb" : qaRunning ? COLORS.secondary : COLORS.body,
+                  fontSize: 12, fontWeight: 700, letterSpacing: "0.04em",
+                  cursor: gateStep < 2 || qaRunning ? "not-allowed" : "pointer",
+                  opacity: gateStep < 2 ? 0.5 : 1,
+                }}
+              >
+                {qaRunning && gateStep >= 2 ? "Scoring..." : gateStep >= 3 ? `Passed (${qaEditedScore})` : "3. Re-Score →"}
+              </button>
+
+              {/* Button 4: Complete & Deliver */}
+              <button
+                onClick={completeAndDeliver}
+                disabled={gateStep < 3 || buildCompleted}
+                style={{
+                  flex: 1, padding: "16px 0", border: "none",
+                  background: buildCompleted ? COLORS.success : gateStep >= 3 ? COLORS.action : "#f0f0f0",
+                  color: buildCompleted ? "#fff" : gateStep >= 3 ? "#fff" : "#bbb",
+                  fontSize: 12, fontWeight: 700, letterSpacing: "0.04em",
+                  cursor: gateStep < 3 || buildCompleted ? "not-allowed" : "pointer",
+                  opacity: gateStep < 3 ? 0.5 : 1,
+                }}
+              >
+                {buildCompleted ? "DELIVERED" : "4. Complete & Deliver →"}
+              </button>
+            </div>
+          )}
         </main>
 
         {/* ── RIGHT COLUMN — COMMS ─────────────────────── */}
