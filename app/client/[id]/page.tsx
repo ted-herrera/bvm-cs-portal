@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import type { ClientProfile, PipelineStage, BuildLogEntry } from "@/lib/pipeline";
 
@@ -58,6 +58,10 @@ export default function ClientPortalPage() {
   const [selectedLook, setSelectedLook] = useState<string | null>(null);
   const [domainOption, setDomainOption] = useState<"has" | "needs" | null>(null);
   const [domainUrl, setDomainUrl] = useState("");
+  const [domainSearch, setDomainSearch] = useState("");
+  const [domainResults, setDomainResults] = useState<{ domain: string; available: boolean; price: string }[]>([]);
+  const [domainSearching, setDomainSearching] = useState(false);
+  const domainTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [showNote, setShowNote] = useState(false);
   const [note, setNote] = useState("");
@@ -168,6 +172,31 @@ export default function ClientPortalPage() {
     setNote("");
     setShowNote(false);
     setSubmitting(false);
+  }
+
+  function handleDomainSearch(name: string) {
+    setDomainSearch(name);
+    setDomainResults([]);
+    if (domainTimerRef.current) clearTimeout(domainTimerRef.current);
+    const clean = name.trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
+    if (!clean) return;
+    domainTimerRef.current = setTimeout(() => {
+      setDomainSearching(true);
+      const exts = [".com", ".net", ".co", ".org"];
+      // Simulate availability check — in production this would hit a real API
+      const results = exts.map((ext) => {
+        const full = clean + ext;
+        // Simple heuristic: short common names likely taken
+        const taken = clean.length <= 3 || ["google", "amazon", "facebook", "apple"].includes(clean);
+        return {
+          domain: full,
+          available: !taken,
+          price: ext === ".com" ? "$9.77/yr" : ext === ".net" ? "$12.17/yr" : ext === ".co" ? "$11.99/yr" : "$10.17/yr",
+        };
+      });
+      setDomainResults(results);
+      setDomainSearching(false);
+    }, 600);
   }
 
   if (loading) return <div style={{ minHeight: "100vh", background: "#0d1a2e", display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ width: 32, height: 32, border: "2px solid #F5C842", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} /><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div>;
@@ -520,41 +549,54 @@ export default function ClientPortalPage() {
 
               {/* Domain Status */}
               <div style={{ background: "#1a2740", border: "1px solid #243454", borderRadius: 12, padding: "20px 24px", marginBottom: 24 }}>
-                <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#F5C842", margin: "0 0 16px" }}>Domain Status</p>
+                <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#F5C842", margin: "0 0 16px" }}>Domain</p>
                 {client.intakeAnswers?.q9 && client.intakeAnswers.q9 !== "needs-help" ? (
+                  /* STATE 1: Confirmed */
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <span style={{ color: "#22c55e", fontSize: 16 }}>✓</span>
-                    <span style={{ fontSize: 14, color: "#fff", fontWeight: 600 }}>{client.intakeAnswers.q9}</span>
-                    <span style={{ fontSize: 11, color: "#22c55e", fontWeight: 600 }}>Confirmed</span>
-                  </div>
-                ) : client.intakeAnswers?.q9 === "needs-help" ? (
-                  <div>
-                    <p style={{ fontSize: 13, color: "#f59e0b", fontWeight: 600, margin: "0 0 8px" }}>Your rep is working on your domain.</p>
-                    <div style={{ display: "flex", gap: 12 }}>
-                      <a href="https://www.ionos.com/domains/domain-checker" target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: "#F5C842", fontWeight: 600, textDecoration: "none" }}>Buy a Domain →</a>
-                    </div>
+                    <span style={{ width: 28, height: 28, borderRadius: "50%", background: "#22c55e", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: "#fff", fontWeight: 700, flexShrink: 0 }}>✓</span>
+                    <span style={{ fontSize: 15, color: "#fff", fontWeight: 600 }}>{client.intakeAnswers.q9}</span>
                   </div>
                 ) : (
+                  /* STATE 2: Search */
                   <div>
-                    <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", margin: "0 0 12px" }}>No domain configured yet.</p>
-                    <a href="https://www.ionos.com/domains/domain-checker" target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: "#F5C842", fontWeight: 600, textDecoration: "none" }}>Buy a Domain →</a>
+                    <p style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", margin: "0 0 12px" }}>Find the perfect domain for your business.</p>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <input
+                        type="text"
+                        value={domainSearch}
+                        onChange={(e) => handleDomainSearch(e.target.value)}
+                        placeholder="Type your business name..."
+                        style={{ flex: 1, background: "#0d1a2e", border: "1px solid #334155", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#fff", outline: "none", boxSizing: "border-box" }}
+                      />
+                      {domainSearching && <div style={{ width: 20, height: 20, border: "2px solid #F5C842", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite", alignSelf: "center", flexShrink: 0 }} />}
+                    </div>
+                    {domainResults.length > 0 && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 12 }}>
+                        {domainResults.map((r) => (
+                          <div key={r.domain} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#0d1a2e", border: `1px solid ${r.available ? "rgba(245,200,66,0.3)" : "#243454"}`, borderRadius: 8, padding: "10px 14px" }}>
+                            <div>
+                              <span style={{ fontSize: 14, fontWeight: 600, color: r.available ? "#fff" : "rgba(255,255,255,0.3)" }}>{r.domain}</span>
+                              {r.available && <span style={{ fontSize: 12, color: "#F5C842", marginLeft: 10, fontWeight: 600 }}>{r.price}</span>}
+                              {!r.available && <span style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", marginLeft: 10 }}>Taken</span>}
+                            </div>
+                            {r.available ? (
+                              <a
+                                href={`https://domains.cloudflare.com/?search=${encodeURIComponent(r.domain)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ fontSize: 11, fontWeight: 700, color: "#0d1a2e", background: "#F5C842", padding: "6px 14px", borderRadius: 6, textDecoration: "none", whiteSpace: "nowrap" }}
+                              >
+                                Buy Now →
+                              </a>
+                            ) : (
+                              <span style={{ fontSize: 11, color: "rgba(255,255,255,0.2)" }}>—</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
-                {/* Lifecycle tracker */}
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16 }}>
-                  {["Not Started", "Purchased", "Configured", "Live"].map((step, i) => {
-                    const domainVal = client.intakeAnswers?.q9;
-                    const activeIdx = !domainVal ? 0 : domainVal === "needs-help" ? 0 : client.stage === "live" ? 3 : 1;
-                    const done = i <= activeIdx;
-                    return (
-                      <div key={step} style={{ display: "flex", alignItems: "center", gap: 8, flex: i < 3 ? 1 : "0 0 auto" }}>
-                        <div style={{ width: 16, height: 16, borderRadius: "50%", background: done ? "#F5C842" : "#334155", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, color: "#0d1a2e", fontWeight: 700, flexShrink: 0 }}>{done && i < activeIdx ? "✓" : ""}</div>
-                        <span style={{ fontSize: 10, color: done ? "#F5C842" : "#64748b", fontWeight: done ? 600 : 400, whiteSpace: "nowrap" }}>{step}</span>
-                        {i < 3 && <div style={{ flex: 1, height: 2, background: i < activeIdx ? "#F5C842" : "#334155" }} />}
-                      </div>
-                    );
-                  })}
-                </div>
               </div>
 
               {/* Action cards grid */}
