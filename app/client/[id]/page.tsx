@@ -827,66 +827,101 @@ export default function ClientPortalPage() {
         <div style={{ maxWidth: 896, margin: "0 auto" }}>
           <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#F5C842", marginBottom: 16 }}>Get the Most From Your Site</p>
 
-          {/* Windows 95 Frame */}
-          <div style={{ maxWidth: 380, background: "#c0c0c0", border: "2px solid #fff", borderRightColor: "#808080", borderBottomColor: "#808080", boxShadow: "inset 1px 1px 0 #dfdfdf, inset -1px -1px 0 #808080, 2px 2px 8px rgba(0,0,0,0.15)", fontFamily: "'MS Sans Serif', 'Segoe UI', Tahoma, sans-serif" }}>
-            {/* Title bar */}
-            <div style={{ background: "linear-gradient(90deg, #0d1a2e, #1a3a5c)", padding: "3px 4px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#F5C842", letterSpacing: "0.02em" }}>BVM Learning Center v1.0</span>
-              <div style={{ display: "flex", gap: 2 }}>
-                {["_", "□", "x"].map((b) => (
-                  <div key={b} style={{ width: 16, height: 14, background: "#c0c0c0", border: "1px solid #fff", borderRightColor: "#808080", borderBottomColor: "#808080", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#000", lineHeight: 1 }}>{b}</div>
-                ))}
+          <style>{`@keyframes pulseGlow{0%,100%{box-shadow:0 0 8px rgba(245,200,66,0.3)}50%{box-shadow:0 0 24px rgba(245,200,66,0.6)}}`}</style>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+
+            {/* ── MODULE 0 — ONBOARDING ──────────────────── */}
+            <div>
+              <p style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.14em", color: "#F5C842", margin: "0 0 10px" }}>Module 0 — Onboarding</p>
+              <div style={{ maxWidth: 420, background: "#c0c0c0", border: "2px solid #fff", borderRightColor: "#808080", borderBottomColor: "#808080", boxShadow: "inset 1px 1px 0 #dfdfdf, inset -1px -1px 0 #808080, 2px 2px 8px rgba(0,0,0,0.15)", fontFamily: "'MS Sans Serif', 'Segoe UI', Tahoma, sans-serif" }}>
+                <div style={{ background: "linear-gradient(90deg, #0d1a2e, #1a3a5c)", padding: "3px 4px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#F5C842", letterSpacing: "0.02em" }}>BVM Learning Center v1.0</span>
+                  <div style={{ display: "flex", gap: 2 }}>
+                    {["_", "□", "x"].map((b) => (
+                      <div key={`m0-${b}`} style={{ width: 16, height: 14, background: "#c0c0c0", border: "1px solid #fff", borderRightColor: "#808080", borderBottomColor: "#808080", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#000", lineHeight: 1 }}>{b}</div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ borderBottom: "1px solid #808080", padding: "2px 6px", fontSize: 11, color: "#000", display: "flex", gap: 12 }}>
+                  <span style={{ textDecoration: "underline" }}>File</span>
+                  <span style={{ textDecoration: "underline" }}>View</span>
+                  <span style={{ textDecoration: "underline" }}>Help</span>
+                </div>
+                <div style={{ padding: 8 }}>
+                  <div style={{ background: "#000", border: "2px solid #808080", borderRightColor: "#fff", borderBottomColor: "#fff" }}>
+                    <video src="/claire-onboarding.mp4" controls preload="metadata" style={{ width: "100%", height: 200, display: "block", background: "#000" }} />
+                  </div>
+                  <div style={{ marginTop: 8, padding: "6px 4px" }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: "#000", margin: "0 0 4px" }}>Welcome to BVM Digital with Claire</p>
+                    <p style={{ fontSize: 11, color: "#444", margin: 0, lineHeight: 1.4 }}>Your onboarding walkthrough — play any time to revisit how BVM works.</p>
+                  </div>
+                </div>
+                <div style={{ borderTop: "1px solid #808080", padding: "2px 6px", fontSize: 10, color: "#444" }}>Module 0 of 3</div>
               </div>
             </div>
 
-            {/* Menu bar */}
-            <div style={{ borderBottom: "1px solid #808080", padding: "2px 6px", fontSize: 11, color: "#000", display: "flex", gap: 12 }}>
-              <span style={{ textDecoration: "underline" }}>File</span>
-              <span style={{ textDecoration: "underline" }}>View</span>
-              <span style={{ textDecoration: "underline" }}>Help</span>
-            </div>
-
-            {/* Content area */}
-            <div style={{ padding: 8 }}>
-              {/* Video player — Module 0: Claire onboarding, always accessible */}
-              <div style={{ background: "#000", border: "2px solid #808080", borderRightColor: "#fff", borderBottomColor: "#fff", maxWidth: 320 }}>
-                <video
-                  src="/claire-onboarding.mp4"
-                  controls
-                  preload="metadata"
-                  style={{ width: "100%", height: 180, display: "block", background: "#000" }}
-                />
-              </div>
-
-              {/* Lesson info */}
-              <div style={{ marginTop: 8, padding: "6px 4px" }}>
-                <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#808080", margin: "0 0 3px" }}>Module 0 — Start Here</p>
-                <p style={{ fontSize: 13, fontWeight: 700, color: "#000", margin: "0 0 4px" }}>Welcome to BVM Digital with Claire</p>
-                <p style={{ fontSize: 11, color: "#444", margin: "0 0 8px", lineHeight: 1.4 }}>Your onboarding walkthrough — play any time to revisit how BVM works.</p>
-              </div>
-
-              {/* Search bar */}
-              <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
-                <input type="text" placeholder="Search lessons..." style={{ flex: 1, padding: "3px 6px", fontSize: 11, border: "2px solid #808080", borderRightColor: "#fff", borderBottomColor: "#fff", background: "#fff", outline: "none", fontFamily: "inherit" }} />
-                <button style={{ background: "#c0c0c0", border: "2px solid #fff", borderRightColor: "#808080", borderBottomColor: "#808080", padding: "2px 10px", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>Go</button>
+            {/* ── MODULE 1 — THE BUILDER DO-ER ────────────── */}
+            <div>
+              <p style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.14em", color: "#F5C842", margin: "0 0 10px" }}>Module 1 — The Builder Do-er</p>
+              <div style={{ maxWidth: 420, background: "#c0c0c0", border: "2px solid #fff", borderRightColor: "#808080", borderBottomColor: "#808080", boxShadow: "inset 1px 1px 0 #dfdfdf, inset -1px -1px 0 #808080, 2px 2px 8px rgba(0,0,0,0.15)", fontFamily: "'MS Sans Serif', 'Segoe UI', Tahoma, sans-serif" }}>
+                <div style={{ background: "linear-gradient(90deg, #0d1a2e, #1a3a5c)", padding: "3px 4px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#F5C842", letterSpacing: "0.02em" }}>BVM Learning Center v1.0</span>
+                  <div style={{ display: "flex", gap: 2 }}>
+                    {["_", "□", "x"].map((b) => (
+                      <div key={`m1-${b}`} style={{ width: 16, height: 14, background: "#c0c0c0", border: "1px solid #fff", borderRightColor: "#808080", borderBottomColor: "#808080", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#000", lineHeight: 1 }}>{b}</div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ borderBottom: "1px solid #808080", padding: "2px 6px", fontSize: 11, color: "#000", display: "flex", gap: 12 }}>
+                  <span style={{ textDecoration: "underline" }}>File</span>
+                  <span style={{ textDecoration: "underline" }}>View</span>
+                  <span style={{ textDecoration: "underline" }}>Help</span>
+                </div>
+                <div style={{ padding: 8 }}>
+                  <div style={{ background: "#000", border: "2px solid #808080", borderRightColor: "#fff", borderBottomColor: "#fff", position: "relative", paddingBottom: "56.25%", height: 0 }}>
+                    <iframe src="https://www.youtube.com/embed/WkJpEG4KbN4?si=7bgkmqiGzNnRY77o" title="The Builder Do-er" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" }} />
+                  </div>
+                  <div style={{ marginTop: 8, padding: "6px 4px" }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: "#000", margin: "0 0 4px" }}>The Builder Do-er</p>
+                    <p style={{ fontSize: 11, color: "#444", margin: 0, lineHeight: 1.4 }}>How to think like a builder and take action every day.</p>
+                  </div>
+                </div>
+                <div style={{ borderTop: "1px solid #808080", padding: "2px 6px", fontSize: 10, color: "#444" }}>Module 1 of 3</div>
               </div>
             </div>
 
-            {/* Status bar */}
-            <div style={{ borderTop: "1px solid #808080", padding: "2px 6px", fontSize: 10, color: "#444" }}>
-              1 of 3 lessons completed
-            </div>
-          </div>
-
-          {/* Other LMS module cards */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginTop: 20 }}>
-            {[{ title: "How to Share Your Site", desc: "Facebook, Instagram, Google — where to post and what to say." }, { title: "Getting Found on Google", desc: "Simple steps to make sure customers find you first." }, { title: "Tracking Your Results", desc: "Understanding your dashboard analytics and traffic." }].map((m) => (
-              <div key={m.title} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, padding: 20 }}>
-                <h3 style={{ fontSize: 15, fontWeight: 700, color: "#fff", margin: "0 0 8px" }}>{m.title}</h3>
-                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", lineHeight: 1.5, margin: "0 0 12px" }}>{m.desc}</p>
-                <span style={{ fontSize: 13, color: "#F5C842", fontWeight: 600 }}>Start Module →</span>
+            {/* ── MODULE 2 — COACH BRUNO UNLOCKED ─────────── */}
+            <div>
+              <p style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.14em", color: "#F5C842", margin: "0 0 10px" }}>Module 2 — Coach Bruno Unlocked</p>
+              <div style={{ maxWidth: 420, background: "#c0c0c0", border: "2px solid #F5C842", borderRightColor: "#808080", borderBottomColor: "#808080", fontFamily: "'MS Sans Serif', 'Segoe UI', Tahoma, sans-serif", position: "relative", animation: "pulseGlow 2.5s ease-in-out infinite" }}>
+                <span style={{ position: "absolute", top: -10, right: -10, background: "#F5C842", color: "#0d1a2e", fontSize: 8, fontWeight: 800, padding: "3px 10px", borderRadius: 4, letterSpacing: "0.1em", textTransform: "uppercase", zIndex: 1 }}>Available Now</span>
+                <div style={{ background: "linear-gradient(90deg, #0d1a2e, #1a3a5c)", padding: "3px 4px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#F5C842", letterSpacing: "0.02em" }}>BVM Learning Center v1.0</span>
+                  <div style={{ display: "flex", gap: 2 }}>
+                    {["_", "□", "x"].map((b) => (
+                      <div key={`m2-${b}`} style={{ width: 16, height: 14, background: "#c0c0c0", border: "1px solid #fff", borderRightColor: "#808080", borderBottomColor: "#808080", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#000", lineHeight: 1 }}>{b}</div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ borderBottom: "1px solid #808080", padding: "2px 6px", fontSize: 11, color: "#000", display: "flex", gap: 12 }}>
+                  <span style={{ textDecoration: "underline" }}>File</span>
+                  <span style={{ textDecoration: "underline" }}>View</span>
+                  <span style={{ textDecoration: "underline" }}>Help</span>
+                </div>
+                <div style={{ padding: 16, textAlign: "center" }}>
+                  <p style={{ fontSize: 28, margin: "0 0 8px" }}>🤖</p>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: "#000", margin: "0 0 4px" }}>Coach Bruno Unlocked</p>
+                  <p style={{ fontSize: 11, color: "#444", margin: "0 0 16px", lineHeight: 1.4 }}>Your AI coach is ready. Ask anything about your campaign, your market, your next move.</p>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                    <a href="https://coach-bruno-next.vercel.app" target="_blank" rel="noopener noreferrer" style={{ background: "#F5C842", color: "#0d1a2e", border: "none", padding: "8px 16px", fontSize: 11, fontWeight: 700, cursor: "pointer", textDecoration: "none", borderRadius: 0, fontFamily: "inherit" }}>Launch Coach Bruno →</a>
+                    <a href="https://coach-bruno-next.vercel.app" target="_blank" rel="noopener noreferrer" style={{ background: "#c0c0c0", border: "2px solid #fff", borderRightColor: "#808080", borderBottomColor: "#808080", padding: "6px 14px", fontSize: 11, fontWeight: 700, cursor: "pointer", textDecoration: "none", color: "#000", fontFamily: "inherit" }}>Ask Bruno a Question →</a>
+                  </div>
+                </div>
+                <div style={{ borderTop: "1px solid #808080", padding: "2px 6px", fontSize: 10, color: "#444" }}>Module 2 of 3 — AI Coach</div>
               </div>
-            ))}
+            </div>
+
           </div>
         </div>
       </section>
