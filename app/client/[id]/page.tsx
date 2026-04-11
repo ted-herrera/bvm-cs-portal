@@ -829,12 +829,12 @@ export default function ClientPortalPage() {
 
           <style>{`@keyframes pulseGlow{0%,100%{box-shadow:0 0 8px rgba(245,200,66,0.3)}50%{box-shadow:0 0 24px rgba(245,200,66,0.6)}}`}</style>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          <div style={{ display: "flex", flexDirection: "row", gap: 24, alignItems: "flex-start" }}>
 
             {/* ── MODULE 0 — ONBOARDING ──────────────────── */}
-            <div>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.14em", color: "#F5C842", margin: "0 0 10px" }}>Module 0 — Onboarding</p>
-              <div style={{ maxWidth: 420, background: "#c0c0c0", border: "2px solid #fff", borderRightColor: "#808080", borderBottomColor: "#808080", boxShadow: "inset 1px 1px 0 #dfdfdf, inset -1px -1px 0 #808080, 2px 2px 8px rgba(0,0,0,0.15)", fontFamily: "'MS Sans Serif', 'Segoe UI', Tahoma, sans-serif" }}>
+              <div style={{ background: "#c0c0c0", border: "2px solid #fff", borderRightColor: "#808080", borderBottomColor: "#808080", boxShadow: "inset 1px 1px 0 #dfdfdf, inset -1px -1px 0 #808080, 2px 2px 8px rgba(0,0,0,0.15)", fontFamily: "'MS Sans Serif', 'Segoe UI', Tahoma, sans-serif" }}>
                 <div style={{ background: "linear-gradient(90deg, #0d1a2e, #1a3a5c)", padding: "3px 4px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: "#F5C842", letterSpacing: "0.02em" }}>BVM Learning Center v1.0</span>
                   <div style={{ display: "flex", gap: 2 }}>
@@ -862,9 +862,9 @@ export default function ClientPortalPage() {
             </div>
 
             {/* ── MODULE 1 — THE BUILDER DO-ER ────────────── */}
-            <div>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.14em", color: "#F5C842", margin: "0 0 10px" }}>Module 1 — The Builder Do-er</p>
-              <div style={{ maxWidth: 420, background: "#c0c0c0", border: "2px solid #fff", borderRightColor: "#808080", borderBottomColor: "#808080", boxShadow: "inset 1px 1px 0 #dfdfdf, inset -1px -1px 0 #808080, 2px 2px 8px rgba(0,0,0,0.15)", fontFamily: "'MS Sans Serif', 'Segoe UI', Tahoma, sans-serif" }}>
+              <div style={{ background: "#c0c0c0", border: "2px solid #fff", borderRightColor: "#808080", borderBottomColor: "#808080", boxShadow: "inset 1px 1px 0 #dfdfdf, inset -1px -1px 0 #808080, 2px 2px 8px rgba(0,0,0,0.15)", fontFamily: "'MS Sans Serif', 'Segoe UI', Tahoma, sans-serif" }}>
                 <div style={{ background: "linear-gradient(90deg, #0d1a2e, #1a3a5c)", padding: "3px 4px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: "#F5C842", letterSpacing: "0.02em" }}>BVM Learning Center v1.0</span>
                   <div style={{ display: "flex", gap: 2 }}>
@@ -892,9 +892,9 @@ export default function ClientPortalPage() {
             </div>
 
             {/* ── MODULE 2 — COACH BRUNO UNLOCKED ─────────── */}
-            <div>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.14em", color: "#F5C842", margin: "0 0 10px" }}>Module 2 — Coach Bruno Unlocked</p>
-              <div style={{ maxWidth: 420, background: "#c0c0c0", border: "2px solid #F5C842", borderRightColor: "#808080", borderBottomColor: "#808080", fontFamily: "'MS Sans Serif', 'Segoe UI', Tahoma, sans-serif", position: "relative", animation: "pulseGlow 2.5s ease-in-out infinite" }}>
+              <div style={{ background: "#c0c0c0", border: "2px solid #F5C842", borderRightColor: "#808080", borderBottomColor: "#808080", fontFamily: "'MS Sans Serif', 'Segoe UI', Tahoma, sans-serif", position: "relative", animation: "pulseGlow 2.5s ease-in-out infinite" }}>
                 <span style={{ position: "absolute", top: -10, right: -10, background: "#F5C842", color: "#0d1a2e", fontSize: 8, fontWeight: 800, padding: "3px 10px", borderRadius: 4, letterSpacing: "0.1em", textTransform: "uppercase", zIndex: 1 }}>Available Now</span>
                 <div style={{ background: "linear-gradient(90deg, #0d1a2e, #1a3a5c)", padding: "3px 4px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: "#F5C842", letterSpacing: "0.02em" }}>BVM Learning Center v1.0</span>
