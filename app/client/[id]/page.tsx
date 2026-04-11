@@ -15,21 +15,14 @@ const UPSELLS: {
   price: string;
   preview?: string;
 }[] = [
-  { icon: "🌐", title: "Custom Web Development", product: "custom-web", desc: "Premium custom build beyond your Bruno-generated site", price: "From $1,499" },
-  { icon: "📱", title: "Social Media Management", product: "social-media", desc: "30 AI-generated posts/month, Facebook + Instagram + Google Business", price: "$199/mo", preview: "social" },
-  { icon: "🔍", title: "Search Engine Optimization", product: "seo", desc: "Local SEO, Google Business optimization, monthly ranking report", price: "$149/mo" },
-  { icon: "📣", title: "Digital Advertising", product: "digital-ads", desc: "Geo-targeted ads across Google, Facebook & Instagram", price: "$299/mo" },
-  { icon: "📧", title: "Email Marketing", product: "email-marketing", desc: "Monthly Bruno-written campaign to your customer list", price: "$99/mo" },
-  { icon: "⭐", title: "Reputation Management", product: "reputation", desc: "Monitor and respond to Google reviews, monthly report", price: "$79/mo" },
-  { icon: "🔄", title: "Site Refresh", product: "site-refresh", desc: "Annual content update, new photos, seasonal messaging", price: "$299/yr" },
-  { icon: "👑", title: "Premier Upgrade", product: "premier-upgrade", desc: "Review ticker, featured badge, animated stats", price: "$499 one-time" },
-];
-
-const BVM_SAMPLE_SITES = [
-  { look: "warm_bold", label: "Evergreen Landscapes (Local)", url: "https://evergreen-landscapes.bvmlocal.com/" },
-  { look: "professional", label: "Hurst Roofers (Community)", url: "https://hurstroofers-examplesite.bvmlocal.com/" },
-  { look: "professional", label: "Best Captain Law (Community)", url: "https://bestcaptainlaw-examplesite.bvmlocal.com/" },
-  { look: "bold_modern", label: "Best Oishi Media (Premier)", url: "https://bestoishimedia-examplesite.bvmlocal.com/" },
+  { icon: "🌐", title: "Custom Web Development", product: "custom-web", desc: "Premium custom build beyond your Bruno-generated site", price: "Talk to your rep" },
+  { icon: "📱", title: "Social Media Management", product: "social-media", desc: "30 AI-generated posts/month, Facebook + Instagram + Google Business", price: "Talk to your rep", preview: "social" },
+  { icon: "🔍", title: "Search Engine Optimization", product: "seo", desc: "Local SEO, Google Business optimization, monthly ranking report", price: "Talk to your rep" },
+  { icon: "📣", title: "Digital Advertising", product: "digital-ads", desc: "Geo-targeted ads across Google, Facebook & Instagram", price: "Talk to your rep" },
+  { icon: "📧", title: "Email Marketing", product: "email-marketing", desc: "Monthly Bruno-written campaign to your customer list", price: "Talk to your rep" },
+  { icon: "⭐", title: "Reputation Management", product: "reputation", desc: "Monitor and respond to Google reviews, monthly report", price: "Talk to your rep" },
+  { icon: "🔄", title: "Site Refresh", product: "site-refresh", desc: "Annual content update, new photos, seasonal messaging", price: "Talk to your rep" },
+  { icon: "👑", title: "Premier Upgrade", product: "premier-upgrade", desc: "Review ticker, featured badge, animated stats", price: "Talk to your rep" },
 ];
 
 const LOOK_OPTIONS = [
@@ -42,6 +35,7 @@ const CHECK_LABELS = [
   "My business name is correct",
   "My phone number is correct",
   "My services listed are accurate",
+  "Domain",
 ];
 
 export default function ClientPortalPage() {
@@ -60,8 +54,10 @@ export default function ClientPortalPage() {
 
   // Tearsheet modal state
   const [approved, setApproved] = useState(false);
-  const [checks, setChecks] = useState([false, false, false, false]);
+  const [checks, setChecks] = useState([false, false, false, false, false]);
   const [selectedLook, setSelectedLook] = useState<string | null>(null);
+  const [domainOption, setDomainOption] = useState<"has" | "needs" | null>(null);
+  const [domainUrl, setDomainUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showNote, setShowNote] = useState(false);
   const [note, setNote] = useState("");
@@ -152,6 +148,13 @@ export default function ClientPortalPage() {
     if (!allChecked || !lookSelected || !logoResolved) return;
     setSubmitting(true);
     await fetch(`/api/profile/approve/${id}`, { method: "POST" });
+    await fetch(`/api/profile/update/${id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        intakeAnswers: { ...client.intakeAnswers, q9: domainUrl || "needs-help" }
+      }),
+    });
     setApproved(true);
     setClient({ ...client, stage: "building" });
     setSubmitting(false);
@@ -167,8 +170,8 @@ export default function ClientPortalPage() {
     setSubmitting(false);
   }
 
-  if (loading) return <div style={{ minHeight: "100vh", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ width: 32, height: 32, border: "2px solid #0d1a2e", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} /><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div>;
-  if (!client) return <div style={{ minHeight: "100vh", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}><p style={{ color: "#64748b" }}>Client not found.</p></div>;
+  if (loading) return <div style={{ minHeight: "100vh", background: "#0d1a2e", display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ width: 32, height: 32, border: "2px solid #F5C842", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} /><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div>;
+  if (!client) return <div style={{ minHeight: "100vh", background: "#0d1a2e", display: "flex", alignItems: "center", justifyContent: "center" }}><p style={{ color: "rgba(255,255,255,0.5)" }}>Client not found.</p></div>;
 
   const isPreApproval = !approved && (client.stage === "intake" || client.stage === "tear-sheet");
   const currentIdx = PORTAL_STAGES.indexOf(client.stage as PipelineStage);
@@ -198,7 +201,7 @@ export default function ClientPortalPage() {
   `;
 
   return (
-    <div style={{ minHeight: "100vh", background: "#fff", display: "flex", flexDirection: "column" }}>
+    <div style={{ minHeight: "100vh", background: "#0d1a2e", display: "flex", flexDirection: "column" }}>
       <style>{keyframes}</style>
 
       {/* Gold top bar */}
@@ -351,11 +354,27 @@ export default function ClientPortalPage() {
             <div style={{ maxWidth: 600, margin: "32px auto 0" }}>
               <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: "24px 28px" }}>
                 <h3 style={{ fontSize: 15, fontWeight: 700, color: "#0d1a2e", margin: "0 0 16px" }}>Before you approve, please confirm:</h3>
-                {[...CHECK_LABELS, `My call-to-action button says what I want ("${cta}")`].map((label, i) => (
+                {[...CHECK_LABELS.slice(0, 3), `My call-to-action button says what I want ("${cta}")`].map((label, i) => (
                   <label key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", cursor: "pointer", fontSize: 14, color: "#475569" }}>
                     <input type="checkbox" checked={checks[i]} onChange={() => setChecks((p) => p.map((v, j) => j === i ? !v : v))} style={{ width: 18, height: 18, accentColor: "#F5C842" }} />{label}
                   </label>
                 ))}
+                {/* Domain checkbox */}
+                <div style={{ padding: "12px 0 4px", borderTop: "1px solid #e2e8f0", marginTop: 8 }}>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: "#475569", margin: "0 0 10px" }}>Domain</p>
+                  <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0", cursor: "pointer", fontSize: 14, color: "#475569" }}>
+                    <input type="radio" name="domain" checked={domainOption === "has"} onChange={() => { setDomainOption("has"); setChecks((p) => p.map((v, j) => j === 4 ? true : v)); }} style={{ accentColor: "#F5C842" }} />I have a domain
+                  </label>
+                  {domainOption === "has" && (
+                    <input type="text" value={domainUrl} onChange={(e) => setDomainUrl(e.target.value)} placeholder="e.g. www.mybusiness.com" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 13, marginTop: 6, marginBottom: 6, boxSizing: "border-box" }} />
+                  )}
+                  <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0", cursor: "pointer", fontSize: 14, color: "#475569" }}>
+                    <input type="radio" name="domain" checked={domainOption === "needs"} onChange={() => { setDomainOption("needs"); setDomainUrl(""); setChecks((p) => p.map((v, j) => j === 4 ? true : v)); }} style={{ accentColor: "#F5C842" }} />I need help getting one
+                  </label>
+                  {domainOption === "needs" && (
+                    <p style={{ fontSize: 12, color: "#94a3b8", margin: "4px 0 0 28px" }}>Your rep will help you find the right domain</p>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -389,14 +408,14 @@ export default function ClientPortalPage() {
       {/* Welcome overlay */}
       {showWelcome && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(13,26,46,0.95)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ background: "#fff", borderRadius: 20, padding: 40, maxWidth: 480, width: "90%", textAlign: "center" }}>
-            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 28, fontWeight: 700, color: "#0d1a2e", margin: "0 0 12px" }}>Welcome to BVM, {client.business_name}!</h2>
-            <p style={{ fontSize: 14, color: "#64748b", lineHeight: 1.7, marginBottom: 24 }}>Your site is being built. Here&apos;s what happens next.</p>
+          <div style={{ background: "#1a2740", border: "1px solid #243454", borderRadius: 20, padding: 40, maxWidth: 480, width: "90%", textAlign: "center" }}>
+            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 28, fontWeight: 700, color: "#fff", margin: "0 0 12px" }}>Welcome to BVM, {client.business_name}!</h2>
+            <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", lineHeight: 1.7, marginBottom: 24 }}>Your site is being built. Here&apos;s what happens next.</p>
             <div style={{ display: "flex", justifyContent: "center", gap: 20, marginBottom: 24 }}>
               {["Rep reviews", "Bruno builds", "You go live"].map((s, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <div style={{ width: 24, height: 24, borderRadius: "50%", background: "#F5C842", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: "#0d1a2e" }}>{i + 1}</div>
-                  <span style={{ fontSize: 13, color: "#334155" }}>{s}</span>
+                  <span style={{ fontSize: 13, color: "rgba(255,255,255,0.85)" }}>{s}</span>
                 </div>
               ))}
             </div>
@@ -454,24 +473,25 @@ export default function ClientPortalPage() {
         </aside>
 
         {/* ── MAIN CONTENT ─────────────────────────────────────────────── */}
-        <main style={{ flex: 1, background: "#fff", display: "flex", flexDirection: "column" }} id="top">
+        <main style={{ flex: 1, background: "#0d1a2e", display: "flex", flexDirection: "column" }} id="top">
 
           {/* Top Hero Bar */}
-          <div style={{ padding: "24px 32px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ padding: "24px 32px", borderBottom: "1px solid #243454", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             {/* Left: name + stage badge */}
             <div style={{ display: "flex", alignItems: "center" }}>
-              <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 26, fontWeight: 900, color: "#0d1a2e", margin: 0 }}>{client.business_name}</h1>
+              <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 26, fontWeight: 900, color: "#fff", margin: 0 }}>{client.business_name}</h1>
               <span style={{ display: "inline-block", background: "#F5C842", color: "#0d1a2e", fontSize: 11, fontWeight: 700, padding: "3px 12px", borderRadius: 999, marginLeft: 12 }}>{STAGE_LABELS_MAP[effectiveIdx]}</span>
             </div>
             {/* Right: stat pills */}
             <div style={{ display: "flex", gap: 10 }}>
               {[
-                "📊 247 Impressions",
-                "✓ QA: 94",
-                "⭐ Pulse: 4.8",
-                "🗓 12 Days Live",
-              ].map((pill) => (
-                <div key={pill} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "6px 14px", fontSize: 12, color: "#475569", fontWeight: 600 }}>{pill}</div>
+                { label: "Site", status: client.stage === "live" ? "Indexed" : client.stage === "delivered" || client.stage === "review" ? "Submitted" : "Not Submitted" },
+                { label: "QA", status: client.qaReport?.passed ? `Passed (${client.qaReport.score})` : "Pending" },
+                { label: "Stage", status: client.stage.replace(/-/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()) },
+              ].map((s) => (
+                <div key={s.label} style={{ background: "#1a2740", border: "1px solid #243454", borderRadius: 8, padding: "6px 14px", fontSize: 12, color: s.status === "Not Submitted" || s.status === "Pending" ? "#64748b" : "#F5C842", fontWeight: 600 }}>
+                  {s.label}: {s.status}
+                </div>
               ))}
             </div>
           </div>
@@ -483,50 +503,57 @@ export default function ClientPortalPage() {
             <div style={{ flex: 1, minWidth: 0 }}>
 
               {/* 1. Progress stepper card */}
-              <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: "20px 24px", marginBottom: 24 }}>
-                <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#94a3b8", margin: "0 0 16px" }}>Project Progress</p>
+              <div style={{ background: "#1a2740", border: "1px solid #243454", borderRadius: 12, padding: "20px 24px", marginBottom: 24 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "rgba(255,255,255,0.5)", margin: "0 0 16px" }}>Project Progress</p>
                 <div style={{ maxWidth: 500, display: "flex", alignItems: "center" }}>
                   {PORTAL_STAGES.map((_, i) => (
                     <div key={i} style={{ display: "flex", alignItems: "center", flex: i === 4 ? "0 0 auto" : 1 }}>
-                      <div style={{ width: 20, height: 20, borderRadius: "50%", background: i <= effectiveIdx ? "#F5C842" : "#e2e8f0", boxShadow: i === effectiveIdx ? "0 0 0 4px rgba(245,200,66,0.25)" : "none", animation: i === effectiveIdx ? "pulse 2s infinite" : "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <div style={{ width: 20, height: 20, borderRadius: "50%", background: i <= effectiveIdx ? "#F5C842" : "#334155", boxShadow: i === effectiveIdx ? "0 0 0 4px rgba(245,200,66,0.25)" : "none", animation: i === effectiveIdx ? "pulse 2s infinite" : "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         {i < effectiveIdx && <span style={{ fontSize: 10, color: "#0d1a2e", fontWeight: 700 }}>✓</span>}
                       </div>
-                      {i < 4 && <div style={{ flex: 1, height: 2, background: i < effectiveIdx ? "#F5C842" : "#e2e8f0", margin: "0 4px" }} />}
+                      {i < 4 && <div style={{ flex: 1, height: 2, background: i < effectiveIdx ? "#F5C842" : "#334155", margin: "0 4px" }} />}
                     </div>
                   ))}
                 </div>
-                <div style={{ display: "flex", gap: 32, fontSize: 11, color: "#94a3b8", marginTop: 8 }}>{STAGE_LABELS_MAP.map((l) => <span key={l}>{l}</span>)}</div>
+                <div style={{ display: "flex", gap: 32, fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 8 }}>{STAGE_LABELS_MAP.map((l) => <span key={l}>{l}</span>)}</div>
               </div>
 
-              {/* 2. Performance cards row */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
-                {/* Impressions */}
-                <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: 16, textAlign: "center" }}>
-                  <p style={{ fontSize: 11, textTransform: "uppercase", color: "#94a3b8", margin: "0 0 4px", letterSpacing: "0.06em" }}>Impressions</p>
-                  <p style={{ fontSize: 24, fontWeight: 700, color: "#0d1a2e", margin: 0 }}>247</p>
-                  <div style={{ display: "flex", justifyContent: "center", gap: 3, marginTop: 8, alignItems: "flex-end" }}>
-                    {[20, 35, 28, 40].map((h, i) => (
-                      <div key={i} style={{ width: 8, height: h, background: "#F5C842", borderRadius: 2 }} />
-                    ))}
+              {/* Domain Status */}
+              <div style={{ background: "#1a2740", border: "1px solid #243454", borderRadius: 12, padding: "20px 24px", marginBottom: 24 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#F5C842", margin: "0 0 16px" }}>Domain Status</p>
+                {client.intakeAnswers?.q9 && client.intakeAnswers.q9 !== "needs-help" ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ color: "#22c55e", fontSize: 16 }}>✓</span>
+                    <span style={{ fontSize: 14, color: "#fff", fontWeight: 600 }}>{client.intakeAnswers.q9}</span>
+                    <span style={{ fontSize: 11, color: "#22c55e", fontWeight: 600 }}>Confirmed</span>
                   </div>
-                </div>
-                {/* QA Score */}
-                <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: 16, textAlign: "center" }}>
-                  <p style={{ fontSize: 11, textTransform: "uppercase", color: "#94a3b8", margin: "0 0 4px", letterSpacing: "0.06em" }}>QA Score</p>
-                  <p style={{ fontSize: 24, fontWeight: 700, color: "#22c55e", margin: 0 }}>94%</p>
-                  <div style={{ width: 40, height: 40, borderRadius: "50%", border: "4px solid #22c55e", display: "flex", alignItems: "center", justifyContent: "center", margin: "8px auto 0", fontSize: 11, color: "#22c55e", fontWeight: 700 }}>94</div>
-                </div>
-                {/* Pulse */}
-                <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: 16, textAlign: "center" }}>
-                  <p style={{ fontSize: 11, textTransform: "uppercase", color: "#94a3b8", margin: "0 0 4px", letterSpacing: "0.06em" }}>Pulse</p>
-                  <p style={{ fontSize: 24, fontWeight: 700, color: "#0d1a2e", margin: 0 }}>4.8</p>
-                  <div style={{ fontSize: 14, color: "#F5C842", marginTop: 4 }}>★★★★★</div>
-                </div>
-                {/* Days Live */}
-                <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: 16, textAlign: "center" }}>
-                  <p style={{ fontSize: 11, textTransform: "uppercase", color: "#94a3b8", margin: "0 0 4px", letterSpacing: "0.06em" }}>Days Live</p>
-                  <p style={{ fontSize: 24, fontWeight: 700, color: "#0d1a2e", margin: 0 }}>12</p>
-                  <p style={{ fontSize: 10, color: "#94a3b8", margin: "4px 0 0" }}>since launch</p>
+                ) : client.intakeAnswers?.q9 === "needs-help" ? (
+                  <div>
+                    <p style={{ fontSize: 13, color: "#f59e0b", fontWeight: 600, margin: "0 0 8px" }}>Your rep is working on your domain.</p>
+                    <div style={{ display: "flex", gap: 12 }}>
+                      <a href="https://www.ionos.com/domains/domain-checker" target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: "#F5C842", fontWeight: 600, textDecoration: "none" }}>Buy a Domain →</a>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", margin: "0 0 12px" }}>No domain configured yet.</p>
+                    <a href="https://www.ionos.com/domains/domain-checker" target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: "#F5C842", fontWeight: 600, textDecoration: "none" }}>Buy a Domain →</a>
+                  </div>
+                )}
+                {/* Lifecycle tracker */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16 }}>
+                  {["Not Started", "Purchased", "Configured", "Live"].map((step, i) => {
+                    const domainVal = client.intakeAnswers?.q9;
+                    const activeIdx = !domainVal ? 0 : domainVal === "needs-help" ? 0 : client.stage === "live" ? 3 : 1;
+                    const done = i <= activeIdx;
+                    return (
+                      <div key={step} style={{ display: "flex", alignItems: "center", gap: 8, flex: i < 3 ? 1 : "0 0 auto" }}>
+                        <div style={{ width: 16, height: 16, borderRadius: "50%", background: done ? "#F5C842" : "#334155", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, color: "#0d1a2e", fontWeight: 700, flexShrink: 0 }}>{done && i < activeIdx ? "✓" : ""}</div>
+                        <span style={{ fontSize: 10, color: done ? "#F5C842" : "#64748b", fontWeight: done ? 600 : 400, whiteSpace: "nowrap" }}>{step}</span>
+                        {i < 3 && <div style={{ flex: 1, height: 2, background: i < activeIdx ? "#F5C842" : "#334155" }} />}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -534,40 +561,48 @@ export default function ClientPortalPage() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
 
                 {/* My Site card */}
-                <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: 24 }} id="my-site">
+                <div style={{ background: "#1a2740", border: "1px solid #243454", borderRadius: 12, padding: 24 }} id="my-site">
                   <div style={{ fontSize: 28 }}>🌐</div>
-                  <h3 style={{ fontSize: 15, fontWeight: 700, color: "#0d1a2e", margin: "8px 0 16px" }}>My Site</h3>
-                  <div style={{ background: "#374151", borderRadius: "10px 10px 0 0", padding: "8px 12px 0" }}>
-                    <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>{["#ef4444", "#f59e0b", "#22c55e"].map((c) => <div key={c} style={{ width: 8, height: 8, borderRadius: "50%", background: c }} />)}</div>
-                    <div style={{ background: "#fff", borderRadius: "4px 4px 0 0", height: 300, overflow: "hidden" }}>
-                      <iframe src={`/api/site/generate?clientId=${client.id}&lookKey=${client.selectedLook || "warm_bold"}`} style={{ width: "250%", height: 900, border: "none", transform: "scale(0.4)", transformOrigin: "top left", pointerEvents: "none" }} title="Site" />
+                  <h3 style={{ fontSize: 15, fontWeight: 700, color: "#fff", margin: "8px 0 16px" }}>My Site</h3>
+                  {siteHtml ? (
+                    <>
+                      <div style={{ background: "#374151", borderRadius: "10px 10px 0 0", padding: "8px 12px 0" }}>
+                        <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>{["#ef4444", "#f59e0b", "#22c55e"].map((c) => <div key={c} style={{ width: 8, height: 8, borderRadius: "50%", background: c }} />)}</div>
+                        <div style={{ background: "#fff", borderRadius: "4px 4px 0 0", height: 300, overflow: "hidden" }}>
+                          <iframe srcDoc={siteHtml || ""} style={{ width: "250%", height: 900, border: "none", transform: "scale(0.4)", transformOrigin: "top left", pointerEvents: "none" }} title="Site" />
+                        </div>
+                      </div>
+                      <div style={{ background: "#4b5563", height: 12, borderRadius: "0 0 6px 6px", marginBottom: 12 }} />
+                      <button onClick={() => { const w = window.open("", "_blank"); if (w && siteHtml) { w.document.write(siteHtml); w.document.close(); } }} style={{ fontSize: 12, color: "#F5C842", fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0 }}>View Full Size →</button>
+                    </>
+                  ) : (
+                    <div style={{ background: "#1a2740", borderRadius: 10, padding: 40, textAlign: "center" }}>
+                      <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", margin: 0 }}>Your site is being prepared.</p>
                     </div>
-                  </div>
-                  <div style={{ background: "#4b5563", height: 12, borderRadius: "0 0 6px 6px", marginBottom: 12 }} />
-                  <a href={`/api/site/generate?clientId=${client.id}&lookKey=${client.selectedLook || "warm_bold"}`} target="_blank" style={{ fontSize: 12, color: "#F5C842", fontWeight: 600, textDecoration: "none" }}>View Full Size →</a>
+                  )}
                 </div>
 
                 {/* Web Edit card */}
-                <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: 24 }} id="campaign">
+                <div style={{ background: "#1a2740", border: "1px solid #243454", borderRadius: 12, padding: 24 }} id="campaign">
                   <div style={{ fontSize: 28 }}>✏️</div>
-                  <h3 style={{ fontSize: 15, fontWeight: 700, color: "#0d1a2e", margin: "8px 0 16px" }}>Request a Change</h3>
+                  <h3 style={{ fontSize: 15, fontWeight: 700, color: "#fff", margin: "8px 0 16px" }}>Request a Change</h3>
                   {!editSent ? (
                     <>
-                      <textarea value={editText} onChange={(e) => setEditText(e.target.value)} placeholder="Describe what you'd like changed..." style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 13, resize: "none", boxSizing: "border-box" }} rows={4} />
+                      <textarea value={editText} onChange={(e) => setEditText(e.target.value)} placeholder="Describe what you'd like changed..." style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #243454", fontSize: 13, resize: "none", boxSizing: "border-box", background: "#0d1a2e", color: "#e2e8f0" }} rows={4} />
                       <button onClick={async () => { if (!editText.trim()) return; await postInterest("web-edit", { note: editText }); setEditSent(true); }} style={{ marginTop: 10, background: "#F5C842", color: "#0d1a2e", border: "none", padding: "9px 20px", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Submit Web Edit →</button>
                     </>
                   ) : <p style={{ fontSize: 13, color: "#22c55e", fontWeight: 600 }}>Your rep has been notified.</p>}
                 </div>
 
                 {/* Print Campaign card */}
-                <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: 24 }}>
+                <div style={{ background: "#1a2740", border: "1px solid #243454", borderRadius: 12, padding: 24 }}>
                   <div style={{ fontSize: 28 }}>📰</div>
-                  <h3 style={{ fontSize: 15, fontWeight: 700, color: "#0d1a2e", margin: "8px 0 16px" }}>Print Campaign</h3>
+                  <h3 style={{ fontSize: 15, fontWeight: 700, color: "#fff", margin: "8px 0 16px" }}>Print Campaign</h3>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginBottom: 14 }}>
                     {[{ id: "eighth", label: "1/8 Page", desc: "Brand Awareness" }, { id: "quarter", label: "1/4 Page", desc: "Most Popular" }, { id: "half", label: "1/2 Page", desc: "Dominant" }, { id: "full_page", label: "Full Page", desc: "Max Impact" }, { id: "front_cover", label: "Front Cover", desc: "Exclusive" }].map((s) => (
-                      <button key={s.id} onClick={() => { setPrintSize(s.id); setPrintSent(false); }} style={{ background: printSize === s.id ? "#fffbeb" : "#fff", border: printSize === s.id ? "2px solid #F5C842" : "2px solid #e2e8f0", borderRadius: 10, padding: "10px 6px", cursor: "pointer", textAlign: "center" }}>
-                        <p style={{ fontSize: 10, fontWeight: 700, color: "#0d1a2e", margin: "0 0 2px" }}>{s.label}</p>
-                        <p style={{ fontSize: 9, color: "#64748b", margin: 0 }}>{s.desc}</p>
+                      <button key={s.id} onClick={() => { setPrintSize(s.id); setPrintSent(false); }} style={{ background: printSize === s.id ? "rgba(245,200,66,0.1)" : "#0d1a2e", border: printSize === s.id ? "2px solid #F5C842" : "2px solid #243454", borderRadius: 10, padding: "10px 6px", cursor: "pointer", textAlign: "center" }}>
+                        <p style={{ fontSize: 10, fontWeight: 700, color: "#e2e8f0", margin: "0 0 2px" }}>{s.label}</p>
+                        <p style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", margin: 0 }}>{s.desc}</p>
                       </button>
                     ))}
                   </div>
@@ -575,13 +610,13 @@ export default function ClientPortalPage() {
                     <button onClick={async () => { await postInterest("print", { size: printSize }); setPrintSent(true); }} style={{ background: "#F5C842", color: "#0d1a2e", border: "none", padding: "9px 20px", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 10 }}>{printSize === "front_cover" ? "Request Featured Placement →" : "Send to My Rep →"}</button>
                   )}
                   {printSent && <p style={{ fontSize: 13, color: "#22c55e", fontWeight: 600, margin: "0 0 10px" }}>Your rep has been notified!</p>}
-                  <div style={{ paddingTop: 12, borderTop: "1px solid #f1f5f9" }}>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: "#0d1a2e", margin: "0 0 6px" }}>Print Request</p>
-                    <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 10px" }}>Want to update your print campaign?</p>
+                  <div style={{ paddingTop: 12, borderTop: "1px solid #243454" }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: "#fff", margin: "0 0 6px" }}>Print Request</p>
+                    <p style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", margin: "0 0 10px" }}>Want to update your print campaign?</p>
                     {!interests.has("print-request") ? (
                       <button onClick={() => postInterest("print-request")} style={{ background: "#F5C842", color: "#0d1a2e", border: "none", padding: "8px 20px", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Talk to Your Rep →</button>
                     ) : <p style={{ fontSize: 13, color: "#22c55e", fontWeight: 600, margin: 0 }}>Your rep will reach out.</p>}
-                    <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 8, marginBottom: 0 }}>Your BVM rep will reach out to discuss print options.</p>
+                    <p style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 8, marginBottom: 0 }}>Your BVM rep will reach out to discuss print options.</p>
                   </div>
                 </div>
 
@@ -590,7 +625,7 @@ export default function ClientPortalPage() {
               {/* ── GROW YOUR CAMPAIGN — stacked rows ───────────── */}
               <div style={{ marginBottom: 24 }} id="grow">
                 <div style={{ marginBottom: 16 }}>
-                  <h2 style={{ fontSize: 20, fontWeight: 800, color: "#1f2937", margin: 0, display: "inline-block", paddingBottom: 6, borderBottom: "3px solid #0091ae" }}>
+                  <h2 style={{ fontSize: 20, fontWeight: 800, color: "#fff", margin: 0, display: "inline-block", paddingBottom: 6, borderBottom: "3px solid #0091ae" }}>
                     Grow Your Campaign
                   </h2>
                 </div>
@@ -602,8 +637,8 @@ export default function ClientPortalPage() {
                         key={u.product}
                         className="grow-row"
                         style={{
-                          background: "#fff",
-                          border: "1px solid #e7edf3",
+                          background: "#1a2740",
+                          border: "1px solid #243454",
                           borderRadius: 10,
                           padding: 16,
                           display: "flex",
@@ -613,8 +648,8 @@ export default function ClientPortalPage() {
                       >
                         <div style={{ fontSize: 24, flexShrink: 0, width: 32, textAlign: "center" }}>{u.icon}</div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ fontSize: 14, fontWeight: 700, color: "#1f2937", margin: 0 }}>{u.title}</p>
-                          <p style={{ fontSize: 12, color: "#516f90", margin: "2px 0 0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{u.desc}</p>
+                          <p style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0", margin: 0 }}>{u.title}</p>
+                          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", margin: "2px 0 0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{u.desc}</p>
                           {u.preview === "social" && (
                             <a
                               href={`/social/${id}`}
@@ -678,10 +713,10 @@ export default function ClientPortalPage() {
             </div>{/* end left/center column */}
 
             {/* ── RIGHT PANEL ──────────────────────────────────────────── */}
-            <div style={{ width: 280, flexShrink: 0, background: "#f8fafc", borderRadius: 12, border: "1px solid #e2e8f0", padding: 0, overflow: "hidden", alignSelf: "flex-start" }} id="messages">
+            <div style={{ width: 280, flexShrink: 0, background: "#1a2740", borderRadius: 12, border: "1px solid #243454", padding: 0, overflow: "hidden", alignSelf: "flex-start" }} id="messages">
 
               {/* Activity header */}
-              <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#475569" }}>
+              <div style={{ padding: "16px 20px", borderBottom: "1px solid #243454", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(255,255,255,0.85)" }}>
                 Activity
               </div>
 
@@ -692,8 +727,8 @@ export default function ClientPortalPage() {
                   <div key={`bl-${i}`} style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
                     <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#F5C842", flexShrink: 0, marginTop: 3 }} />
                     <div>
-                      <p style={{ fontSize: 12, color: "#475569", margin: "0 0 2px" }}>Stage: {entry.from} → {entry.to}</p>
-                      <p style={{ fontSize: 10, color: "#94a3b8", margin: 0 }}>{new Date(entry.timestamp).toLocaleString()}</p>
+                      <p style={{ fontSize: 12, color: "rgba(255,255,255,0.85)", margin: "0 0 2px" }}>Stage: {entry.from} → {entry.to}</p>
+                      <p style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", margin: 0 }}>{new Date(entry.timestamp).toLocaleString()}</p>
                     </div>
                   </div>
                 ))}
@@ -702,18 +737,18 @@ export default function ClientPortalPage() {
                   <div key={`msg-${i}`} style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
                     <div style={{ width: 8, height: 8, borderRadius: "50%", background: m.from === "rep" ? "#3b82f6" : "#0891b2", flexShrink: 0, marginTop: 3 }} />
                     <div>
-                      <p style={{ fontSize: 12, color: "#475569", margin: "0 0 2px" }}>{m.text.length > 60 ? m.text.slice(0, 60) + "…" : m.text}</p>
-                      <p style={{ fontSize: 10, color: "#94a3b8", margin: 0 }}>{new Date(m.timestamp).toLocaleString()}</p>
+                      <p style={{ fontSize: 12, color: "rgba(255,255,255,0.85)", margin: "0 0 2px" }}>{m.text.length > 60 ? m.text.slice(0, 60) + "…" : m.text}</p>
+                      <p style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", margin: 0 }}>{new Date(m.timestamp).toLocaleString()}</p>
                     </div>
                   </div>
                 ))}
                 {client.buildLog.length === 0 && client.messages.length === 0 && (
-                  <p style={{ fontSize: 12, color: "#94a3b8", margin: 0 }}>No activity yet.</p>
+                  <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", margin: 0 }}>No activity yet.</p>
                 )}
               </div>
 
               {/* Messages section divider */}
-              <div style={{ borderTop: "1px solid #e2e8f0", padding: "16px 20px", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#475569" }}>
+              <div style={{ borderTop: "1px solid #243454", padding: "16px 20px", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(255,255,255,0.85)" }}>
                 Messages
               </div>
 
@@ -721,19 +756,19 @@ export default function ClientPortalPage() {
               <div style={{ padding: "0 16px 12px" }}>
                 <div style={{ maxHeight: 220, overflowY: "auto", marginBottom: 12 }}>
                   {client.messages.length > 0 ? client.messages.map((m, i) => (
-                    <div key={i} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, padding: 10, marginBottom: 8 }}>
+                    <div key={i} style={{ background: "#0d1a2e", border: "1px solid #243454", borderRadius: 8, padding: 10, marginBottom: 8 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: "#0d1a2e" }}>{m.from === "rep" ? "Your BVM Rep" : "You"}</span>
-                        <span style={{ fontSize: 10, color: "#94a3b8" }}>{new Date(m.timestamp).toLocaleString()}</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: "#fff" }}>{m.from === "rep" ? "Your BVM Rep" : "You"}</span>
+                        <span style={{ fontSize: 10, color: "rgba(255,255,255,0.5)" }}>{new Date(m.timestamp).toLocaleString()}</span>
                       </div>
-                      <p style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6, margin: 0 }}>{m.text}</p>
+                      <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", lineHeight: 1.6, margin: 0 }}>{m.text}</p>
                     </div>
                   )) : (
-                    <p style={{ fontSize: 12, color: "#94a3b8", margin: 0 }}>No messages yet.</p>
+                    <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", margin: 0 }}>No messages yet.</p>
                   )}
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <input type="text" value={replyInput} onChange={(e) => setReplyInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendReply()} placeholder="Send to rep..." style={{ flex: 1, padding: "7px 10px", borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 12 }} />
+                  <input type="text" value={replyInput} onChange={(e) => setReplyInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendReply()} placeholder="Send to rep..." style={{ flex: 1, padding: "7px 10px", borderRadius: 8, border: "1px solid #243454", fontSize: 12, background: "#0d1a2e", color: "#e2e8f0" }} />
                   <button onClick={sendReply} style={{ background: "#F5C842", color: "#0d1a2e", border: "none", padding: "7px 12px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{replySent ? "Sent!" : "Send →"}</button>
                 </div>
               </div>
@@ -815,8 +850,8 @@ export default function ClientPortalPage() {
       </section>
 
       {/* Footer */}
-      <footer style={{ background: "#fff", borderTop: "1px solid #e2e8f0", padding: "20px 32px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <p style={{ fontSize: 13, color: "#94a3b8", margin: 0 }}>Questions? Your BVM rep is {client.assigned_rep}.</p>
+      <footer style={{ background: "#0d1a2e", borderTop: "1px solid #243454", padding: "20px 32px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <p style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", margin: 0 }}>Questions? Your BVM rep is {client.assigned_rep}.</p>
         <a href={`mailto:therrera@bestversionmedia.com?subject=${encodeURIComponent(`Question about ${client.business_name}`)}`} style={{ background: "#0d1a2e", color: "#fff", padding: "10px 24px", borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none" }}>Contact Rep →</a>
       </footer>
 
