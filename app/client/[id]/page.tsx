@@ -834,8 +834,8 @@ export default function ClientPortalPage() {
             {/* ── MODULE 0 — ONBOARDING ──────────────────── */}
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.14em", color: "#F5C842", margin: "0 0 10px" }}>Module 0 — Onboarding</p>
-              <div style={{ background: "#c0c0c0", border: "2px solid #fff", borderRightColor: "#808080", borderBottomColor: "#808080", boxShadow: "inset 1px 1px 0 #dfdfdf, inset -1px -1px 0 #808080, 2px 2px 8px rgba(0,0,0,0.15)", fontFamily: "'MS Sans Serif', 'Segoe UI', Tahoma, sans-serif" }}>
-                <div style={{ background: "linear-gradient(90deg, #0d1a2e, #1a3a5c)", padding: "3px 4px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ height: 420, background: "#c0c0c0", border: "2px solid #fff", borderRightColor: "#808080", borderBottomColor: "#808080", boxShadow: "inset 1px 1px 0 #dfdfdf, inset -1px -1px 0 #808080, 2px 2px 8px rgba(0,0,0,0.15)", fontFamily: "'MS Sans Serif', 'Segoe UI', Tahoma, sans-serif", display: "flex", flexDirection: "column" }}>
+                <div style={{ background: "linear-gradient(90deg, #0d1a2e, #1a3a5c)", padding: "3px 4px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: "#F5C842", letterSpacing: "0.02em" }}>BVM Learning Center v1.0</span>
                   <div style={{ display: "flex", gap: 2 }}>
                     {["_", "□", "x"].map((b) => (
@@ -843,29 +843,29 @@ export default function ClientPortalPage() {
                     ))}
                   </div>
                 </div>
-                <div style={{ borderBottom: "1px solid #808080", padding: "2px 6px", fontSize: 11, color: "#000", display: "flex", gap: 12 }}>
+                <div style={{ borderBottom: "1px solid #808080", padding: "2px 6px", fontSize: 11, color: "#000", display: "flex", gap: 12, flexShrink: 0 }}>
                   <span style={{ textDecoration: "underline" }}>File</span>
                   <span style={{ textDecoration: "underline" }}>View</span>
                   <span style={{ textDecoration: "underline" }}>Help</span>
                 </div>
-                <div style={{ padding: 8 }}>
-                  <div style={{ background: "#000", border: "2px solid #808080", borderRightColor: "#fff", borderBottomColor: "#fff" }}>
-                    <video src="/claire-onboarding.mp4" controls preload="metadata" style={{ width: "100%", height: 200, display: "block", background: "#000" }} />
+                <div style={{ padding: 8, flex: 1, display: "flex", flexDirection: "column" }}>
+                  <div style={{ background: "#000", border: "2px solid #808080", borderRightColor: "#fff", borderBottomColor: "#fff", height: 240, flexShrink: 0 }}>
+                    <video src="/claire-onboarding.mp4" controls preload="metadata" style={{ width: "100%", height: 240, display: "block", background: "#000" }} />
                   </div>
-                  <div style={{ marginTop: 8, padding: "6px 4px" }}>
+                  <div style={{ marginTop: 8, padding: "6px 4px", flex: 1 }}>
                     <p style={{ fontSize: 13, fontWeight: 700, color: "#000", margin: "0 0 4px" }}>Welcome to BVM Digital with Claire</p>
                     <p style={{ fontSize: 11, color: "#444", margin: 0, lineHeight: 1.4 }}>Your onboarding walkthrough — play any time to revisit how BVM works.</p>
                   </div>
                 </div>
-                <div style={{ borderTop: "1px solid #808080", padding: "2px 6px", fontSize: 10, color: "#444" }}>Module 0 of 3</div>
+                <div style={{ borderTop: "1px solid #808080", padding: "2px 6px", fontSize: 10, color: "#444", flexShrink: 0 }}>Module 0 of 3</div>
               </div>
             </div>
 
             {/* ── MODULE 1 — THE BUILDER DO-ER ────────────── */}
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.14em", color: "#F5C842", margin: "0 0 10px" }}>Module 1 — The Builder Do-er</p>
-              <div style={{ background: "#c0c0c0", border: "2px solid #fff", borderRightColor: "#808080", borderBottomColor: "#808080", boxShadow: "inset 1px 1px 0 #dfdfdf, inset -1px -1px 0 #808080, 2px 2px 8px rgba(0,0,0,0.15)", fontFamily: "'MS Sans Serif', 'Segoe UI', Tahoma, sans-serif" }}>
-                <div style={{ background: "linear-gradient(90deg, #0d1a2e, #1a3a5c)", padding: "3px 4px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ height: 420, background: "#c0c0c0", border: "2px solid #fff", borderRightColor: "#808080", borderBottomColor: "#808080", boxShadow: "inset 1px 1px 0 #dfdfdf, inset -1px -1px 0 #808080, 2px 2px 8px rgba(0,0,0,0.15)", fontFamily: "'MS Sans Serif', 'Segoe UI', Tahoma, sans-serif", display: "flex", flexDirection: "column" }}>
+                <div style={{ background: "linear-gradient(90deg, #0d1a2e, #1a3a5c)", padding: "3px 4px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: "#F5C842", letterSpacing: "0.02em" }}>BVM Learning Center v1.0</span>
                   <div style={{ display: "flex", gap: 2 }}>
                     {["_", "□", "x"].map((b) => (
@@ -873,30 +873,30 @@ export default function ClientPortalPage() {
                     ))}
                   </div>
                 </div>
-                <div style={{ borderBottom: "1px solid #808080", padding: "2px 6px", fontSize: 11, color: "#000", display: "flex", gap: 12 }}>
+                <div style={{ borderBottom: "1px solid #808080", padding: "2px 6px", fontSize: 11, color: "#000", display: "flex", gap: 12, flexShrink: 0 }}>
                   <span style={{ textDecoration: "underline" }}>File</span>
                   <span style={{ textDecoration: "underline" }}>View</span>
                   <span style={{ textDecoration: "underline" }}>Help</span>
                 </div>
-                <div style={{ padding: 8 }}>
-                  <div style={{ background: "#000", border: "2px solid #808080", borderRightColor: "#fff", borderBottomColor: "#fff", position: "relative", paddingBottom: "56.25%", height: 0 }}>
+                <div style={{ padding: 8, flex: 1, display: "flex", flexDirection: "column" }}>
+                  <div style={{ background: "#000", border: "2px solid #808080", borderRightColor: "#fff", borderBottomColor: "#fff", height: 240, flexShrink: 0, position: "relative" }}>
                     <iframe src="https://www.youtube.com/embed/WkJpEG4KbN4?si=7bgkmqiGzNnRY77o" title="The Builder Do-er" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" }} />
                   </div>
-                  <div style={{ marginTop: 8, padding: "6px 4px" }}>
+                  <div style={{ marginTop: 8, padding: "6px 4px", flex: 1 }}>
                     <p style={{ fontSize: 13, fontWeight: 700, color: "#000", margin: "0 0 4px" }}>The Builder Do-er</p>
                     <p style={{ fontSize: 11, color: "#444", margin: 0, lineHeight: 1.4 }}>How to think like a builder and take action every day.</p>
                   </div>
                 </div>
-                <div style={{ borderTop: "1px solid #808080", padding: "2px 6px", fontSize: 10, color: "#444" }}>Module 1 of 3</div>
+                <div style={{ borderTop: "1px solid #808080", padding: "2px 6px", fontSize: 10, color: "#444", flexShrink: 0 }}>Module 1 of 3</div>
               </div>
             </div>
 
             {/* ── MODULE 2 — COACH BRUNO UNLOCKED ─────────── */}
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.14em", color: "#F5C842", margin: "0 0 10px" }}>Module 2 — Coach Bruno Unlocked</p>
-              <div style={{ background: "#c0c0c0", border: "2px solid #F5C842", borderRightColor: "#808080", borderBottomColor: "#808080", fontFamily: "'MS Sans Serif', 'Segoe UI', Tahoma, sans-serif", position: "relative", animation: "pulseGlow 2.5s ease-in-out infinite" }}>
+              <div style={{ height: 420, background: "#c0c0c0", border: "2px solid #F5C842", borderRightColor: "#808080", borderBottomColor: "#808080", fontFamily: "'MS Sans Serif', 'Segoe UI', Tahoma, sans-serif", position: "relative", animation: "pulseGlow 2.5s ease-in-out infinite", display: "flex", flexDirection: "column" }}>
                 <span style={{ position: "absolute", top: -10, right: -10, background: "#F5C842", color: "#0d1a2e", fontSize: 8, fontWeight: 800, padding: "3px 10px", borderRadius: 4, letterSpacing: "0.1em", textTransform: "uppercase", zIndex: 1 }}>Available Now</span>
-                <div style={{ background: "linear-gradient(90deg, #0d1a2e, #1a3a5c)", padding: "3px 4px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ background: "linear-gradient(90deg, #0d1a2e, #1a3a5c)", padding: "3px 4px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: "#F5C842", letterSpacing: "0.02em" }}>BVM Learning Center v1.0</span>
                   <div style={{ display: "flex", gap: 2 }}>
                     {["_", "□", "x"].map((b) => (
@@ -904,12 +904,12 @@ export default function ClientPortalPage() {
                     ))}
                   </div>
                 </div>
-                <div style={{ borderBottom: "1px solid #808080", padding: "2px 6px", fontSize: 11, color: "#000", display: "flex", gap: 12 }}>
+                <div style={{ borderBottom: "1px solid #808080", padding: "2px 6px", fontSize: 11, color: "#000", display: "flex", gap: 12, flexShrink: 0 }}>
                   <span style={{ textDecoration: "underline" }}>File</span>
                   <span style={{ textDecoration: "underline" }}>View</span>
                   <span style={{ textDecoration: "underline" }}>Help</span>
                 </div>
-                <div style={{ padding: 16, textAlign: "center" }}>
+                <div style={{ padding: 16, textAlign: "center", flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 240 }}>
                   <p style={{ fontSize: 28, margin: "0 0 8px" }}>🤖</p>
                   <p style={{ fontSize: 14, fontWeight: 700, color: "#000", margin: "0 0 4px" }}>Coach Bruno Unlocked</p>
                   <p style={{ fontSize: 11, color: "#444", margin: "0 0 16px", lineHeight: 1.4 }}>Your AI coach is ready. Ask anything about your campaign, your market, your next move.</p>
@@ -918,7 +918,7 @@ export default function ClientPortalPage() {
                     <a href="https://coach-bruno-next.vercel.app" target="_blank" rel="noopener noreferrer" style={{ background: "#c0c0c0", border: "2px solid #fff", borderRightColor: "#808080", borderBottomColor: "#808080", padding: "6px 14px", fontSize: 11, fontWeight: 700, cursor: "pointer", textDecoration: "none", color: "#000", fontFamily: "inherit" }}>Ask Bruno a Question →</a>
                   </div>
                 </div>
-                <div style={{ borderTop: "1px solid #808080", padding: "2px 6px", fontSize: 10, color: "#444" }}>Module 2 of 3 — AI Coach</div>
+                <div style={{ borderTop: "1px solid #808080", padding: "2px 6px", fontSize: 10, color: "#444", flexShrink: 0 }}>Module 2 of 3 — AI Coach</div>
               </div>
             </div>
 
