@@ -689,7 +689,7 @@ export default function ClientPortalPage() {
                           <span style={{ fontSize: 14, color: "rgba(255,255,255,0.4)", flexShrink: 0, transition: "transform 0.2s", transform: open ? "rotate(90deg)" : "rotate(0deg)", display: "inline-block" }}>▶</span>
                         </button>
                         {/* Expanded body */}
-                        <div style={{ maxHeight: open ? 200 : 0, overflow: "hidden", transition: "max-height 0.25s ease" }}>
+                        {open && (
                           <div style={{ padding: "0 16px 14px 58px" }}>
                             <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", margin: "0 0 8px", lineHeight: 1.5 }}>{u.desc}</p>
                             {u.preview === "social" && (
@@ -709,7 +709,7 @@ export default function ClientPortalPage() {
                               )}
                             </div>
                           </div>
-                        </div>
+                        )}
                       </div>
                     );
                   })}
