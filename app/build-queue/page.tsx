@@ -546,6 +546,7 @@ export default function BuildQueuePage() {
   const [issues, setIssues] = useState<QaIssue[]>([]);
   const [fixedLines, setFixedLines] = useState<Set<number>>(new Set());
   const [buildCompleted, setBuildCompleted] = useState(false);
+  const [showDeliveryModal, setShowDeliveryModal] = useState(false);
   const [editHistory, setEditHistory] = useState<EditHistoryEntry[]>([]);
   const editorRef = useRef<{ jumpToLine: (n: number) => void } | null>(null);
 
@@ -626,6 +627,7 @@ export default function BuildQueuePage() {
     setQaGateMessage("");
     setSaveError("");
     setBuildCompleted(false);
+    setShowDeliveryModal(false);
     setEditHistory(b.editHistory ?? []);
     setGateStep(0);
     setIssues([]);
@@ -948,6 +950,7 @@ export default function BuildQueuePage() {
 
     setGateStep(4);
     setBuildCompleted(true);
+    setShowDeliveryModal(true);
     addHistoryEntry(qaHash || "", "Build complete — delivered");
     setToast(`${selectedBuild.businessName} — COMPLETE. Rep, AM, and client notified.`);
     setTimeout(() => setToast(""), 5000);
@@ -1341,6 +1344,57 @@ export default function BuildQueuePage() {
           }}
         >
           ✓ {toast}
+        </div>
+      )}
+
+      {/* ── DELIVERY PREVIEW MODAL ──────────────────────── */}
+      {showDeliveryModal && selectedBuild && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.7)", zIndex: 1000,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <div style={{
+            width: "90vw", height: "90vh", background: "#fff", borderRadius: 16,
+            display: "flex", flexDirection: "column", overflow: "hidden",
+            boxShadow: "0 24px 80px rgba(0,0,0,0.4)",
+          }}>
+            {/* Modal header */}
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "16px 24px", borderBottom: `1px solid ${COLORS.cardBorder}`, flexShrink: 0,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <h2 style={{ fontSize: 20, fontWeight: 700, color: COLORS.body, margin: 0 }}>
+                  {selectedBuild.businessName}
+                </h2>
+                <span style={{
+                  fontSize: 11, fontWeight: 700, padding: "4px 14px", borderRadius: 999,
+                  background: COLORS.success, color: "#fff", letterSpacing: "0.06em",
+                }}>
+                  Delivered ✓
+                </span>
+              </div>
+              <button
+                onClick={() => setShowDeliveryModal(false)}
+                style={{
+                  width: 36, height: 36, borderRadius: "50%", border: "none",
+                  background: COLORS.pageBg, fontSize: 18, color: COLORS.secondary,
+                  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            {/* Iframe preview */}
+            <div style={{ flex: 1, overflow: "hidden" }}>
+              <iframe
+                srcDoc={editedHtml}
+                title="Final delivery preview"
+                style={{ width: "100%", height: "100%", border: "none" }}
+              />
+            </div>
+          </div>
         </div>
       )}
 
