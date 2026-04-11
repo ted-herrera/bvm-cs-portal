@@ -665,48 +665,72 @@ export default function ClientPortalPage() {
 
               </div>
 
-              {/* ── GROW YOUR CAMPAIGN — single toggle ───────────── */}
+              {/* ── GROW YOUR CAMPAIGN ───────────── */}
               <div style={{ marginBottom: 24 }} id="grow">
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: upsellsOpen ? 12 : 0 }}>
-                  <h2 style={{ fontSize: 20, fontWeight: 800, color: "#fff", margin: 0, display: "inline-block", paddingBottom: 6, borderBottom: "3px solid #0091ae" }}>
-                    Grow Your Campaign
-                  </h2>
+                <h2 style={{ fontSize: 20, fontWeight: 800, color: "#fff", margin: "0 0 4px", display: "inline-block", paddingBottom: 6, borderBottom: "3px solid #0091ae" }}>
+                  Grow Your Campaign
+                </h2>
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", margin: "8px 0 12px" }}>Explore products designed to help your business grow.</p>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {/* First row — always visible */}
+                  {(() => {
+                    const u = UPSELLS[0];
+                    const interested = interests.has(u.product);
+                    return (
+                      <div style={{ background: "#1a2740", border: "1px solid #243454", borderRadius: 10, padding: 16, display: "flex", alignItems: "center", gap: 14 }}>
+                        <div style={{ fontSize: 22, flexShrink: 0, width: 28, textAlign: "center" }}>{u.icon}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0", margin: 0 }}>{u.title}</p>
+                          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", margin: "2px 0 0" }}>{u.desc}</p>
+                        </div>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: "#0091ae", flexShrink: 0 }}>{u.price}</span>
+                        {interested ? (
+                          <span style={{ fontSize: 12, color: "#00bda5", fontWeight: 700, flexShrink: 0 }}>✓ Rep notified</span>
+                        ) : (
+                          <button onClick={() => postInterest(u.product)} style={{ background: "#ff7a59", color: "#fff", border: "none", padding: "8px 16px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
+                            I&apos;m Interested →
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Toggle button */}
                   <button
                     onClick={() => setUpsellsOpen(!upsellsOpen)}
-                    style={{ background: "transparent", border: "1px solid #243454", borderRadius: 6, padding: "6px 16px", fontSize: 12, fontWeight: 600, color: "#F5C842", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+                    style={{ background: "#1a2740", border: "1px solid #243454", borderRadius: 8, padding: "10px 0", fontSize: 12, fontWeight: 600, color: "#F5C842", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%" }}
                   >
-                    {upsellsOpen ? "Hide Options" : "View Options →"}
-                    <span style={{ display: "inline-block", transition: "transform 0.35s ease-in-out", transform: upsellsOpen ? "rotate(90deg)" : "rotate(0deg)", fontSize: 10 }}>▶</span>
+                    {upsellsOpen ? "Show Less ↑" : `See All Options ↓ (${UPSELLS.length - 1} more)`}
                   </button>
-                </div>
-                <div style={{ maxHeight: upsellsOpen ? 1200 : 0, overflow: "hidden", transition: "max-height 0.35s ease-in-out" }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 4 }}>
-                    {UPSELLS.map((u) => {
-                      const interested = interests.has(u.product);
-                      return (
-                        <div key={u.product} style={{ background: "#1a2740", border: "1px solid #243454", borderRadius: 10, padding: 16, display: "flex", alignItems: "center", gap: 14 }}>
-                          <div style={{ fontSize: 22, flexShrink: 0, width: 28, textAlign: "center" }}>{u.icon}</div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0", margin: 0 }}>{u.title}</p>
-                            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", margin: "2px 0 0" }}>{u.desc}</p>
-                            {u.preview === "social" && (
-                              <a href={`/social/${id}`} target="_blank" rel="noopener" style={{ fontSize: 11, color: "#0091ae", fontWeight: 600, textDecoration: "none", marginTop: 4, display: "inline-block" }}>Preview Content →</a>
+
+                  {/* Remaining 7 rows — toggled */}
+                  <div style={{ maxHeight: upsellsOpen ? 1200 : 0, overflow: "hidden", transition: "max-height 0.35s ease-in-out" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {UPSELLS.slice(1).map((u) => {
+                        const interested = interests.has(u.product);
+                        return (
+                          <div key={u.product} style={{ background: "#1a2740", border: "1px solid #243454", borderRadius: 10, padding: 16, display: "flex", alignItems: "center", gap: 14 }}>
+                            <div style={{ fontSize: 22, flexShrink: 0, width: 28, textAlign: "center" }}>{u.icon}</div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <p style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0", margin: 0 }}>{u.title}</p>
+                              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", margin: "2px 0 0" }}>{u.desc}</p>
+                              {u.preview === "social" && (
+                                <a href={`/social/${id}`} target="_blank" rel="noopener" style={{ fontSize: 11, color: "#0091ae", fontWeight: 600, textDecoration: "none", marginTop: 4, display: "inline-block" }}>Preview Content →</a>
+                              )}
+                            </div>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: "#0091ae", flexShrink: 0, whiteSpace: "nowrap" }}>{u.price}</span>
+                            {interested ? (
+                              <span style={{ fontSize: 12, color: "#00bda5", fontWeight: 700, flexShrink: 0 }}>✓ Rep notified</span>
+                            ) : (
+                              <button onClick={() => postInterest(u.product)} style={{ background: "#ff7a59", color: "#fff", border: "none", padding: "8px 16px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
+                                I&apos;m Interested →
+                              </button>
                             )}
                           </div>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: "#0091ae", flexShrink: 0, whiteSpace: "nowrap" }}>{u.price}</span>
-                          {interested ? (
-                            <span style={{ fontSize: 12, color: "#00bda5", fontWeight: 700, flexShrink: 0 }}>✓ Rep notified</span>
-                          ) : (
-                            <button
-                              onClick={() => postInterest(u.product)}
-                              style={{ background: "#ff7a59", color: "#fff", border: "none", padding: "8px 16px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}
-                            >
-                              I&apos;m Interested →
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>
