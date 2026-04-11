@@ -58,7 +58,7 @@ export default function ClientPortalPage() {
   const [selectedLook, setSelectedLook] = useState<string | null>(null);
   const [domainOption, setDomainOption] = useState<"has" | "needs" | null>(null);
   const [domainUrl, setDomainUrl] = useState("");
-  const [expandedUpsell, setExpandedUpsell] = useState<string | null>(null);
+  const [upsellsOpen, setUpsellsOpen] = useState(false);
   const [domainSearch, setDomainSearch] = useState("");
   const [domainResults, setDomainResults] = useState<{ domain: string; available: boolean; price: string }[]>([]);
   const [domainSearching, setDomainSearching] = useState(false);
@@ -665,54 +665,49 @@ export default function ClientPortalPage() {
 
               </div>
 
-              {/* ── GROW YOUR CAMPAIGN — accordion ───────────── */}
+              {/* ── GROW YOUR CAMPAIGN — single toggle ───────────── */}
               <div style={{ marginBottom: 24 }} id="grow">
-                <div style={{ marginBottom: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: upsellsOpen ? 12 : 0 }}>
                   <h2 style={{ fontSize: 20, fontWeight: 800, color: "#fff", margin: 0, display: "inline-block", paddingBottom: 6, borderBottom: "3px solid #0091ae" }}>
                     Grow Your Campaign
                   </h2>
+                  <button
+                    onClick={() => setUpsellsOpen(!upsellsOpen)}
+                    style={{ background: "transparent", border: "1px solid #243454", borderRadius: 6, padding: "6px 16px", fontSize: 12, fontWeight: 600, color: "#F5C842", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+                  >
+                    {upsellsOpen ? "Hide Options" : "View Options →"}
+                    <span style={{ display: "inline-block", transition: "transform 0.35s ease-in-out", transform: upsellsOpen ? "rotate(90deg)" : "rotate(0deg)", fontSize: 10 }}>▶</span>
+                  </button>
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  {UPSELLS.map((u) => {
-                    const open = expandedUpsell === u.product;
-                    const interested = interests.has(u.product);
-                    return (
-                      <div key={u.product} style={{ background: "#1a2740", border: "1px solid #243454", borderRadius: 10, overflow: "hidden" }}>
-                        {/* Collapsed header — always visible */}
-                        <button
-                          onClick={() => setExpandedUpsell(open ? null : u.product)}
-                          style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left" }}
-                        >
+                <div style={{ maxHeight: upsellsOpen ? 1200 : 0, overflow: "hidden", transition: "max-height 0.35s ease-in-out" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 4 }}>
+                    {UPSELLS.map((u) => {
+                      const interested = interests.has(u.product);
+                      return (
+                        <div key={u.product} style={{ background: "#1a2740", border: "1px solid #243454", borderRadius: 10, padding: 16, display: "flex", alignItems: "center", gap: 14 }}>
                           <div style={{ fontSize: 22, flexShrink: 0, width: 28, textAlign: "center" }}>{u.icon}</div>
-                          <p style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0", margin: 0, flex: 1 }}>{u.title}</p>
-                          {interested && <span style={{ fontSize: 10, color: "#00bda5", fontWeight: 700, flexShrink: 0 }}>✓</span>}
-                          <span style={{ fontSize: 14, color: "rgba(255,255,255,0.4)", flexShrink: 0, transition: "transform 0.2s", transform: open ? "rotate(90deg)" : "rotate(0deg)", display: "inline-block" }}>▶</span>
-                        </button>
-                        {/* Expanded body */}
-                        {open && (
-                          <div style={{ padding: "0 16px 14px 58px" }}>
-                            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", margin: "0 0 8px", lineHeight: 1.5 }}>{u.desc}</p>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0", margin: 0 }}>{u.title}</p>
+                            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", margin: "2px 0 0" }}>{u.desc}</p>
                             {u.preview === "social" && (
-                              <a href={`/social/${id}`} target="_blank" rel="noopener" style={{ fontSize: 11, color: "#0091ae", fontWeight: 600, textDecoration: "none", display: "inline-block", marginBottom: 8 }}>Preview Content →</a>
+                              <a href={`/social/${id}`} target="_blank" rel="noopener" style={{ fontSize: 11, color: "#0091ae", fontWeight: 600, textDecoration: "none", marginTop: 4, display: "inline-block" }}>Preview Content →</a>
                             )}
-                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                              <span style={{ fontSize: 12, fontWeight: 700, color: "#0091ae" }}>{u.price}</span>
-                              {interested ? (
-                                <span style={{ fontSize: 12, color: "#00bda5", fontWeight: 700 }}>✓ Rep notified</span>
-                              ) : (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); postInterest(u.product); }}
-                                  style={{ background: "#ff7a59", color: "#fff", border: "none", padding: "8px 16px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
-                                >
-                                  I&apos;m Interested →
-                                </button>
-                              )}
-                            </div>
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                          <span style={{ fontSize: 12, fontWeight: 700, color: "#0091ae", flexShrink: 0, whiteSpace: "nowrap" }}>{u.price}</span>
+                          {interested ? (
+                            <span style={{ fontSize: 12, color: "#00bda5", fontWeight: 700, flexShrink: 0 }}>✓ Rep notified</span>
+                          ) : (
+                            <button
+                              onClick={() => postInterest(u.product)}
+                              style={{ background: "#ff7a59", color: "#fff", border: "none", padding: "8px 16px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}
+                            >
+                              I&apos;m Interested →
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
