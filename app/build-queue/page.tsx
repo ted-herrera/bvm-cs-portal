@@ -1502,7 +1502,7 @@ export default function BuildQueuePage() {
                       body: JSON.stringify({ buildId: selectedBuild.id, editorStatus: "complete", updatedAt: localUpdatedAt }),
                     }).catch(() => {});
                   }
-                  setShowDeliveryModal(false); setSelectedBuild(null); setGateStep(0); setBuildCompleted(false); setEditedHtml(""); setIssues([]); setQaReport(null); setQaEditedScore(null);
+                  setShowDeliveryModal(false); setSelectedBuild(null); setGateStep(0); setBuildCompleted(false); setEditedHtml(""); setIssues([]); setFixedLines(new Set()); setQaReport(null); setQaEditedScore(null); setQaHash(null); setQaGateMessage(""); setSaveError(""); setLocalUpdatedAt(null); setEditHistory([]);
                 }}
                 style={{
                   background: COLORS.success, color: "#fff", border: "none", borderRadius: 8,
