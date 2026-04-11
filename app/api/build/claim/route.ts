@@ -13,10 +13,10 @@ export async function POST(request: Request) {
   const now = new Date().toISOString();
 
   // Update build record if present
-  let build = buildId ? getBuild(buildId) : null;
-  if (!build && clientId) build = getBuildByClientId(clientId) || null;
+  let build = buildId ? await getBuild(buildId) : null;
+  if (!build && clientId) build = await getBuildByClientId(clientId) || null;
   if (build) {
-    updateBuild(build.id, {
+    await updateBuild(build.id, {
       status: "claimed",
       assignedDev: devUsername,
       claimedAt: now,
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   // Update client record
   const targetClientId = clientId || build?.clientId;
   if (targetClientId) {
-    const client = getClient(targetClientId);
+    const client = await getClient(targetClientId);
     if (client) {
       const logEntry: BuildLogEntry = {
         from: client.stage,
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
         timestamp: now,
         triggeredBy: devUsername,
       };
-      updateClient(targetClientId, {
+      await updateClient(targetClientId, {
         stage: "building",
         assignedDev: devUsername,
         buildLog: [...client.buildLog, logEntry],

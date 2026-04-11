@@ -17,13 +17,13 @@ export async function POST(request: Request) {
 
   // If clientId provided, attach report to profile
   if (clientId) {
-    const client = getClient(clientId);
+    const client = await getClient(clientId);
     if (client) {
       const updates: Record<string, unknown> = { qaReport: report };
       if (report.passed) {
         updates.qa_passed_at = new Date().toISOString();
       }
-      updateClient(clientId, updates);
+      await updateClient(clientId, updates);
     }
   }
 

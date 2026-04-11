@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "clientId required" }, { status: 400 });
   }
 
-  const client = getClient(clientId);
+  const client = await getClient(clientId);
   if (!client) {
     return NextResponse.json({ error: "Client not found" }, { status: 404 });
   }
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   let profile: ClientProfile;
 
   if (clientId && clientId !== "preview") {
-    const client = getClient(clientId);
+    const client = await getClient(clientId);
     if (!client) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }

@@ -10,7 +10,7 @@ export async function POST(request: Request) {
 
   const interestType = type || product || "unknown";
 
-  const client = getClient(clientId);
+  const client = await getClient(clientId);
   if (!client) {
     return NextResponse.json({ error: "Client not found" }, { status: 404 });
   }
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     triggeredBy: "client",
   };
 
-  updateClient(clientId, {
+  await updateClient(clientId, {
     internalNotes: [...client.internalNotes, note],
     interests,
     buildLog: [...client.buildLog, logEntry],

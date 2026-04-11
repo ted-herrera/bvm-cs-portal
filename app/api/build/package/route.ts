@@ -122,12 +122,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "clientId required" }, { status: 400 });
   }
 
-  const client = getClient(clientId);
+  const client = await getClient(clientId);
   if (!client) {
     return NextResponse.json({ error: "Client not found" }, { status: 404 });
   }
 
-  const build = getBuildByClientId(clientId);
+  const build = await getBuildByClientId(clientId);
 
   const lookKey = ((client.selectedLook || build?.look || "professional") as LookKey);
   const siteHTML = build?.generatedSiteHTML || generateSiteHTML(client, lookKey);

@@ -7,13 +7,13 @@ export async function POST(
   ctx: RouteContext<"/api/profile/approve/[id]">
 ) {
   const { id } = await ctx.params;
-  const client = getClient(id);
+  const client = await getClient(id);
   if (!client) {
     return Response.json({ error: "Client not found" }, { status: 404 });
   }
 
   const now = new Date().toISOString();
-  updateClient(id, {
+  await updateClient(id, {
     stage: "building",
     approved_at: now,
     buildLog: [

@@ -7,7 +7,7 @@ export async function GET(
 ) {
   const { id } = await ctx.params;
   console.log("GET /api/profile:", id);
-  const client = getClient(id);
+  const client = await getClient(id);
   console.log("GET /api/profile:", id, "found:", !!client);
   if (!client) {
     return Response.json({ error: `Client not found: ${id}` }, { status: 404 });

@@ -6,7 +6,7 @@ export async function POST(
   ctx: RouteContext<"/api/profile/revision/[id]">
 ) {
   const { id } = await ctx.params;
-  const client = getClient(id);
+  const client = await getClient(id);
   if (!client) {
     return Response.json({ error: "Client not found" }, { status: 404 });
   }
@@ -14,7 +14,7 @@ export async function POST(
   const body = (await req.json()) as { note: string };
   const now = new Date().toISOString();
 
-  updateClient(id, {
+  await updateClient(id, {
     stage: "revision-requested",
     messages: [
       ...client.messages,

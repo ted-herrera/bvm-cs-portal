@@ -1,4 +1,77 @@
 import type { ClientProfile } from "./pipeline";
+import { getSupabase } from "./supabase";
+
+// ─── Row ↔ ClientProfile mappers ────────────────────────────────────────
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function rowToProfile(r: any): ClientProfile {
+  return {
+    id: r.id,
+    business_name: r.business_name ?? "",
+    contact_name: r.contact_name ?? "",
+    contact_email: r.contact_email ?? "",
+    phone: r.phone ?? "",
+    city: r.city ?? "",
+    zip: r.zip ?? "",
+    assigned_rep: r.assigned_rep ?? "",
+    stage: r.stage ?? "intake",
+    created_at: r.created_at ?? new Date().toISOString(),
+    approved_at: r.approved_at ?? null,
+    qa_passed_at: r.qa_passed_at ?? null,
+    delivered_at: r.delivered_at ?? null,
+    published_url: r.published_url ?? null,
+    sbrData: r.sbr_data ?? null,
+    selectedLook: r.selected_look ?? null,
+    intakeAnswers: r.intake_answers ?? null,
+    tearSheetUrl: r.tear_sheet_url ?? null,
+    buildNotes: r.build_notes ?? [],
+    qaReport: r.qa_report ?? null,
+    messages: r.messages ?? [],
+    internalNotes: r.internal_notes ?? [],
+    buildLog: r.build_log ?? [],
+    assignedDev: r.assigned_dev ?? null,
+    hasLogo: r.has_logo ?? false,
+    logoUrl: r.logo_url ?? null,
+    interests: r.interests ?? undefined,
+    confettiFired: r.confetti_fired ?? false,
+  };
+}
+
+function profileToRow(p: ClientProfile): Record<string, unknown> {
+  return {
+    id: p.id,
+    business_name: p.business_name,
+    contact_name: p.contact_name,
+    contact_email: p.contact_email,
+    phone: p.phone,
+    city: p.city,
+    zip: p.zip,
+    assigned_rep: p.assigned_rep,
+    stage: p.stage,
+    created_at: p.created_at,
+    approved_at: p.approved_at,
+    qa_passed_at: p.qa_passed_at,
+    delivered_at: p.delivered_at,
+    published_url: p.published_url,
+    sbr_data: p.sbrData,
+    selected_look: p.selectedLook,
+    intake_answers: p.intakeAnswers,
+    tear_sheet_url: p.tearSheetUrl,
+    build_notes: p.buildNotes,
+    qa_report: p.qaReport,
+    messages: p.messages,
+    internal_notes: p.internalNotes,
+    build_log: p.buildLog,
+    assigned_dev: p.assignedDev,
+    has_logo: p.hasLogo,
+    logo_url: p.logoUrl,
+    interests: p.interests ?? null,
+    confetti_fired: p.confettiFired ?? false,
+  };
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+// ─── Seed data ──────────────────────────────────────────────────────────
 
 export const mockClients: ClientProfile[] = [
   {
@@ -18,11 +91,11 @@ export const mockClients: ClientProfile[] = [
     published_url: null,
     sbrData: {
       campaignHeadline: "Tulsa's Taco Revolution Starts Here",
-      geoCopyBlock: "Tulsa's food scene is booming — and Ted's Tacos has been leading the charge for 8 years. From late-night crowds to corporate catering, we're the taco truck that became a Tulsa institution.",
-      localAdvantage: "We know how hard it is for local restaurants to stand out. Ted's Tacos combines the energy of street food with the consistency of a seasoned kitchen — served fresh, every single time.",
-      marketInsight: "Tulsa's fast casual market is growing 14% year over year. Ted's Tacos is positioned at the center of that growth — neighborhood roots, city-wide reputation.",
+      geoCopyBlock: "Tulsa's food scene is booming — and Ted's Tacos has been leading the charge for 8 years.",
+      localAdvantage: "We know how hard it is for local restaurants to stand out.",
+      marketInsight: "Tulsa's fast casual market is growing 14% year over year.",
       competitors: ["Elote", "Chimis", "Celebrity Pig"],
-      taglineSuggestions: ["Tulsa's Taco Revolution Starts Here", "Real Tacos. Real Fast. Right Here.", "Eight Years of Making Tulsa Hungry."],
+      taglineSuggestions: ["Tulsa's Taco Revolution Starts Here", "Real Tacos. Real Fast. Right Here."],
       suggestedTagline: "Tulsa's Taco Revolution Starts Here",
       tagline: "Tulsa's Taco Revolution Starts Here",
       campaignTheme: "Revolution",
@@ -32,9 +105,9 @@ export const mockClients: ClientProfile[] = [
       starRating: "4.9",
       customerQuote: "Best tacos in Tulsa, period.",
       services: [
-        { name: "Street Tacos", description: "Hand-pressed corn tortillas filled with slow-braised meats and house-made salsas — made fresh every day." },
-        { name: "Catering", description: "Full-service taco catering for events of any size. We bring the kitchen to you." },
-        { name: "Late Night", description: "Open until 2am on weekends — Tulsa's go-to spot after the lights go down." },
+        { name: "Street Tacos", description: "Hand-pressed corn tortillas filled with slow-braised meats." },
+        { name: "Catering", description: "Full-service taco catering for events of any size." },
+        { name: "Late Night", description: "Open until 2am on weekends." },
       ],
     },
     selectedLook: "bold_modern",
@@ -79,13 +152,13 @@ export const mockClients: ClientProfile[] = [
       businessType: "Restaurant / Mexican Food",
       competitors: ["Taco Bueno", "Elote Cafe", "Ted's Cafe Escondido"],
       targetDemo: "Families, lunch crowd, catering clients, Tulsa foodies",
-      uniqueAngle: "Authentic family recipes, homemade tortillas daily, three generations of tradition",
+      uniqueAngle: "Authentic family recipes, homemade tortillas daily",
       campaignHeadline: "Tulsa's Favorite Street Tacos",
       suggestedTagline: "Tulsa's Favorite Street Tacos",
-      taglineSuggestions: ["Tulsa's Favorite Street Tacos", "Real Recipes. Real Flavor. Real Family.", "Three Generations of Sabor"],
+      taglineSuggestions: ["Tulsa's Favorite Street Tacos", "Real Recipes. Real Flavor. Real Family."],
       toneNotes: "Warm, inviting, family-first messaging with a street-food edge",
-      geoCopyBlock: "From our family kitchen to your table — Rosalinda's has been Tulsa's go-to for authentic Mexican street tacos since day one.",
-      localAdvantage: "Family-owned and rooted in the Tulsa community, Rosalinda's brings three generations of authentic Mexican recipes to every plate.",
+      geoCopyBlock: "From our family kitchen to your table — Rosalinda's has been Tulsa's go-to.",
+      localAdvantage: "Family-owned and rooted in the Tulsa community.",
       yearsServing: "15+",
       happyClients: "10,000+",
       starRating: "4.8",
@@ -94,7 +167,7 @@ export const mockClients: ClientProfile[] = [
     selectedLook: "warm_bold",
     intakeAnswers: {
       q1: "Rosalinda's Tacos, Tulsa OK 74103",
-      q2: "Authentic Mexican street taco restaurant with homemade tortillas and three generations of family recipes",
+      q2: "Authentic Mexican street taco restaurant",
       q3: "Dine-In, Takeout, Catering",
       q4: "Order Now",
       q5: "warm_bold",
@@ -107,20 +180,9 @@ export const mockClients: ClientProfile[] = [
     qaReport: null,
     messages: [],
     internalNotes: [
-      {
-        from: "ted",
-        text: "Client wants warm colors — family restaurant vibe. Has logo ready. Loves the street taco angle.",
-        timestamp: "2026-04-01T10:45:00Z",
-      },
+      { from: "ted", text: "Client wants warm colors — family restaurant vibe.", timestamp: "2026-04-01T10:45:00Z" },
     ],
-    buildLog: [
-      {
-        from: "intake",
-        to: "tear-sheet",
-        timestamp: "2026-04-01T10:40:00Z",
-        triggeredBy: "system",
-      },
-    ],
+    buildLog: [{ from: "intake", to: "tear-sheet", timestamp: "2026-04-01T10:40:00Z", triggeredBy: "system" }],
     assignedDev: null,
     hasLogo: false,
     logoUrl: null,
@@ -143,23 +205,13 @@ export const mockClients: ClientProfile[] = [
     sbrData: {
       businessType: "Dental Practice",
       competitors: ["Aspen Dental", "Comfort Dental", "Mile High Smiles"],
-      targetDemo: "Families, young professionals, cosmetic dentistry patients in downtown Denver",
-      uniqueAngle: "Boutique practice with sedation dentistry, same-day crowns, and a spa-like environment",
       campaignHeadline: "Denver's Trusted Family Dentist",
       suggestedTagline: "Denver's Trusted Family Dentist",
-      taglineSuggestions: ["Denver's Trusted Family Dentist", "Your Smile. Our Craft.", "Where Denver Smiles Begin"],
-      toneNotes: "Professional, trustworthy, modern, approachable",
-      geoCopyBlock: "Peak Dental combines cutting-edge technology with a gentle, patient-first approach — right here in the heart of Denver.",
-      localAdvantage: "Located in downtown Denver, Peak Dental offers a boutique dental experience with sedation options and same-day crowns for busy professionals.",
-      yearsServing: "8",
-      happyClients: "3,200+",
-      starRating: "4.9",
-      googleBadge: "&#11088; <span>4.9 Stars on Google &middot; 215+ Reviews</span>",
     },
     selectedLook: "professional",
     intakeAnswers: {
       q1: "Peak Dental, Denver CO 80202",
-      q2: "Modern dental practice specializing in cosmetic and family dentistry with sedation options",
+      q2: "Modern dental practice",
       q3: "General Dentistry, Cosmetic Dentistry, Emergency Care",
       q4: "Book Now",
       q5: "professional",
@@ -168,13 +220,7 @@ export const mockClients: ClientProfile[] = [
       q8: "skip",
     },
     tearSheetUrl: "/tearsheet/client-002",
-    buildNotes: [
-      "Intake completed by Sal",
-      "SBR analysis complete",
-      "Tear sheet approved",
-      "Build started",
-      "Build complete — running QA",
-    ],
+    buildNotes: ["Intake completed by Sal", "SBR analysis complete", "Tear sheet approved", "Build started"],
     qaReport: {
       passed: false,
       score: 72,
@@ -186,62 +232,25 @@ export const mockClients: ClientProfile[] = [
           checks: [
             { name: "HTML lang attribute", passed: true, severity: "blocker", message: "html lang=\"en\" present" },
             { name: "Title tag", passed: true, severity: "blocker", message: "Title tag found: Peak Dental" },
-            { name: "Meta description", passed: true, severity: "warning", message: "Meta description present" },
-            { name: "Viewport meta", passed: true, severity: "blocker", message: "Viewport meta tag present" },
             { name: "Canonical link", passed: false, severity: "warning", message: "No canonical link found", autofix: "Add <link rel=\"canonical\" href=\"...\">" },
-            { name: "og:title", passed: true, severity: "optimization", message: "Open Graph title present" },
-            { name: "og:description", passed: false, severity: "optimization", message: "No og:description meta tag found" },
           ],
         },
         {
           name: "Compliance",
           passed: false,
           checks: [
-            { name: "Image alt texts", passed: false, severity: "blocker", message: "2 images missing alt attributes", autofix: "Add descriptive alt text to images" },
+            { name: "Image alt texts", passed: false, severity: "blocker", message: "2 images missing alt attributes", autofix: "Add descriptive alt text" },
             { name: "Button labels", passed: true, severity: "blocker", message: "All buttons have accessible labels" },
-            { name: "Color contrast", passed: true, severity: "warning", message: "Contrast ratios within acceptable range" },
-            { name: "Heading hierarchy", passed: true, severity: "warning", message: "Heading hierarchy is valid (h1 → h2 → h3)" },
           ],
         },
-        {
-          name: "Performance",
-          passed: true,
-          checks: [
-            { name: "Inline styles", passed: true, severity: "optimization", message: "3 inline styles found — acceptable" },
-            { name: "Images without dimensions", passed: true, severity: "warning", message: "All images have width/height" },
-            { name: "Scripts in head", passed: true, severity: "warning", message: "No blocking scripts in head" },
-          ],
-        },
-        {
-          name: "Content",
-          passed: true,
-          checks: [
-            { name: "Placeholder text", passed: true, severity: "blocker", message: "No placeholder text detected" },
-            { name: "Phone number", passed: true, severity: "warning", message: "Phone number found: (303) 555-0198" },
-            { name: "Address present", passed: true, severity: "warning", message: "Address detected in footer" },
-            { name: "CTA button", passed: true, severity: "blocker", message: "Primary CTA button found: Book Now" },
-          ],
-        },
+        { name: "Performance", passed: true, checks: [{ name: "Inline styles", passed: true, severity: "optimization", message: "3 inline styles — acceptable" }] },
+        { name: "Content", passed: true, checks: [{ name: "Placeholder text", passed: true, severity: "blocker", message: "No placeholder text detected" }] },
       ],
     },
-    messages: [
-      {
-        from: "client",
-        text: "Looks great! Approved.",
-        timestamp: "2026-03-27T14:00:00Z",
-      },
-    ],
+    messages: [{ from: "client", text: "Looks great! Approved.", timestamp: "2026-03-27T14:00:00Z" }],
     internalNotes: [
-      {
-        from: "sal",
-        text: "Client approved quickly. Wants to launch by end of month.",
-        timestamp: "2026-03-27T14:30:00Z",
-      },
-      {
-        from: "sal",
-        text: "QA found 2 missing alt texts and no canonical. Fixing now.",
-        timestamp: "2026-04-04T16:15:00Z",
-      },
+      { from: "sal", text: "Client approved quickly.", timestamp: "2026-03-27T14:30:00Z" },
+      { from: "sal", text: "QA found 2 missing alt texts.", timestamp: "2026-04-04T16:15:00Z" },
     ],
     buildLog: [
       { from: "intake", to: "tear-sheet", timestamp: "2026-03-25T09:30:00Z", triggeredBy: "system" },
@@ -270,23 +279,13 @@ export const mockClients: ClientProfile[] = [
     sbrData: {
       businessType: "Roofing Contractor",
       competitors: ["Nashville Roofing Co", "Top Notch Roofing", "Bone Dry Roofing"],
-      targetDemo: "Homeowners, property managers, insurance claims in Middle Tennessee",
-      uniqueAngle: "Military veteran owned, storm damage specialists, free inspections, insurance claim assistance",
       campaignHeadline: "Nashville's Storm Damage Experts",
       suggestedTagline: "Nashville's Storm Damage Experts",
-      taglineSuggestions: ["Nashville's Storm Damage Experts", "Built Tough. Built Right. Built to Last.", "Veteran-Owned. Storm-Tested."],
-      toneNotes: "Strong, trustworthy, action-oriented, direct",
-      geoCopyBlock: "When Nashville storms hit, Iron Ridge Roofing is the first call — veteran-owned, fully insured, and ready to restore your roof fast.",
-      localAdvantage: "Veteran-owned and Nashville-based, Iron Ridge brings military precision to every roofing job — from storm damage repair to full replacements.",
-      yearsServing: "12+",
-      happyClients: "1,800+",
-      starRating: "4.9",
-      googleBadge: "&#11088; <span>4.9 Stars on Google &middot; 280+ Reviews</span>",
     },
     selectedLook: "bold_modern",
     intakeAnswers: {
       q1: "Iron Ridge Roofing, Nashville TN 37201",
-      q2: "Veteran-owned roofing company specializing in storm damage repair, full roof replacement, and free inspections",
+      q2: "Veteran-owned roofing company",
       q3: "Roof Replacement, Storm Repair, Free Inspection",
       q4: "Get Free Estimate",
       q5: "bold_modern",
@@ -295,70 +294,24 @@ export const mockClients: ClientProfile[] = [
       q8: "skip",
     },
     tearSheetUrl: "/tearsheet/client-003",
-    buildNotes: [
-      "Intake completed by Ted",
-      "SBR analysis complete",
-      "Tear sheet approved — client loved the bold direction",
-      "Build complete",
-      "QA passed — score 94",
-      "Package delivered to client",
-    ],
+    buildNotes: ["Intake completed by Ted", "Build complete", "QA passed — score 94", "Package delivered"],
     qaReport: {
       passed: true,
       score: 94,
       runAt: "2026-03-28T10:00:00Z",
       passes: [
-        {
-          name: "Structure",
-          passed: true,
-          checks: [
-            { name: "HTML lang attribute", passed: true, severity: "blocker", message: "html lang=\"en\" present" },
-            { name: "Title tag", passed: true, severity: "blocker", message: "Title tag found: Iron Ridge Roofing" },
-            { name: "Meta description", passed: true, severity: "warning", message: "Meta description present" },
-            { name: "Viewport meta", passed: true, severity: "blocker", message: "Viewport meta tag present" },
-            { name: "Canonical link", passed: true, severity: "warning", message: "Canonical link present" },
-            { name: "og:title", passed: true, severity: "optimization", message: "Open Graph title present" },
-            { name: "og:description", passed: true, severity: "optimization", message: "Open Graph description present" },
-          ],
-        },
-        {
-          name: "Compliance",
-          passed: true,
-          checks: [
-            { name: "Image alt texts", passed: true, severity: "blocker", message: "All images have alt attributes" },
-            { name: "Button labels", passed: true, severity: "blocker", message: "All buttons have accessible labels" },
-            { name: "Color contrast", passed: true, severity: "warning", message: "Contrast ratios within acceptable range" },
-            { name: "Heading hierarchy", passed: true, severity: "warning", message: "Heading hierarchy is valid" },
-          ],
-        },
-        {
-          name: "Performance",
-          passed: true,
-          checks: [
-            { name: "Inline styles", passed: true, severity: "optimization", message: "1 inline style — acceptable" },
-            { name: "Images without dimensions", passed: true, severity: "warning", message: "All images have width/height" },
-            { name: "Scripts in head", passed: true, severity: "warning", message: "No blocking scripts in head" },
-          ],
-        },
-        {
-          name: "Content",
-          passed: true,
-          checks: [
-            { name: "Placeholder text", passed: true, severity: "blocker", message: "No placeholder text detected" },
-            { name: "Phone number", passed: true, severity: "warning", message: "Phone number found: (615) 555-0167" },
-            { name: "Address present", passed: true, severity: "warning", message: "Address detected in footer" },
-            { name: "CTA button", passed: true, severity: "blocker", message: "Primary CTA found: Get Free Estimate" },
-          ],
-        },
+        { name: "Structure", passed: true, checks: [{ name: "HTML lang", passed: true, severity: "blocker", message: "html lang=\"en\" present" }] },
+        { name: "Compliance", passed: true, checks: [{ name: "Image alt texts", passed: true, severity: "blocker", message: "All images have alt attributes" }] },
+        { name: "Performance", passed: true, checks: [{ name: "Inline styles", passed: true, severity: "optimization", message: "1 inline style — acceptable" }] },
+        { name: "Content", passed: true, checks: [{ name: "Placeholder text", passed: true, severity: "blocker", message: "No placeholder text detected" }] },
       ],
     },
     messages: [
       { from: "client", text: "This looks awesome. Let's go!", timestamp: "2026-03-17T11:00:00Z" },
-      { from: "system", text: "Package delivered. Download link sent.", timestamp: "2026-04-02T09:00:00Z" },
+      { from: "system", text: "Package delivered.", timestamp: "2026-04-02T09:00:00Z" },
     ],
     internalNotes: [
-      { from: "ted", text: "Marcus is ex-military — keep it direct and professional. Loves the bold purple direction.", timestamp: "2026-03-15T08:30:00Z" },
-      { from: "ted", text: "QA passed with 94. All checks green except minor optimization note.", timestamp: "2026-03-28T10:15:00Z" },
+      { from: "ted", text: "Marcus is ex-military — keep it direct.", timestamp: "2026-03-15T08:30:00Z" },
     ],
     buildLog: [
       { from: "intake", to: "tear-sheet", timestamp: "2026-03-15T08:30:00Z", triggeredBy: "system" },
@@ -373,21 +326,17 @@ export const mockClients: ClientProfile[] = [
   },
 ];
 
-// ---------------------------------------------------------------------------
-// Runtime store — survives hot-reloads & cross-route imports via globalThis
-// Will be replaced with Supabase
-// ---------------------------------------------------------------------------
+// ─── In-memory fallback (used when Supabase is not configured) ──────────
 
 declare global {
   // eslint-disable-next-line no-var
   var __bvm_client_store__: Map<string, ClientProfile> | undefined;
 }
 
-function getStore(): Map<string, ClientProfile> {
+function getFallbackStore(): Map<string, ClientProfile> {
   if (!globalThis.__bvm_client_store__) {
     globalThis.__bvm_client_store__ = new Map<string, ClientProfile>();
   }
-  // Always ensure static mock clients are present (handles hot-reload + new entries)
   for (const c of mockClients) {
     if (!globalThis.__bvm_client_store__.has(c.id)) {
       globalThis.__bvm_client_store__.set(c.id, c);
@@ -396,37 +345,82 @@ function getStore(): Map<string, ClientProfile> {
   return globalThis.__bvm_client_store__;
 }
 
-export function getClients(): ClientProfile[] {
-  return Array.from(getStore().values());
+// ─── Seeding helper ─────────────────────────────────────────────────────
+
+let _seeded = false;
+
+async function ensureSeeded(): Promise<void> {
+  const sb = getSupabase();
+  if (!sb || _seeded) return;
+  _seeded = true;
+  // Check if seed data exists
+  const { data } = await sb.from("clients").select("id").limit(1);
+  if (data && data.length > 0) return;
+  // Insert mock clients
+  const rows = mockClients.map(profileToRow);
+  await sb.from("clients").upsert(rows, { onConflict: "id" });
 }
 
-export function getClient(id: string): ClientProfile | undefined {
-  return getStore().get(id);
+// ─── Public API (same signatures as before) ─────────────────────────────
+
+export async function getClients(): Promise<ClientProfile[]> {
+  const sb = getSupabase();
+  if (!sb) return Array.from(getFallbackStore().values());
+  await ensureSeeded();
+  const { data, error } = await sb.from("clients").select("*").order("created_at", { ascending: false });
+  if (error || !data) return Array.from(getFallbackStore().values());
+  return data.map(rowToProfile);
 }
 
-export function addClient(profile: ClientProfile): void {
-  getStore().set(profile.id, profile);
+export async function getClient(id: string): Promise<ClientProfile | undefined> {
+  const sb = getSupabase();
+  if (!sb) return getFallbackStore().get(id);
+  await ensureSeeded();
+  const { data, error } = await sb.from("clients").select("*").eq("id", id).single();
+  if (error || !data) return getFallbackStore().get(id);
+  return rowToProfile(data);
 }
 
-export function updateClient(id: string, updates: Partial<ClientProfile>): ClientProfile | null {
-  const store = getStore();
-  const existing = store.get(id);
-  if (!existing) return null;
-  const updated = { ...existing, ...updates };
-  store.set(id, updated);
-  return updated;
+export async function addClient(profile: ClientProfile): Promise<void> {
+  // Always write to fallback for in-process reads
+  getFallbackStore().set(profile.id, profile);
+  const sb = getSupabase();
+  if (!sb) return;
+  await sb.from("clients").upsert(profileToRow(profile), { onConflict: "id" });
 }
 
-export function getClientsByRep(rep: string): ClientProfile[] {
-  return getClients().filter((c) => c.assigned_rep === rep);
+export async function updateClient(id: string, updates: Partial<ClientProfile>): Promise<ClientProfile | null> {
+  const sb = getSupabase();
+  if (!sb) {
+    const store = getFallbackStore();
+    const existing = store.get(id);
+    if (!existing) return null;
+    const updated = { ...existing, ...updates };
+    store.set(id, updated);
+    return updated;
+  }
+  // Read current, merge, write back
+  const current = await getClient(id);
+  if (!current) return null;
+  const merged = { ...current, ...updates };
+  await sb.from("clients").upsert(profileToRow(merged), { onConflict: "id" });
+  getFallbackStore().set(id, merged);
+  return merged;
 }
 
-export function getClientsByStage(stage: string): ClientProfile[] {
-  return getClients().filter((c) => c.stage === stage);
+export async function getClientsByRep(rep: string): Promise<ClientProfile[]> {
+  const all = await getClients();
+  return all.filter((c) => c.assigned_rep === rep);
 }
 
-export function getMockBuildQueue(): ClientProfile[] {
-  return getClients()
+export async function getClientsByStage(stage: string): Promise<ClientProfile[]> {
+  const all = await getClients();
+  return all.filter((c) => c.stage === stage);
+}
+
+export async function getMockBuildQueue(): Promise<ClientProfile[]> {
+  const all = await getClients();
+  return all
     .filter((c) => c.stage === "building")
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 }

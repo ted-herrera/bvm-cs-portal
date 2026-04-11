@@ -8,7 +8,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "clientId required" }, { status: 400 });
   }
 
-  const client = getClient(clientId);
+  const client = await getClient(clientId);
   if (!client) {
     return NextResponse.json({ error: "Client not found" }, { status: 404 });
   }
@@ -17,14 +17,14 @@ export async function POST(request: Request) {
   const nowMs = Date.now();
 
   // Ensure a pulse timer exists
-  let timer = getPulseTimer(clientId);
+  let timer = await getPulseTimer(clientId);
   if (!timer) {
-    timer = setPulseTimer(clientId, nowMs);
+    timer = await setPulseTimer(clientId, nowMs);
   }
-  updatePulseTimer(clientId, { lastSentAt: nowMs });
+  await updatePulseTimer(clientId, { lastSentAt: nowMs });
 
   // Log send to client record
-  updateClient(clientId, {
+  await updateClient(clientId, {
     internalNotes: [
       ...client.internalNotes,
       { from: "system", text: "Pulse survey sent to client", timestamp: now },
@@ -40,5 +40,5 @@ export async function GET(request: Request) {
   if (!clientId) {
     return NextResponse.json({ error: "clientId required" }, { status: 400 });
   }
-  return NextResponse.json({ timer: getPulseTimer(clientId) || null });
+  return NextResponse.json({ timer: await getPulseTimer(clientId) || null });
 }

@@ -21,14 +21,14 @@ function getDefaultTemplate(subType: string, businessType: string): BVMTemplate 
 // Accepts either full BVMSiteVariables or { clientId, template? }
 // Returns: { html, variables }
 
-function buildVariablesFromClientId(
+async function buildVariablesFromClientId(
   clientId: string,
   override?: Partial<BVMSiteVariables>,
-): Partial<BVMSiteVariables> | null {
-  const client = getClient(clientId);
+): Promise<Partial<BVMSiteVariables> | null> {
+  const client = await getClient(clientId);
   if (!client) return null;
 
-  const build = getBuildByClientId(clientId);
+  const build = await getBuildByClientId(clientId);
   const sbr = (client.sbrData || null) as Record<string, unknown> | null;
   const q3 = client.intakeAnswers?.q3 || "";
   const q2 = client.intakeAnswers?.q2 || "";
@@ -118,7 +118,7 @@ export async function POST(request: Request) {
     input = body.variables;
     if (body.template) input.template = body.template;
   } else if (body.clientId) {
-    input = buildVariablesFromClientId(body.clientId, body.template ? { template: body.template } : undefined);
+    input = await buildVariablesFromClientId(body.clientId, body.template ? { template: body.template } : undefined);
     if (!input) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
@@ -152,7 +152,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "clientId required" }, { status: 400 });
   }
 
-  const input = buildVariablesFromClientId(
+  const input = await buildVariablesFromClientId(
     clientId,
     template ? { template } : undefined,
   );

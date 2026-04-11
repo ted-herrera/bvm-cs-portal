@@ -18,7 +18,7 @@ export async function POST(
       confettiFired?: boolean;
     };
 
-  const client = getClient(id);
+  const client = await getClient(id);
   if (!client) {
     return NextResponse.json({ error: "Client not found" }, { status: 404 });
   }
@@ -63,6 +63,6 @@ export async function POST(
     updates.internalNotes = [...client.internalNotes, ...newNotes];
   }
 
-  const updated = updateClient(id, updates);
+  const updated = await updateClient(id, updates);
   return NextResponse.json({ success: true, client: updated });
 }

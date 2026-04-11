@@ -7,7 +7,7 @@ export async function GET(request: Request) {
   if (!buildId) {
     return NextResponse.json({ error: "buildId required" }, { status: 400 });
   }
-  return NextResponse.json({ messages: getBuildMessages(buildId) });
+  return NextResponse.json({ messages: await getBuildMessages(buildId) });
 }
 
 export async function POST(request: Request) {
@@ -29,6 +29,6 @@ export async function POST(request: Request) {
     text,
     timestamp: new Date().toISOString(),
   };
-  addBuildMessage(msg);
+  await addBuildMessage(msg);
   return NextResponse.json({ success: true, message: msg });
 }

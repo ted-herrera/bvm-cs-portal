@@ -26,15 +26,15 @@ export async function POST(request: Request) {
   const now = new Date().toISOString();
   const nowMs = Date.now();
 
-  let build = buildId ? getBuild(buildId) : null;
+  let build = buildId ? await getBuild(buildId) : null;
   if (!build && clientId) {
     // Search by clientId
     const { getBuildByClientId } = await import("@/lib/store");
-    build = getBuildByClientId(clientId) || null;
+    build = await getBuildByClientId(clientId) || null;
   }
 
   if (build) {
-    updateBuild(build.id, {
+    await updateBuild(build.id, {
       status: "live",
       liveAt: now,
       liveUrl: liveUrl || build.liveUrl,
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const client = getClient(targetClientId);
+  const client = await getClient(targetClientId);
   if (client) {
     const logEntry: BuildLogEntry = {
       from: client.stage,
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
       triggeredBy: "dev",
     };
 
-    updateClient(targetClientId, {
+    await updateClient(targetClientId, {
       stage: "live",
       published_url: liveUrl || client.published_url || null,
       delivered_at: now,
@@ -67,10 +67,10 @@ export async function POST(request: Request) {
     });
 
     // Start Day 7/14/30 pulse timer
-    setPulseTimer(targetClientId, nowMs);
+    await setPulseTimer(targetClientId, nowMs);
 
     // Notify rep dashboard — build complete
-    addNotification({
+    await addNotification({
       id: `notif-live-${build?.id || targetClientId}-${nowMs.toString(36)}`,
       type: "build-complete",
       clientId: targetClientId,
@@ -83,7 +83,7 @@ export async function POST(request: Request) {
     });
 
     // Handwrytten task
-    addNotification({
+    await addNotification({
       id: `notif-hw-${build?.id || targetClientId}-${nowMs.toString(36)}`,
       type: "handwrytten-task",
       clientId: targetClientId,

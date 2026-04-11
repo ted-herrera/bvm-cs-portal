@@ -5,7 +5,7 @@ import type { BuildLogEntry } from "@/lib/pipeline";
 export async function POST(request: Request) {
   const { clientId } = (await request.json()) as { clientId: string };
 
-  const client = getClient(clientId);
+  const client = await getClient(clientId);
   if (!client) {
     return NextResponse.json({ error: "Client not found" }, { status: 404 });
   }
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     triggeredBy: "dev",
   };
 
-  const updated = updateClient(clientId, {
+  const updated = await updateClient(clientId, {
     stage: "qa",
     buildLog: [...client.buildLog, logEntry],
   });

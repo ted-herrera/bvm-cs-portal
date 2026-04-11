@@ -13,7 +13,7 @@ export async function POST(
     return NextResponse.json({ error: "message and from are required" }, { status: 400 });
   }
 
-  const client = getClient(id);
+  const client = await getClient(id);
   if (!client) {
     return NextResponse.json({ error: "Client not found" }, { status: 404 });
   }
@@ -26,7 +26,7 @@ export async function POST(
 
   const logSnippet = message.length > 50 ? message.slice(0, 50) + "..." : message;
 
-  updateClient(id, {
+  await updateClient(id, {
     messages: [...client.messages, newMessage],
     buildLog: [
       ...client.buildLog,
