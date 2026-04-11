@@ -58,6 +58,7 @@ export default function ClientPortalPage() {
   const [selectedLook, setSelectedLook] = useState<string | null>(null);
   const [domainOption, setDomainOption] = useState<"has" | "needs" | null>(null);
   const [domainUrl, setDomainUrl] = useState("");
+  const [expandedUpsell, setExpandedUpsell] = useState<string | null>(null);
   const [domainSearch, setDomainSearch] = useState("");
   const [domainResults, setDomainResults] = useState<{ domain: string; available: boolean; price: string }[]>([]);
   const [domainSearching, setDomainSearching] = useState(false);
@@ -664,92 +665,55 @@ export default function ClientPortalPage() {
 
               </div>
 
-              {/* ── GROW YOUR CAMPAIGN — stacked rows ───────────── */}
+              {/* ── GROW YOUR CAMPAIGN — accordion ───────────── */}
               <div style={{ marginBottom: 24 }} id="grow">
                 <div style={{ marginBottom: 16 }}>
                   <h2 style={{ fontSize: 20, fontWeight: 800, color: "#fff", margin: 0, display: "inline-block", paddingBottom: 6, borderBottom: "3px solid #0091ae" }}>
                     Grow Your Campaign
                   </h2>
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                   {UPSELLS.map((u) => {
+                    const open = expandedUpsell === u.product;
                     const interested = interests.has(u.product);
                     return (
-                      <div
-                        key={u.product}
-                        className="grow-row"
-                        style={{
-                          background: "#1a2740",
-                          border: "1px solid #243454",
-                          borderRadius: 10,
-                          padding: 16,
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 14,
-                        }}
-                      >
-                        <div style={{ fontSize: 24, flexShrink: 0, width: 32, textAlign: "center" }}>{u.icon}</div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0", margin: 0 }}>{u.title}</p>
-                          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", margin: "2px 0 0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{u.desc}</p>
-                          {u.preview === "social" && (
-                            <a
-                              href={`/social/${id}`}
-                              target="_blank"
-                              rel="noopener"
-                              style={{ fontSize: 11, color: "#0091ae", fontWeight: 600, textDecoration: "none", marginTop: 4, display: "inline-block" }}
-                            >
-                              Preview Content →
-                            </a>
-                          )}
+                      <div key={u.product} style={{ background: "#1a2740", border: "1px solid #243454", borderRadius: 10, overflow: "hidden" }}>
+                        {/* Collapsed header — always visible */}
+                        <button
+                          onClick={() => setExpandedUpsell(open ? null : u.product)}
+                          style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left" }}
+                        >
+                          <div style={{ fontSize: 22, flexShrink: 0, width: 28, textAlign: "center" }}>{u.icon}</div>
+                          <p style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0", margin: 0, flex: 1 }}>{u.title}</p>
+                          {interested && <span style={{ fontSize: 10, color: "#00bda5", fontWeight: 700, flexShrink: 0 }}>✓</span>}
+                          <span style={{ fontSize: 14, color: "rgba(255,255,255,0.4)", flexShrink: 0, transition: "transform 0.2s", transform: open ? "rotate(90deg)" : "rotate(0deg)", display: "inline-block" }}>▶</span>
+                        </button>
+                        {/* Expanded body */}
+                        <div style={{ maxHeight: open ? 200 : 0, overflow: "hidden", transition: "max-height 0.25s ease" }}>
+                          <div style={{ padding: "0 16px 14px 58px" }}>
+                            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", margin: "0 0 8px", lineHeight: 1.5 }}>{u.desc}</p>
+                            {u.preview === "social" && (
+                              <a href={`/social/${id}`} target="_blank" rel="noopener" style={{ fontSize: 11, color: "#0091ae", fontWeight: 600, textDecoration: "none", display: "inline-block", marginBottom: 8 }}>Preview Content →</a>
+                            )}
+                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: "#0091ae" }}>{u.price}</span>
+                              {interested ? (
+                                <span style={{ fontSize: 12, color: "#00bda5", fontWeight: 700 }}>✓ Rep notified</span>
+                              ) : (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); postInterest(u.product); }}
+                                  style={{ background: "#ff7a59", color: "#fff", border: "none", padding: "8px 16px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                                >
+                                  I&apos;m Interested →
+                                </button>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "#0091ae", flexShrink: 0, whiteSpace: "nowrap" }}>{u.price}</div>
-                        {interested ? (
-                          <span
-                            style={{
-                              fontSize: 12,
-                              color: "#00bda5",
-                              fontWeight: 700,
-                              flexShrink: 0,
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            ✓ Rep notified
-                          </span>
-                        ) : (
-                          <button
-                            onClick={() => postInterest(u.product)}
-                            style={{
-                              background: "#ff7a59",
-                              color: "#fff",
-                              border: "none",
-                              padding: "9px 16px",
-                              borderRadius: 6,
-                              fontSize: 12,
-                              fontWeight: 700,
-                              cursor: "pointer",
-                              flexShrink: 0,
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            I&apos;m Interested →
-                          </button>
-                        )}
                       </div>
                     );
                   })}
                 </div>
-                <style>{`
-                  @media (max-width: 640px) {
-                    .grow-row {
-                      flex-direction: column !important;
-                      align-items: stretch !important;
-                    }
-                    .grow-row button {
-                      width: 100% !important;
-                    }
-                  }
-                `}</style>
               </div>
 
             </div>{/* end left/center column */}
