@@ -172,10 +172,14 @@ function getFallback(): FallbackStore {
 
 // ─── Builds ─────────────────────────────────────────────────────────────
 
-export async function addBuild(build: BuildRecord): Promise<BuildRecord> {
+export function addBuild(build: BuildRecord): BuildRecord {
   getFallback().builds.set(build.id, build);
   const sb = getSupabase();
-  if (sb) await sb.from("builds").upsert(buildToRow(build), { onConflict: "id" });
+  if (sb) {
+    sb.from("builds").upsert(buildToRow(build), { onConflict: "id" }).then(({ error }) => {
+      if (error) console.error("[addBuild] Supabase write failed:", error.message);
+    });
+  }
   return build;
 }
 
@@ -318,12 +322,12 @@ export async function updatePulseTimer(clientId: string, updates: Partial<PulseT
 
 // ─── Notifications ──────────────────────────────────────────────────────
 
-export async function addNotification(notif: Notification): Promise<Notification> {
+export function addNotification(notif: Notification): Notification {
   getFallback().notifications.set(notif.id, notif);
 
   const sb = getSupabase();
   if (sb) {
-    await sb.from("notifications").insert({
+    sb.from("notifications").insert({
       id: notif.id,
       type: notif.type,
       client_id: notif.clientId,
@@ -333,6 +337,8 @@ export async function addNotification(notif: Notification): Promise<Notification
       read: notif.read,
       dismissed: notif.dismissed,
       meta: notif.meta ?? null,
+    }).then(({ error }) => {
+      if (error) console.error("[addNotification] Supabase write failed:", error.message);
     });
   }
   return notif;

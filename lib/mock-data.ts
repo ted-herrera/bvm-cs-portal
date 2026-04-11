@@ -381,12 +381,15 @@ export async function getClient(id: string): Promise<ClientProfile | undefined> 
   return rowToProfile(data);
 }
 
-export async function addClient(profile: ClientProfile): Promise<void> {
+export function addClient(profile: ClientProfile): void {
   // Always write to fallback for in-process reads
   getFallbackStore().set(profile.id, profile);
   const sb = getSupabase();
   if (!sb) return;
-  await sb.from("clients").upsert(profileToRow(profile), { onConflict: "id" });
+  // Fire-and-forget — ensures write happens even if caller doesn't await
+  sb.from("clients").upsert(profileToRow(profile), { onConflict: "id" }).then(({ error }) => {
+    if (error) console.error("[addClient] Supabase write failed:", error.message);
+  });
 }
 
 export async function updateClient(id: string, updates: Partial<ClientProfile>): Promise<ClientProfile | null> {
