@@ -712,6 +712,72 @@ export default function BuildQueuePage() {
     setEditHistory(prev => [entry, ...prev]);
   }
 
+  // ─── Hard gate checks — these always block Button 4 ────────────────
+  function runHardGateChecks(html: string): QaIssue[] {
+    const lines = html.split("\n");
+    const hardFails: QaIssue[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const ln = i + 1;
+
+      // Placeholder phone numbers
+      if (/\(555\)|\b555[-.]?000|\b0000[-.]?0000/.test(line)) {
+        hardFails.push({ line: ln, message: "Placeholder phone number detected — not a real number", fix: "Replace with the client's actual phone number", severity: "blocker" });
+      }
+
+      // Unresolved {{tokens}}
+      const tokenMatch = line.match(/\{\{[^}]+\}\}/);
+      if (tokenMatch) {
+        hardFails.push({ line: ln, message: `Unresolved token: ${tokenMatch[0]}`, fix: "Replace this token with the actual value", severity: "blocker" });
+      }
+
+      // Empty canonical href
+      if (/rel=["']canonical["']/.test(line) && /href=["']\s*["']/.test(line)) {
+        hardFails.push({ line: ln, message: "Canonical link has empty href", fix: "Set canonical href to the site's actual URL", severity: "blocker" });
+      }
+
+      // CTA links with href="#" or empty href
+      if (/<a\s[^>]*class=["'][^"']*cta[^"']*["']/i.test(line) || /class=["'][^"']*btn[^"']*["']/i.test(line) || /class=["'][^"']*button[^"']*["']/i.test(line)) {
+        if (/href=["']#["']/.test(line) || /href=["']\s*["']/.test(line)) {
+          hardFails.push({ line: ln, message: "CTA button has placeholder href (# or empty)", fix: "Set CTA href to a real link — phone, email, or booking URL", severity: "blocker" });
+        }
+      }
+      // Also catch any <a> with href="#contact" or href="#" that looks like a CTA
+      if (/<a\s[^>]*href=["']#["'][^>]*>[^<]*(?:order|book|call|contact|get|schedule|start)/i.test(line)) {
+        hardFails.push({ line: ln, message: "CTA link points to # — not a real destination", fix: "Replace href=\"#\" with a real URL, tel: link, or mailto: link", severity: "blocker" });
+      }
+    }
+
+    // Title tag check — missing or generic
+    const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    if (!titleMatch) {
+      hardFails.push({ line: 1, message: "No <title> tag found", fix: "Add a <title> tag with the business name inside <head>", severity: "blocker" });
+    } else {
+      const titleText = titleMatch[1].trim().toLowerCase();
+      if (!titleText || titleText === "my website" || titleText === "untitled" || titleText === "document" || titleText === "home") {
+        const titleLine = lines.findIndex(l => /<title/i.test(l));
+        hardFails.push({ line: (titleLine >= 0 ? titleLine + 1 : 1), message: `Title tag is generic: "${titleMatch[1].trim()}"`, fix: "Set the title to the business name", severity: "blocker" });
+      }
+    }
+
+    // Address check — look for footer or contact section
+    const hasAddress = /\d+\s+\w+\s+(st|ave|blvd|rd|dr|ln|way|ct|pl|pike|hwy)/i.test(html);
+    if (!hasAddress) {
+      const footerLine = lines.findIndex(l => /<footer/i.test(l));
+      hardFails.push({ line: (footerLine >= 0 ? footerLine + 1 : lines.length), message: "No street address found in the page", fix: "Add the business street address — clients need to find the location", severity: "blocker" });
+    }
+
+    // Deduplicate
+    const seen = new Set<string>();
+    return hardFails.filter(f => {
+      const key = `${f.line}:${f.message}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
   // ─── Extract issues with line numbers from QA report ──────────────
   function extractIssues(html: string, report: QAReport): QaIssue[] {
     const lines = html.split("\n");
@@ -783,11 +849,15 @@ export default function BuildQueuePage() {
       const data = (await res.json()) as { report?: QAReport };
       if (data.report) {
         setQaReport(data.report);
-        const extracted = extractIssues(editedHtml, data.report);
+        const qaIssues = extractIssues(editedHtml, data.report);
+        const hardGates = runHardGateChecks(editedHtml);
+        // Merge hard gates first, then QA issues (no duplicates)
+        const seenKeys = new Set(hardGates.map(h => `${h.line}:${h.message}`));
+        const extracted = [...hardGates, ...qaIssues.filter(i => !seenKeys.has(`${i.line}:${i.message}`))];
         setIssues(extracted);
         setGateStep(1);
         const hash = await sha256(editedHtml);
-        addHistoryEntry(hash.slice(0, 8), `Scan — ${extracted.length} issues found`);
+        addHistoryEntry(hash.slice(0, 8), `Scan — ${extracted.length} issues (${hardGates.length} hard fails)`);
       }
     } catch {
       setQaGateMessage("QA service unavailable — try again");
@@ -862,8 +932,11 @@ export default function BuildQueuePage() {
         setQaReport(data.report);
         setQaEditedScore(data.report.score);
         setQaHash(hash);
-        const newIssues = extractIssues(editedHtml, data.report);
-        setIssues(newIssues);
+        const qaIssues = extractIssues(editedHtml, data.report);
+        const hardGates = runHardGateChecks(editedHtml);
+        const seenKeys = new Set(hardGates.map(h => `${h.line}:${h.message}`));
+        const allIssues = [...hardGates, ...qaIssues.filter(i => !seenKeys.has(`${i.line}:${i.message}`))];
+        setIssues(allIssues);
         setFixedLines(new Set());
 
         // Store on server
@@ -876,11 +949,13 @@ export default function BuildQueuePage() {
           }),
         }).then(r => r.json()).then(d => { if (d.build) setLocalUpdatedAt(d.build.updatedAt); }).catch(() => {});
 
-        const hasBlockers = data.report.passes.some(p => p.checks.some(c => !c.passed && c.severity === "blocker"));
-        if (data.report.score >= 70 && !hasBlockers) {
+        const hasApiBlockers = data.report.passes.some(p => p.checks.some(c => !c.passed && c.severity === "blocker"));
+        if (data.report.score >= 70 && !hasApiBlockers && hardGates.length === 0) {
           setGateStep(3);
         } else {
-          setQaGateMessage(data.report.score < 70 ? `Score ${data.report.score} — needs >= 70. Fix remaining issues and re-score.` : "Blocker issues remain. Fix red items and re-score.");
+          if (hardGates.length > 0) setQaGateMessage(`${hardGates.length} hard fail${hardGates.length > 1 ? "s" : ""} — fix all red items before delivery`);
+          else if (data.report.score < 70) setQaGateMessage(`Score ${data.report.score} — needs >= 70. Fix remaining issues and re-score.`);
+          else setQaGateMessage("Blocker issues remain. Fix red items and re-score.");
         }
         addHistoryEntry(hash.slice(0, 8), `Re-score — ${data.report.score}/100`);
       }
@@ -903,6 +978,17 @@ export default function BuildQueuePage() {
     if (qaReport) {
       const hasBlockers = qaReport.passes.some(p => p.checks.some(c => !c.passed && c.severity === "blocker"));
       if (hasBlockers) { setQaGateMessage("Blocker checks must all pass"); return; }
+    }
+    // Gate: hard gate checks on current HTML
+    const hardGates = runHardGateChecks(editedHtml);
+    if (hardGates.length > 0) {
+      setQaGateMessage(`${hardGates.length} hard fail${hardGates.length > 1 ? "s" : ""} found — re-score after fixing`);
+      setIssues(prev => {
+        const existing = new Set(prev.map(p => `${p.line}:${p.message}`));
+        const newOnes = hardGates.filter(h => !existing.has(`${h.line}:${h.message}`));
+        return [...newOnes, ...prev];
+      });
+      return;
     }
     // Gate: hash match
     if (qaHash) {
@@ -1393,6 +1479,18 @@ export default function BuildQueuePage() {
                 title="Final delivery preview"
                 style={{ width: "100%", height: "100%", border: "none" }}
               />
+            </div>
+            {/* Close & Return */}
+            <div style={{ padding: "14px 24px", borderTop: `1px solid ${COLORS.cardBorder}`, display: "flex", justifyContent: "center", flexShrink: 0 }}>
+              <button
+                onClick={() => { setShowDeliveryModal(false); setSelectedBuild(null); setGateStep(0); setBuildCompleted(false); setEditedHtml(""); setIssues([]); setQaReport(null); setQaEditedScore(null); }}
+                style={{
+                  background: COLORS.headerBar, color: "#fff", border: "none", borderRadius: 8,
+                  padding: "12px 40px", fontSize: 13, fontWeight: 700, letterSpacing: "0.04em", cursor: "pointer",
+                }}
+              >
+                Close & Return to Queue
+              </button>
             </div>
           </div>
         </div>
