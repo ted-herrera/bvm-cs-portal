@@ -69,6 +69,11 @@ export default function CampaignDashboardPage() {
       try {
         const u = JSON.parse(raw);
         setRep(u);
+        // Load CS Intel from localStorage
+        try {
+          const cs = localStorage.getItem(`cs_intel_${u.username}`);
+          if (cs) setCsIntelData(JSON.parse(cs));
+        } catch { /* */ }
       } catch {
         window.location.href = "/campaign/login";
       }
@@ -100,6 +105,11 @@ export default function CampaignDashboardPage() {
   // Actions
   const [sendingLink, setSendingLink] = useState(false);
   const [sendingCard, setSendingCard] = useState(false);
+
+  // CS Intel
+  const [csIntelData, setCsIntelData] = useState<Array<{ businessName: string; health?: string; [key: string]: unknown }>>([]);
+  const [csModalOpen, setCsModalOpen] = useState(false);
+  const csFileRef = useRef<HTMLInputElement>(null);
 
   /* ── Load data ──────────────────────────────────────────────────────── */
   useEffect(() => {
@@ -230,6 +240,40 @@ export default function CampaignDashboardPage() {
     window.location.href = "/campaign/login";
   }
 
+  async function handleCsUpload(file: File) {
+    // Load SheetJS from CDN
+    if (!(window as unknown as Record<string, unknown>).XLSX) {
+      await new Promise<void>((resolve) => {
+        const s = document.createElement("script");
+        s.src = "https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js";
+        s.onload = () => resolve();
+        document.head.appendChild(s);
+      });
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const XLSX = (window as any).XLSX;
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: "array" });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet);
+    // Filter by rep name in any column (Column F typical)
+    const repLower = rep!.username.toLowerCase();
+    const matched = rows.filter((r) => Object.values(r).some((v) => typeof v === "string" && v.toLowerCase().includes(repLower)));
+    const parsed = matched.map((r) => {
+      const vals = Object.values(r);
+      const keys = Object.keys(r);
+      return {
+        businessName: String(vals[0] || ""),
+        health: keys.find((k) => k.toLowerCase().includes("health") || k.toLowerCase().includes("risk")) ? String(r[keys.find((k) => k.toLowerCase().includes("health") || k.toLowerCase().includes("risk"))!] || "") : undefined,
+        ...r,
+      };
+    });
+    setCsIntelData(parsed);
+    localStorage.setItem(`cs_intel_${rep!.username}`, JSON.stringify(parsed));
+    setCsModalOpen(false);
+    showToast(`CS Intel loaded — ${parsed.length} clients matched`);
+  }
+
   /* ── Auth guard ─────────────────────────────────────────────────────── */
   if (!authChecked) return <div style={{ background: "#f8fafc", height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748b" }}>Loading...</div>;
   if (!rep) return null;
@@ -273,6 +317,13 @@ export default function CampaignDashboardPage() {
           </span>
         </div>
 
+        <button onClick={() => setCsModalOpen(true)} style={{
+          background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8,
+          padding: "7px 14px", fontSize: 12, fontWeight: 600, color: "#64748b",
+          cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+        }}>
+          <span style={{ fontSize: 14 }}>📊</span> CS Intel {csIntelData.length > 0 && <span style={{ background: "#22c55e", color: "#fff", fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 8 }}>{csIntelData.length}</span>}
+        </button>
         <Link href="/campaign/intake" style={{
           background: "#F5C842", color: "#1B2A4A", borderRadius: 8, padding: "8px 18px",
           fontSize: 13, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap",
@@ -336,26 +387,34 @@ export default function CampaignDashboardPage() {
                 {/* Campaign clients */}
                 {filtered.map((c) => {
                   const cLead = closeLeads.find((l) => l.businessName.toLowerCase() === c.business_name.toLowerCase());
+                  const cSbr = (c.sbr_data || {}) as Record<string, unknown>;
+                  const score = (cSbr.opportunityScore as number) || 0;
+                  const csMatch = csIntelData.find((ci) => ci.businessName.toLowerCase().includes(c.business_name.toLowerCase().slice(0, 8)));
+                  const lastEdDays = cLead?.lastEdition ? Math.floor((new Date(cLead.lastEdition).getTime() - Date.now()) / 86400000) : 999;
                   return (
                     <div key={c.id} onClick={() => selectClient(c)} style={{
-                      padding: "12px 16px", cursor: "pointer",
+                      padding: "10px 16px", cursor: "pointer",
                       borderBottom: "1px solid #f1f5f9",
                       background: selected?.id === c.id ? "#fffbeb" : "#fff",
                       borderLeft: selected?.id === c.id ? "3px solid #F5C842" : "3px solid transparent",
+                      display: "flex", alignItems: "center", gap: 10,
                     }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>{c.business_name}</span>
-                        <span style={{
-                          fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 6,
-                          background: `${STAGE_COLORS[c.stage]}15`, color: STAGE_COLORS[c.stage],
-                        }}>{STAGE_LABELS[c.stage]}</span>
+                      {/* Avatar */}
+                      <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#F5C842", color: "#1B2A4A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>
+                        {initials(c.business_name)}
                       </div>
-                      <div style={{ display: "flex", gap: 8, fontSize: 11, color: "#94a3b8" }}>
-                        <span>{c.city}</span>
-                        <span>{c.ad_size}</span>
-                        {cLead?.monthly && parseFloat(cLead.monthly) > 0 && (
-                          <span style={{ color: "#f59e0b", fontWeight: 600 }}>${cLead.monthly}/mo</span>
-                        )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.business_name}</span>
+                        </div>
+                        <div style={{ display: "flex", gap: 6, fontSize: 10, color: "#94a3b8", flexWrap: "wrap", alignItems: "center" }}>
+                          <span>{c.city}</span>
+                          <span style={{ background: `${STAGE_COLORS[c.stage]}15`, color: STAGE_COLORS[c.stage], fontWeight: 700, padding: "1px 6px", borderRadius: 4 }}>{STAGE_LABELS[c.stage]}</span>
+                          {score > 0 && <span style={{ color: score >= 75 ? "#22c55e" : score >= 50 ? "#f59e0b" : "#ef4444", fontWeight: 700 }}>{score}</span>}
+                          {csMatch?.health && <span style={{ fontWeight: 700, fontSize: 9, padding: "1px 4px", borderRadius: 3, background: csMatch.health === "CRITICAL" ? "#fef2f2" : csMatch.health === "HIGH" ? "#fffbeb" : "#f0fdf4", color: csMatch.health === "CRITICAL" ? "#dc2626" : csMatch.health === "HIGH" ? "#d97706" : "#16a34a" }}>{csMatch.health}</span>}
+                          {lastEdDays <= 60 && lastEdDays > -999 && <span style={{ color: "#d97706", fontWeight: 700 }}>Renewal</span>}
+                          {cLead?.monthly && parseFloat(cLead.monthly) > 0 && <span style={{ color: "#f59e0b", fontWeight: 600 }}>${cLead.monthly}/mo</span>}
+                        </div>
                       </div>
                     </div>
                   );
@@ -391,8 +450,48 @@ export default function CampaignDashboardPage() {
         {/* ── CENTER PANEL ──────────────────────────────────────────────── */}
         <main style={{ flex: 1, overflowY: "auto", padding: 24 }}>
           {!selected ? (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#94a3b8", fontSize: 14 }}>
-              Select a client to view details
+            <div>
+              {/* Stats cards */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 32 }}>
+                {[
+                  { label: "Total Campaigns", value: clients.length, color: "#1B2A4A" },
+                  { label: "Active", value: clients.filter((c) => c.stage === "approved" || c.stage === "production").length, color: "#22c55e" },
+                  { label: "Delivered", value: clients.filter((c) => c.stage === "delivered").length, color: "#8b5cf6" },
+                  { label: "Close Book", value: closeLeads.length, color: "#f59e0b" },
+                ].map((s) => (
+                  <div key={s.label} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: 20, textAlign: "center" }}>
+                    <div style={{ fontSize: 32, fontWeight: 800, color: s.color }}>{s.value}</div>
+                    <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600, marginTop: 4 }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Recent activity */}
+              <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: 20 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: "#1B2A4A", margin: "0 0 16px" }}>Recent Activity</h3>
+                {clients.length === 0 ? (
+                  <p style={{ color: "#94a3b8", fontSize: 13 }}>No campaigns yet. Click &quot;New Campaign&quot; to get started.</p>
+                ) : (
+                  <div>
+                    {clients.slice(0, 8).map((c) => (
+                      <div key={c.id} onClick={() => selectClient(c)} style={{
+                        display: "flex", alignItems: "center", gap: 10, padding: "10px 0",
+                        borderBottom: "1px solid #f1f5f9", cursor: "pointer",
+                      }}>
+                        <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#F5C842", color: "#1B2A4A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, flexShrink: 0 }}>
+                          {initials(c.business_name)}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: "#1e293b" }}>{c.business_name}</span>
+                          <span style={{ fontSize: 11, color: "#94a3b8", marginLeft: 8 }}>{c.city}</span>
+                        </div>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: `${STAGE_COLORS[c.stage]}15`, color: STAGE_COLORS[c.stage] }}>{STAGE_LABELS[c.stage]}</span>
+                        <span style={{ fontSize: 11, color: "#94a3b8" }}>{daysSince(c.created_at)}d ago</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <div style={{ maxWidth: 800 }}>
@@ -705,6 +804,42 @@ export default function CampaignDashboardPage() {
           );
         })()}
       </div>
+
+      {/* ── CS Intel Upload Modal ──────────────────────────────────────── */}
+      {csModalOpen && (
+        <>
+          <div onClick={() => setCsModalOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 600 }} />
+          <div style={{
+            position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+            background: "#fff", borderRadius: 16, padding: 32, width: 440, zIndex: 601,
+            boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 800, color: "#1e293b", margin: 0 }}>CS Intelligence Upload</h2>
+              <button onClick={() => setCsModalOpen(false)} style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", fontSize: 14, color: "#64748b" }}>✕</button>
+            </div>
+            <div
+              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+              onDrop={(e) => { e.preventDefault(); e.stopPropagation(); const f = e.dataTransfer.files[0]; if (f) handleCsUpload(f); }}
+              onClick={() => csFileRef.current?.click()}
+              style={{
+                border: "2px dashed #e2e8f0", borderRadius: 12, padding: 40, textAlign: "center",
+                cursor: "pointer", background: "#f8fafc",
+              }}
+            >
+              <div style={{ fontSize: 32, marginBottom: 12 }}>📊</div>
+              <p style={{ fontSize: 14, fontWeight: 600, color: "#1e293b", margin: "0 0 4px" }}>Drop .xlsx or .csv file here</p>
+              <p style={{ fontSize: 12, color: "#94a3b8", margin: 0 }}>or click to browse</p>
+              <input ref={csFileRef} type="file" accept=".xlsx,.csv" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleCsUpload(f); }} />
+            </div>
+            {csIntelData.length > 0 && (
+              <div style={{ marginTop: 16, fontSize: 12, color: "#64748b" }}>
+                <strong>{csIntelData.length}</strong> clients loaded · Last updated: {new Date().toLocaleDateString()}
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
