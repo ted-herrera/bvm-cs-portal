@@ -5,11 +5,23 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { note } = (await request.json()) as { note: string };
+  const body = (await request.json()) as { note?: string; type?: string; value?: string };
 
   const sb = getSupabase();
   if (!sb) {
     return Response.json({ error: "Database not configured" }, { status: 500 });
+  }
+
+  // Handle tagline update
+  if (body.type === "tagline" && body.value) {
+    const { error: tErr } = await sb
+      .from("campaign_clients")
+      .update({ tagline: body.value })
+      .eq("id", id);
+    if (tErr) {
+      return Response.json({ error: tErr.message }, { status: 500 });
+    }
+    return Response.json({ success: true });
   }
 
   // Get current revisions
@@ -20,7 +32,12 @@ export async function POST(
     .single();
 
   const revisions = Array.isArray(current?.revisions) ? current.revisions : [];
-  revisions.push({ note, created_at: new Date().toISOString() });
+  revisions.push({
+    note: body.note || "",
+    type: body.type || "revision",
+    value: body.value || null,
+    created_at: new Date().toISOString(),
+  });
 
   const { error } = await sb
     .from("campaign_clients")

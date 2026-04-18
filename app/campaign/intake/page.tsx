@@ -30,7 +30,14 @@ const EMPTY_FIELDS: CollectedFields = {
   tagline: null,
 };
 
-function fieldCount(f: CollectedFields): number {
+function coreFieldCount(f: CollectedFields): number {
+  // Count only the 6 core fields (not tagline — handled separately)
+  return [f.businessName, f.category, f.city, f.zip, f.services, f.adSize].filter(
+    (v) => v !== null && v !== ""
+  ).length;
+}
+
+function allFieldCount(f: CollectedFields): number {
   return Object.values(f).filter((v) => v !== null && v !== "").length;
 }
 
@@ -40,7 +47,10 @@ export default function CampaignIntakePage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [fields, setFields] = useState<CollectedFields>(EMPTY_FIELDS);
-  const [phase, setPhase] = useState<"chat" | "scanning" | "generating">("chat");
+  const [phase, setPhase] = useState<"chat" | "tagline" | "scanning" | "generating">("chat");
+  const [taglineOptions, setTaglineOptions] = useState<string[]>([]);
+  const [selectedTagline, setSelectedTagline] = useState<string | null>(null);
+  const [sbrData, setSbrData] = useState<Record<string, unknown> | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -122,7 +132,13 @@ export default function CampaignIntakePage() {
               ...fields,
               ...(parsed.collectedFields || {}),
             };
-            setTimeout(() => startGeneration(finalFields as CollectedFields), 800);
+            // If tagline already collected by Bruno, go straight to generation
+            if (finalFields.tagline) {
+              setTimeout(() => startGeneration(finalFields as CollectedFields), 800);
+            } else {
+              // Enter tagline selection phase
+              setTimeout(() => startTaglinePhase(finalFields as CollectedFields), 800);
+            }
           }
         }
       }
@@ -138,11 +154,21 @@ export default function CampaignIntakePage() {
     inputRef.current?.focus();
   }
 
-  async function startGeneration(finalFields: CollectedFields) {
-    setPhase("scanning");
+  async function startTaglinePhase(finalFields: CollectedFields) {
+    setFields(finalFields);
+    setPhase("tagline");
 
-    // Fire SBR scan
-    let sbrData = null;
+    // Add Bruno message about taglines
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "assistant",
+        text: "Last thing — here are 3 tagline options for your campaign. Pick one you like, or skip and we can update it later.",
+      },
+    ]);
+
+    // Fire SBR to get market data for generating smart taglines
+    let sbr = null;
     try {
       const sbrRes = await fetch("/api/campaign/sbr", {
         method: "POST",
@@ -154,9 +180,100 @@ export default function CampaignIntakePage() {
           category: finalFields.category,
         }),
       });
-      sbrData = await sbrRes.json();
+      sbr = await sbrRes.json();
+      setSbrData(sbr);
     } catch (e) {
-      console.error("SBR error:", e);
+      console.error("SBR error for taglines:", e);
+    }
+
+    // Generate taglines via Claude
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          system: `You generate punchy, local, specific taglines for local business print ad campaigns. Return ONLY a JSON array of exactly 3 strings. No preamble, no markdown. Each tagline should be:
+- Under 10 words
+- Specific to the business category and city
+- Punchy and memorable — not generic
+- Feel local and authentic
+
+${sbr?.marketBrief ? `Market insight: ${sbr.marketBrief}` : ""}
+${sbr?.localAdvantage ? `Local advantage: ${sbr.localAdvantage}` : ""}`,
+          messages: [
+            {
+              role: "user",
+              content: `Generate 3 taglines for "${finalFields.businessName}" — a ${finalFields.category} business in ${finalFields.city}. Their main offer: ${finalFields.services}.`,
+            },
+          ],
+          temperature: 0.9,
+        }),
+      });
+      const data = await res.json();
+      if (data.response) {
+        const cleaned = data.response.replace(/```json\n?|```\n?/g, "").trim();
+        const parsed = JSON.parse(cleaned);
+        if (Array.isArray(parsed) && parsed.length >= 3) {
+          setTaglineOptions(parsed.slice(0, 3));
+        }
+      }
+    } catch (e) {
+      console.error("Tagline generation error:", e);
+      // Fallback taglines
+      setTaglineOptions([
+        `${finalFields.city}'s best-kept secret.`,
+        `Where ${finalFields.city} comes first.`,
+        `Built for this neighborhood.`,
+      ]);
+    }
+  }
+
+  function selectTagline(tagline: string) {
+    setSelectedTagline(tagline);
+    setFields((prev) => ({ ...prev, tagline }));
+  }
+
+  function confirmTagline() {
+    const finalFields = { ...fields, tagline: selectedTagline };
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", text: selectedTagline || "Skip tagline" },
+      { role: "assistant", text: selectedTagline ? "Great choice — let's build your campaign." : "No problem — your rep can add a tagline later. Let's build your campaign." },
+    ]);
+    setTimeout(() => startGeneration(finalFields as CollectedFields), 600);
+  }
+
+  function skipTagline() {
+    const finalFields = { ...fields, tagline: null };
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", text: "Skip for now" },
+      { role: "assistant", text: "No problem — your rep can add a tagline later. Let's build your campaign." },
+    ]);
+    setTimeout(() => startGeneration(finalFields as CollectedFields), 600);
+  }
+
+  async function startGeneration(finalFields: CollectedFields) {
+    setPhase("scanning");
+
+    // Fire SBR scan (if we don't already have it from tagline phase)
+    let sbr = sbrData;
+    if (!sbr) {
+      try {
+        const sbrRes = await fetch("/api/campaign/sbr", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            businessName: finalFields.businessName,
+            city: finalFields.city,
+            zip: finalFields.zip,
+            category: finalFields.category,
+          }),
+        });
+        sbr = await sbrRes.json();
+      } catch (e) {
+        console.error("SBR error:", e);
+      }
     }
 
     setPhase("generating");
@@ -174,7 +291,7 @@ export default function CampaignIntakePage() {
           services: finalFields.services,
           adSize: finalFields.adSize,
           tagline: finalFields.tagline,
-          sbrData,
+          sbrData: sbr,
         }),
       });
       const imgData = await imgRes.json();
@@ -198,7 +315,7 @@ export default function CampaignIntakePage() {
           ad_size: finalFields.adSize,
           tagline: finalFields.tagline,
           stage: "tearsheet",
-          sbr_data: sbrData,
+          sbr_data: sbr,
           generated_directions: directions,
           revisions: [],
         });
@@ -216,7 +333,7 @@ export default function CampaignIntakePage() {
   }
 
   // Loading / generation phase overlay
-  if (phase !== "chat") {
+  if (phase === "scanning" || phase === "generating") {
     return (
       <div style={{ minHeight: "100vh", background: "#1B2A4A", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 24 }}>
         <div style={{ width: 48, height: 48, border: "3px solid #F5C842", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
@@ -231,7 +348,7 @@ export default function CampaignIntakePage() {
     );
   }
 
-  const progress = fieldCount(fields);
+  const progress = coreFieldCount(fields);
 
   return (
     <div style={{ minHeight: "100vh", background: "#1B2A4A", display: "flex", flexDirection: "column" }}>
@@ -308,46 +425,48 @@ export default function CampaignIntakePage() {
             <div ref={chatEndRef} />
           </div>
 
-          {/* Input */}
-          <div style={{ padding: "12px 24px 24px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                ref={inputRef}
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && !loading) { sendToBruno(input); setInput(""); } }}
-                placeholder="Type your answer..."
-                style={{
-                  flex: 1,
-                  background: "rgba(255,255,255,0.06)",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  borderRadius: 8,
-                  padding: "12px 16px",
-                  fontSize: 14,
-                  color: "#fff",
-                  outline: "none",
-                }}
-              />
-              <button
-                onClick={() => { if (!loading) { sendToBruno(input); setInput(""); } }}
-                disabled={loading || !input.trim()}
-                style={{
-                  background: "#F5C842",
-                  color: "#1B2A4A",
-                  border: "none",
-                  borderRadius: 8,
-                  padding: "12px 20px",
-                  fontWeight: 700,
-                  fontSize: 14,
-                  cursor: loading ? "not-allowed" : "pointer",
-                  opacity: loading || !input.trim() ? 0.5 : 1,
-                }}
-              >
-                Send
-              </button>
+          {/* Input — hidden during tagline phase */}
+          {phase === "chat" && (
+            <div style={{ padding: "12px 24px 24px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !loading) { sendToBruno(input); setInput(""); } }}
+                  placeholder="Type your answer..."
+                  style={{
+                    flex: 1,
+                    background: "rgba(255,255,255,0.06)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    borderRadius: 8,
+                    padding: "12px 16px",
+                    fontSize: 14,
+                    color: "#fff",
+                    outline: "none",
+                  }}
+                />
+                <button
+                  onClick={() => { if (!loading) { sendToBruno(input); setInput(""); } }}
+                  disabled={loading || !input.trim()}
+                  style={{
+                    background: "#F5C842",
+                    color: "#1B2A4A",
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "12px 20px",
+                    fontWeight: 700,
+                    fontSize: 14,
+                    cursor: loading ? "not-allowed" : "pointer",
+                    opacity: loading || !input.trim() ? 0.5 : 1,
+                  }}
+                >
+                  Send
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* RIGHT — Brief Preview */}
@@ -371,7 +490,6 @@ export default function CampaignIntakePage() {
             { label: "Location", value: fields.city && fields.zip ? `${fields.city}, ${fields.zip}` : fields.city || fields.zip },
             { label: "Primary Offer", value: fields.services },
             { label: "Ad Size", value: fields.adSize },
-            { label: "Tagline", value: fields.tagline },
           ].map((f, i) => (
             <div key={i} style={{ marginBottom: 20 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
@@ -384,6 +502,94 @@ export default function CampaignIntakePage() {
               )}
             </div>
           ))}
+
+          {/* Tagline section — shows cards during tagline phase */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
+              Tagline
+            </div>
+            {phase === "tagline" ? (
+              <div style={{ marginTop: 8 }}>
+                {taglineOptions.length === 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} style={{ height: 56, background: "rgba(255,255,255,0.06)", borderRadius: 10, animation: "pulse 1.5s ease infinite" }} />
+                    ))}
+                  </div>
+                ) : (
+                  <>
+                    {taglineOptions.map((t, i) => (
+                      <button
+                        key={i}
+                        onClick={() => selectTagline(t)}
+                        style={{
+                          display: "block",
+                          width: "100%",
+                          textAlign: "left",
+                          background: selectedTagline === t ? "rgba(245,200,66,0.12)" : "rgba(255,255,255,0.04)",
+                          border: selectedTagline === t ? "2px solid #F5C842" : "1px solid rgba(255,255,255,0.1)",
+                          borderRadius: 10,
+                          padding: "14px 16px",
+                          marginBottom: 8,
+                          cursor: "pointer",
+                          transition: "all 0.15s",
+                          animation: `fadeIn 0.4s ease ${i * 0.1}s both`,
+                        }}
+                      >
+                        <div style={{ fontSize: 14, color: selectedTagline === t ? "#F5C842" : "#fff", fontWeight: 600, fontStyle: "italic" }}>
+                          &ldquo;{t}&rdquo;
+                        </div>
+                      </button>
+                    ))}
+
+                    {/* Confirm button */}
+                    {selectedTagline && (
+                      <button
+                        onClick={confirmTagline}
+                        style={{
+                          width: "100%",
+                          background: "#F5C842",
+                          color: "#1B2A4A",
+                          border: "none",
+                          borderRadius: 8,
+                          padding: "12px 16px",
+                          fontSize: 14,
+                          fontWeight: 800,
+                          cursor: "pointer",
+                          marginTop: 4,
+                          animation: "fadeIn 0.3s ease",
+                        }}
+                      >
+                        Use This Tagline →
+                      </button>
+                    )}
+
+                    {/* Skip button */}
+                    <button
+                      onClick={skipTagline}
+                      style={{
+                        width: "100%",
+                        background: "transparent",
+                        border: "none",
+                        color: "rgba(255,255,255,0.35)",
+                        fontSize: 13,
+                        cursor: "pointer",
+                        marginTop: 8,
+                        padding: "8px 0",
+                        fontWeight: 600,
+                      }}
+                    >
+                      Skip for now →
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : fields.tagline ? (
+              <div style={{ fontSize: 15, color: "#fff", fontWeight: 600, fontStyle: "italic" }}>&ldquo;{fields.tagline}&rdquo;</div>
+            ) : (
+              <div style={{ height: 20, background: "rgba(255,255,255,0.06)", borderRadius: 4, width: "70%" }} />
+            )}
+          </div>
         </div>
       </div>
     </div>
