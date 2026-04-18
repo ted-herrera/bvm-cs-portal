@@ -50,20 +50,33 @@ function timeAgo(d: string): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-function getRepFromCookie(): { username: string; name: string; role: string } {
+function getRepFromCookie(): { username: string; name: string; role: string } | null {
+  // Try campaign_user cookie first
+  try {
+    const match = document.cookie.match(/campaign_user=([^;]+)/);
+    if (match) {
+      const payload = JSON.parse(decodeURIComponent(match[1]));
+      return {
+        username: payload.username || "unassigned",
+        name: payload.username || "Rep",
+        role: payload.role || "rep",
+      };
+    }
+  } catch { /* fall through */ }
+  // Fallback to dc_session cookie
   try {
     const match = document.cookie.match(/dc_session=([^;]+)/);
-    if (!match) return { username: "unassigned", name: "Rep", role: "rep" };
-    const [encoded] = match[1].split(".");
-    const payload = JSON.parse(atob(encoded.replace(/-/g, "+").replace(/_/g, "/")));
-    return {
-      username: payload.username || "unassigned",
-      name: payload.name || "Rep",
-      role: payload.role || "rep",
-    };
-  } catch {
-    return { username: "unassigned", name: "Rep", role: "rep" };
-  }
+    if (match) {
+      const [encoded] = match[1].split(".");
+      const payload = JSON.parse(atob(encoded.replace(/-/g, "+").replace(/_/g, "/")));
+      return {
+        username: payload.username || "unassigned",
+        name: payload.name || "Rep",
+        role: payload.role || "rep",
+      };
+    }
+  } catch { /* ignore */ }
+  return null;
 }
 
 function initials(name: string): string {
@@ -222,6 +235,7 @@ export default function CampaignDashboardPage() {
 
   useEffect(() => {
     const r = getRepFromCookie();
+    if (!r) { router.push("/campaign/login"); return; }
     setRep(r);
     loadClients(r.username);
     loadCloseLeads(r.name);
@@ -288,9 +302,10 @@ export default function CampaignDashboardPage() {
   }
 
   function handleSignOut() {
+    document.cookie = "campaign_user=; path=/; max-age=0";
     document.cookie = "dc_session=; path=/; max-age=0";
     try { localStorage.removeItem("dc_auth_token"); } catch { /* */ }
-    router.push("/login");
+    router.push("/campaign/login");
   }
 
   function selectClient(c: CampaignClient) {

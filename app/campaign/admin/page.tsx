@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { CampaignClient } from "@/lib/campaign";
 
 const STAGE_COLORS: Record<string, string> = {
@@ -17,12 +18,27 @@ function daysSince(d: string): number {
   return Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
 }
 
+function getAdminFromCookie(): { username: string; role: string } | null {
+  try {
+    const match = document.cookie.match(/campaign_user=([^;]+)/);
+    if (match) {
+      const payload = JSON.parse(decodeURIComponent(match[1]));
+      if (payload.role === "admin") return payload;
+    }
+  } catch { /* */ }
+  return null;
+}
+
 export default function AdminPage() {
+  const router = useRouter();
   const [clients, setClients] = useState<CampaignClient[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const user = getAdminFromCookie();
+    if (!user) { router.push("/campaign/login"); return; }
     loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function loadAll() {
