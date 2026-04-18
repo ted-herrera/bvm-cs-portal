@@ -27,11 +27,14 @@ export default function CampaignLoginPage() {
       const data = await res.json();
 
       if (data.success) {
+        // Use window.location.href instead of router.push to force full page reload.
+        // This guarantees the Set-Cookie header is processed before the next page reads it.
         if (data.role === "admin") {
-          router.push("/campaign/admin");
+          window.location.href = "/campaign/admin";
         } else {
-          router.push("/campaign/dashboard");
+          window.location.href = "/campaign/dashboard";
         }
+        return;
       } else {
         setError(data.error || "Invalid credentials");
       }

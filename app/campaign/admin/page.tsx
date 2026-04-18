@@ -18,13 +18,21 @@ function daysSince(d: string): number {
   return Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
 }
 
+function getCookie(name: string): string | null {
+  const cookies = document.cookie.split(";");
+  for (const cookie of cookies) {
+    const [key, ...rest] = cookie.trim().split("=");
+    if (key === name) return decodeURIComponent(rest.join("="));
+  }
+  return null;
+}
+
 function getAdminFromCookie(): { username: string; role: string } | null {
+  const raw = getCookie("campaign_user");
+  if (!raw) return null;
   try {
-    const match = document.cookie.match(/campaign_user=([^;]+)/);
-    if (match) {
-      const payload = JSON.parse(decodeURIComponent(match[1]));
-      if (payload.role === "admin") return payload;
-    }
+    const payload = JSON.parse(raw);
+    if (payload.role === "admin") return payload;
   } catch { /* */ }
   return null;
 }

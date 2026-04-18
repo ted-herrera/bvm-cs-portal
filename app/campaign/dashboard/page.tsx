@@ -50,32 +50,41 @@ function timeAgo(d: string): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+function getCookie(name: string): string | null {
+  const cookies = document.cookie.split(";");
+  for (const cookie of cookies) {
+    const [key, ...rest] = cookie.trim().split("=");
+    if (key === name) return decodeURIComponent(rest.join("="));
+  }
+  return null;
+}
+
 function getRepFromCookie(): { username: string; name: string; role: string } | null {
   // Try campaign_user cookie first
-  try {
-    const match = document.cookie.match(/campaign_user=([^;]+)/);
-    if (match) {
-      const payload = JSON.parse(decodeURIComponent(match[1]));
+  const raw = getCookie("campaign_user");
+  if (raw) {
+    try {
+      const payload = JSON.parse(raw);
       return {
         username: payload.username || "unassigned",
         name: payload.username || "Rep",
         role: payload.role || "rep",
       };
-    }
-  } catch { /* fall through */ }
+    } catch { /* fall through */ }
+  }
   // Fallback to dc_session cookie
-  try {
-    const match = document.cookie.match(/dc_session=([^;]+)/);
-    if (match) {
-      const [encoded] = match[1].split(".");
+  const session = getCookie("dc_session");
+  if (session) {
+    try {
+      const [encoded] = session.split(".");
       const payload = JSON.parse(atob(encoded.replace(/-/g, "+").replace(/_/g, "/")));
       return {
         username: payload.username || "unassigned",
         name: payload.name || "Rep",
         role: payload.role || "rep",
       };
-    }
-  } catch { /* ignore */ }
+    } catch { /* ignore */ }
+  }
   return null;
 }
 
