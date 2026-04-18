@@ -227,6 +227,20 @@ export default function CampaignClientPage({ params }: { params: Promise<{ id: s
   }, [chatMessages]);
 
   async function loadClient() {
+    // Demo/fallback mode for Design Center IDs
+    if (id.startsWith("client-")) {
+      setClient({
+        id, created_at: new Date().toISOString(), business_name: "Ted's Pizza",
+        category: "Restaurant", city: "Tulsa", zip: "74103", services: "Wood-fired pizza, craft beer, catering",
+        ad_size: "1/4 page", tagline: "Tulsa's favorite slice.", rep_id: "demo",
+        stage: "approved", approved_at: new Date().toISOString(),
+        sbr_data: { opportunityScore: 94, medianIncome: "74200", households: "52000", topCategories: ["Restaurants", "Food", "Catering"], competitorGap: "Low competition in pizza category", incomeRing: "Ring 1 · $65-90K", marketBrief: "Strong opportunity in the Tulsa restaurant market." },
+        generated_directions: [{ name: "Bold & Direct", imageUrl: "", description: "Strong headline, direct offer", prompt: "" }],
+        selected_direction: "Bold & Direct", revisions: null,
+      } as CampaignClient);
+      setLoading(false);
+      return;
+    }
     try {
       const { getSupabase } = await import("@/lib/supabase");
       const sb = getSupabase();
@@ -370,8 +384,20 @@ export default function CampaignClientPage({ params }: { params: Promise<{ id: s
 
   if (!client) {
     return (
-      <div style={{ minHeight: "100vh", background: "#1B2A4A", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
-        <p>Campaign not found.</p>
+      <div style={{ minHeight: "100vh", background: "#1B2A4A", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 24, padding: 32 }}>
+        <img src="/bvm_logo.png" alt="BVM" style={{ height: 40, filter: "brightness(0) invert(1)" }} />
+        <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, color: "#fff", margin: 0, textAlign: "center" }}>
+          Your campaign portal is being set up
+        </h1>
+        <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", margin: 0, textAlign: "center", maxWidth: 400 }}>
+          Your rep is preparing your campaign. You&apos;ll receive a link when everything is ready.
+        </p>
+        <button onClick={() => window.location.href = "mailto:support@bestversionmedia.com"} style={{
+          background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 10,
+          padding: "14px 32px", fontSize: 15, fontWeight: 800, cursor: "pointer", marginTop: 8,
+        }}>
+          Contact Your Rep
+        </button>
       </div>
     );
   }

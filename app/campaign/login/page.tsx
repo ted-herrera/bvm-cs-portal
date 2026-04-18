@@ -43,23 +43,25 @@ export default function CampaignLoginPage() {
 
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
+      <style>{`@keyframes floating { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }`}</style>
+
       {/* Left panel — 60% */}
       <div style={{
-        flex: "0 0 60%", background: "#1B2A4A", display: "flex", flexDirection: "column",
+        flex: "0 0 60%", background: "#ffffff", display: "flex", flexDirection: "column",
         alignItems: "center", justifyContent: "center", padding: "40px 48px", position: "relative",
       }}>
         {/* BVM logo top left */}
         <div style={{ position: "absolute", top: 28, left: 32 }}>
-          <img src="/bvm_logo.png" alt="BVM" style={{ height: 32, filter: "brightness(0) invert(1)" }} />
+          <img src="/bvm_logo.png" alt="BVM" style={{ height: 32 }} />
         </div>
 
-        {/* Bruno image */}
-        <div style={{ marginBottom: 32 }}>
+        {/* Bruno image — large, floating */}
+        <div style={{ marginBottom: 32, animation: "floating 3s ease-in-out infinite" }}>
           <Image
             src="/bruno-login.png"
             alt="Bruno — BVM Campaign Intelligence"
-            width={320}
-            height={320}
+            width={400}
+            height={400}
             style={{ objectFit: "contain" }}
             priority
           />
@@ -67,7 +69,7 @@ export default function CampaignLoginPage() {
 
         {/* Powered by Bruno */}
         <p style={{
-          fontFamily: "'Playfair Display', serif", fontSize: 20, color: "#F5C842",
+          fontFamily: "'Playfair Display', serif", fontSize: 20, color: "#1B2A4A",
           fontWeight: 700, margin: "0 0 24px", letterSpacing: "0.02em",
         }}>
           Powered by Bruno Intelligence
@@ -77,9 +79,9 @@ export default function CampaignLoginPage() {
         <div style={{ display: "flex", gap: 12 }}>
           {["6,693 Clients", "Print + Digital", "Territory Intel"].map((pill) => (
             <div key={pill} style={{
-              background: "rgba(245,200,66,0.1)", border: "1px solid rgba(245,200,66,0.25)",
+              background: "rgba(27,42,74,0.06)", border: "1px solid rgba(27,42,74,0.12)",
               borderRadius: 20, padding: "8px 20px", fontSize: 13, fontWeight: 600,
-              color: "rgba(255,255,255,0.7)", whiteSpace: "nowrap",
+              color: "#1B2A4A", whiteSpace: "nowrap",
             }}>
               {pill}
             </div>
