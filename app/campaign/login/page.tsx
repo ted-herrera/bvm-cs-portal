@@ -27,8 +27,8 @@ export default function CampaignLoginPage() {
       const data = await res.json();
 
       if (data.success) {
-        // Use window.location.href instead of router.push to force full page reload.
-        // This guarantees the Set-Cookie header is processed before the next page reads it.
+        // Store in localStorage as backup to cookie
+        localStorage.setItem("campaign_user", JSON.stringify({ username: username.trim(), role: data.role }));
         if (data.role === "admin") {
           window.location.href = "/campaign/admin";
         } else {
