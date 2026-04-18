@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useRef, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CAMPAIGN_BRUNO_PROMPT } from "@/lib/campaign";
 
 interface CollectedFields {
@@ -65,8 +65,9 @@ function getRepNameFromCookie(): string {
   }
 }
 
-export default function CampaignIntakePage() {
+function CampaignIntakeInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -83,11 +84,24 @@ export default function CampaignIntakePage() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  // Initial Bruno greeting
+  // Pre-fill from URL params (e.g. from Close CRM "Start Campaign" button)
+  const prefilled = useRef(false);
   useEffect(() => {
+    if (prefilled.current) return;
+    const bn = searchParams.get("businessName");
+    if (bn) {
+      prefilled.current = true;
+      const adType = searchParams.get("adType") || null;
+      setFields((prev) => ({ ...prev, businessName: bn, adSize: adType }));
+      // Send Bruno an opening message with context
+      const msg = `I'm starting a campaign for ${bn}. They're an existing BVM client${adType ? ` with a ${adType} agreement` : ""}.`;
+      sendToBruno(msg);
+      return;
+    }
+    // Normal init
     sendToBruno("", true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [searchParams]);
 
   async function sendToBruno(userMsg: string, isInit = false) {
     if (!isInit && !userMsg.trim()) return;
@@ -618,5 +632,18 @@ ${sbr?.localAdvantage ? `Local advantage: ${sbr.localAdvantage}` : ""}`,
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CampaignIntakePage() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: "100vh", background: "#1B2A4A", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: 48, height: 48, border: "3px solid #F5C842", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    }>
+      <CampaignIntakeInner />
+    </Suspense>
   );
 }

@@ -204,12 +204,27 @@ export default function CampaignDashboardPage() {
   const [brunoBarLoading, setBrunoBarLoading] = useState(false);
   const [brunoBarResponse, setBrunoBarResponse] = useState("");
 
+  // Close CRM leads
+  interface CloseLead {
+    id: string; businessName: string; status: string; contactName: string;
+    phone: string; email: string; agreementNumber: string; adType: string;
+    cadence: string; monthly: string; firstEdition: string; lastEdition: string;
+    renewStatus: string; publications: string; region: string; dvl: string;
+    saleItems: string; closeUrl: string; dealValue: number; dealStatus: string;
+  }
+  const [closeLeads, setCloseLeads] = useState<CloseLead[]>([]);
+  const [closeLoading, setCloseLoading] = useState(true);
+  const [closeError, setCloseError] = useState("");
+  const [closeSearch, setCloseSearch] = useState("");
+  const [closeFilter, setCloseFilter] = useState<"all" | "active" | "renewable" | "cancelled">("all");
+
   /* ── Init ───────────────────────────────────────────────────────────────── */
 
   useEffect(() => {
     const r = getRepFromCookie();
     setRep(r);
     loadClients(r.username);
+    loadCloseLeads(r.name);
     // Load CS Intel from localStorage
     try {
       const stored = localStorage.getItem(`cs_intel_${r.username}`);
@@ -246,6 +261,24 @@ export default function CampaignDashboardPage() {
     } catch { /* ignore */ }
     setLoading(false);
   }, []);
+
+  async function loadCloseLeads(repName: string) {
+    setCloseLoading(true);
+    setCloseError("");
+    try {
+      const res = await fetch("/api/campaign/close-leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ repName }),
+      });
+      const data = await res.json();
+      if (data.error) setCloseError(data.error);
+      setCloseLeads(data.leads || []);
+    } catch {
+      setCloseError("Unable to load Close CRM data");
+    }
+    setCloseLoading(false);
+  }
 
   /* ── Helpers ────────────────────────────────────────────────────────────── */
 
@@ -725,6 +758,98 @@ ${approvedDir?.imageUrl ? `<h2>Approved Direction: ${selected.selected_direction
             );
           })}
         </div>
+
+        {/* ── Close CRM Book ──────────────────────────────────────────────── */}
+        <div style={{ padding: "24px 24px 8px", borderTop: "2px solid #e5e9ef", marginTop: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, color: "#1a2332", margin: 0 }}>
+              Your Close CRM Book
+            </h2>
+            <span style={{ background: "#f1f5f9", color: "#64748b", fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 6 }}>
+              {closeLeads.length} leads
+            </span>
+          </div>
+
+          {closeError && (
+            <div style={{ background: "#fffbeb", border: "1px solid #f59e0b", borderRadius: 8, padding: "10px 14px", marginBottom: 12, fontSize: 12, color: "#92400e" }}>
+              {closeError}
+            </div>
+          )}
+
+          {/* Search + filter */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+            <input
+              type="text"
+              value={closeSearch}
+              onChange={(e) => setCloseSearch(e.target.value)}
+              placeholder="Search your book..."
+              style={{ flex: 1, minWidth: 160, padding: "7px 12px", borderRadius: 6, border: "1px solid #e5e9ef", fontSize: 12, outline: "none", boxSizing: "border-box" }}
+            />
+            {(["all", "active", "renewable", "cancelled"] as const).map((f) => (
+              <button key={f} onClick={() => setCloseFilter(f)} style={{
+                padding: "6px 12px", borderRadius: 6, fontSize: 10, fontWeight: 600, cursor: "pointer",
+                background: closeFilter === f ? GOLD : "#f8fafc",
+                color: closeFilter === f ? NAVY : "#7a8a9a",
+                border: closeFilter === f ? "none" : "1px solid #e5e9ef",
+                textTransform: "capitalize",
+              }}>{f}</button>
+            ))}
+          </div>
+
+          {closeLoading ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} style={{ height: 48, background: "#f1f5f9", borderRadius: 8, animation: "pulse 1.5s ease infinite" }} />
+              ))}
+            </div>
+          ) : (() => {
+            const searchLower = closeSearch.toLowerCase();
+            const filteredClose = closeLeads.filter((l) => {
+              if (closeFilter === "active" && (l.status === "Cancelled" || l.renewStatus === "Cancelled")) return false;
+              if (closeFilter === "renewable" && l.renewStatus !== "Renewable") return false;
+              if (closeFilter === "cancelled" && l.status !== "Cancelled") return false;
+              if (searchLower && !l.businessName.toLowerCase().includes(searchLower) && !l.agreementNumber.toLowerCase().includes(searchLower) && !l.adType.toLowerCase().includes(searchLower) && !l.publications.toLowerCase().includes(searchLower)) return false;
+              return true;
+            });
+            const daysUntil = (dateStr: string) => {
+              if (!dateStr) return 999;
+              return Math.floor((new Date(dateStr).getTime() - Date.now()) / 86400000);
+            };
+            return filteredClose.length === 0 ? (
+              <p style={{ color: "#7a8a9a", fontSize: 13, padding: "20px 0", textAlign: "center" }}>No matching leads.</p>
+            ) : (
+              <div style={{ maxHeight: 400, overflowY: "auto" }}>
+                {filteredClose.map((l) => {
+                  const lastEdDays = daysUntil(l.lastEdition);
+                  return (
+                    <div key={l.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid #edf0f4", fontSize: 12 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: "50%", background: RAIL_BG, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>
+                        {initials(l.businessName)}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, color: "#1a2332", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l.businessName}</div>
+                        <div style={{ fontSize: 10, color: "#94a3b8", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l.publications}</div>
+                      </div>
+                      {l.agreementNumber && <span style={{ background: "#f1f5f9", color: "#64748b", fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 5, whiteSpace: "nowrap" }}>{l.agreementNumber}</span>}
+                      {l.adType && <span style={{ background: `${NAVY}15`, color: NAVY, fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 5, whiteSpace: "nowrap" }}>{l.adType}</span>}
+                      {l.monthly && parseFloat(l.monthly) > 0 && <span style={{ background: `${GOLD}20`, color: "#92400e", fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 5, whiteSpace: "nowrap" }}>${l.monthly}/mo</span>}
+                      <span style={{
+                        fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 5, whiteSpace: "nowrap",
+                        background: l.renewStatus === "Renewable" ? "#dcfce720" : l.status === "Cancelled" ? "#fef2f220" : "#f1f5f9",
+                        color: l.renewStatus === "Renewable" ? "#16a34a" : l.status === "Cancelled" ? "#dc2626" : "#64748b",
+                      }}>{l.renewStatus || l.status}</span>
+                      {lastEdDays <= 60 && lastEdDays > -999 && <span style={{ background: "#fffbeb", color: "#d97706", fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 5, whiteSpace: "nowrap" }}>{lastEdDays > 0 ? `${lastEdDays}d` : "Past"}</span>}
+                      <a href={l.closeUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#3b82f6", fontSize: 10, fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap" }}>Close →</a>
+                      <Link href={`/campaign/intake?businessName=${encodeURIComponent(l.businessName)}&phone=${encodeURIComponent(l.phone)}&email=${encodeURIComponent(l.email)}&adType=${encodeURIComponent(l.adType)}`} style={{ background: GOLD, color: NAVY, fontSize: 9, fontWeight: 800, padding: "4px 8px", borderRadius: 5, textDecoration: "none", whiteSpace: "nowrap" }}>
+                        Campaign →
+                      </Link>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </div>
       </div>
     );
   }
@@ -872,7 +997,7 @@ ${approvedDir?.imageUrl ? `<h2>Approved Direction: ${selected.selected_direction
         </div>
 
         {/* Ad size breakdown */}
-        <div style={{ background: "#fff", border: "1px solid #e5e9ef", borderRadius: 10, padding: 16 }}>
+        <div style={{ background: "#fff", border: "1px solid #e5e9ef", borderRadius: 10, padding: 16, marginBottom: 24 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: GOLD, marginBottom: 12 }}>Ad Size Breakdown</div>
           {Object.entries(adSizeCounts).sort((a, b) => b[1] - a[1]).map(([size, count]) => (
             <div key={size} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
@@ -884,6 +1009,46 @@ ${approvedDir?.imageUrl ? `<h2>Approved Direction: ${selected.selected_direction
             </div>
           ))}
         </div>
+
+        {/* Close CRM Stats */}
+        {closeLeads.length > 0 && (() => {
+          const activeLeads = closeLeads.filter((l) => l.status !== "Cancelled");
+          const cancelledLeads = closeLeads.filter((l) => l.status === "Cancelled");
+          const renewableLeads = closeLeads.filter((l) => l.renewStatus === "Renewable");
+          const totalMRV = closeLeads.reduce((sum, l) => sum + (parseFloat(l.monthly) || 0), 0);
+          const digitalLeads = closeLeads.filter((l) => l.saleItems.toLowerCase().includes("digital"));
+          return (
+            <div style={{ background: "#fff", border: "1px solid #e5e9ef", borderRadius: 10, padding: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: GOLD, marginBottom: 12 }}>Close CRM — Your Book</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 10 }}>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: "#1a2332" }}>{closeLeads.length}</div>
+                  <div style={{ fontSize: 10, color: "#7a8a9a", fontWeight: 600 }}>Total Leads</div>
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: "#22c55e" }}>{activeLeads.length}</div>
+                  <div style={{ fontSize: 10, color: "#7a8a9a", fontWeight: 600 }}>Active</div>
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: "#dc2626" }}>{cancelledLeads.length}</div>
+                  <div style={{ fontSize: 10, color: "#7a8a9a", fontWeight: 600 }}>Cancelled</div>
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: GOLD }}>${totalMRV.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+                  <div style={{ fontSize: 10, color: "#7a8a9a", fontWeight: 600 }}>Monthly Revenue</div>
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: "#3b82f6" }}>{renewableLeads.length}</div>
+                  <div style={{ fontSize: 10, color: "#7a8a9a", fontWeight: 600 }}>Renewable</div>
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: "#8b5cf6" }}>{closeLeads.length > 0 ? Math.round((digitalLeads.length / closeLeads.length) * 100) : 0}%</div>
+                  <div style={{ fontSize: 10, color: "#7a8a9a", fontWeight: 600 }}>Digital</div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     );
   }
