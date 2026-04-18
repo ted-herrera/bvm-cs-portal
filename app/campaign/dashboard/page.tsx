@@ -1,9 +1,44 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Component, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { CampaignClient, CampaignDirection } from "@/lib/campaign";
+
+/* ─── Error Boundary ─────────────────────────────────────────────────────── */
+
+class DashboardErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error("Dashboard error boundary caught:", error, info.componentStack);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ minHeight: "100vh", background: "#1B2A4A", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16, padding: 32 }}>
+          <div style={{ fontSize: 48 }}>⚠️</div>
+          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, color: "#fff", margin: 0 }}>Dashboard Error</h1>
+          <pre style={{ background: "rgba(255,255,255,0.06)", borderRadius: 8, padding: 16, color: "#ef4444", fontSize: 12, maxWidth: 600, overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+            {this.state.error?.message}{"\n"}{this.state.error?.stack}
+          </pre>
+          <button onClick={() => window.location.reload()} style={{ background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 8, padding: "10px 24px", fontWeight: 700, cursor: "pointer" }}>
+            Reload
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 /* ─── Constants ───────────────────────────────────────────────────────────── */
 
@@ -59,10 +94,15 @@ function getRepFromCookie() {
       const value = parts.slice(1).join("=");
       if (key === "campaign_user") {
         const parsed = JSON.parse(decodeURIComponent(value));
-        return { username: parsed.username, name: parsed.username, role: parsed.role };
+        const result = { username: parsed.username, name: parsed.username, role: parsed.role };
+        console.log("getRepFromCookie result:", result);
+        return result;
       }
     }
-  } catch (e) { /* ignore */ }
+  } catch (e) {
+    console.error("getRepFromCookie error:", e);
+  }
+  console.log("getRepFromCookie result: null (no campaign_user cookie found)");
   return null;
 }
 
@@ -223,8 +263,10 @@ export default function CampaignDashboardPage() {
   /* ── Init ───────────────────────────────────────────────────────────────── */
 
   useEffect(() => {
+    console.log("Dashboard mount - cookies:", document.cookie);
+    console.log("Campaign user cookie:", document.cookie.match(/campaign_user=([^;]+)/)?.[1]);
     const r = getRepFromCookie();
-    if (!r) { router.push("/campaign/login"); return; }
+    if (!r) { console.log("No cookie found — redirecting to login"); router.push("/campaign/login"); return; }
     setRep(r);
     loadClients(r.username);
     loadCloseLeads(r.name);
@@ -1832,6 +1874,7 @@ ${approvedDir?.imageUrl ? `<h2>Approved Direction: ${selected.selected_direction
   ];
 
   return (
+    <DashboardErrorBoundary>
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", fontFamily: "'DM Sans', sans-serif" }}>
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -2011,5 +2054,6 @@ ${approvedDir?.imageUrl ? `<h2>Approved Direction: ${selected.selected_direction
       {/* ── RIGHT DRAWER ──────────────────────────────────────────────────── */}
       {renderDrawer()}
     </div>
+    </DashboardErrorBoundary>
   );
 }
