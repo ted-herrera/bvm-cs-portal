@@ -41,6 +41,30 @@ function allFieldCount(f: CollectedFields): number {
   return Object.values(f).filter((v) => v !== null && v !== "").length;
 }
 
+function getRepIdFromCookie(): string {
+  try {
+    const match = document.cookie.match(/dc_session=([^;]+)/);
+    if (!match) return "unassigned";
+    const [encoded] = match[1].split(".");
+    const payload = JSON.parse(atob(encoded.replace(/-/g, "+").replace(/_/g, "/")));
+    return payload.username || "unassigned";
+  } catch {
+    return "unassigned";
+  }
+}
+
+function getRepNameFromCookie(): string {
+  try {
+    const match = document.cookie.match(/dc_session=([^;]+)/);
+    if (!match) return "Rep";
+    const [encoded] = match[1].split(".");
+    const payload = JSON.parse(atob(encoded.replace(/-/g, "+").replace(/_/g, "/")));
+    return payload.name || "Rep";
+  } catch {
+    return "Rep";
+  }
+}
+
 export default function CampaignIntakePage() {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -313,6 +337,7 @@ ${sbr?.localAdvantage ? `Local advantage: ${sbr.localAdvantage}` : ""}`,
           zip: finalFields.zip,
           services: finalFields.services,
           ad_size: finalFields.adSize,
+          rep_id: getRepIdFromCookie(),
           tagline: finalFields.tagline,
           stage: "tearsheet",
           sbr_data: sbr,

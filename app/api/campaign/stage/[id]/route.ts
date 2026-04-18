@@ -5,30 +5,24 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { direction, rep_id } = (await request.json()) as {
-    direction: string;
-    rep_id?: string;
-  };
+  const { stage } = (await request.json()) as { stage: string };
+
+  const validStages = ["intake", "tearsheet", "approved", "production", "delivered"];
+  if (!validStages.includes(stage)) {
+    return Response.json({ error: "Invalid stage" }, { status: 400 });
+  }
 
   const sb = getSupabase();
   if (!sb) {
     return Response.json({ error: "Database not configured" }, { status: 500 });
   }
 
-  const updateData: Record<string, unknown> = {
-    stage: "approved",
-    approved_at: new Date().toISOString(),
-    selected_direction: direction,
-  };
-  if (rep_id) updateData.rep_id = rep_id;
-
   const { error } = await sb
     .from("campaign_clients")
-    .update(updateData)
+    .update({ stage })
     .eq("id", id);
 
   if (error) {
-    console.error("[campaign/approve] Error:", error);
     return Response.json({ error: error.message }, { status: 500 });
   }
 
