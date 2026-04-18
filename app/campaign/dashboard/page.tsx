@@ -190,6 +190,8 @@ export default function CampaignDashboardPage() {
   const [msgSending, setMsgSending] = useState(false);
   const [sendingLink, setSendingLink] = useState(false);
   const [sendingCard, setSendingCard] = useState(false);
+  const [drawerTab, setDrawerTab] = useState<"overview" | "campaign" | "messages" | "crm">("overview");
+  const [drawerMessages, setDrawerMessages] = useState<Array<{ role: string; content: string; timestamp: string }>>([]);
 
   // Bruno VA
   const [brunoMessages, setBrunoMessages] = useState<Array<{ role: string; content: string }>>([]);
@@ -1371,167 +1373,462 @@ ${approvedDir?.imageUrl ? `<h2>Approved Direction: ${selected.selected_direction
 
   /* ── Render Drawer ──────────────────────────────────────────────────────── */
 
+  // Load drawer messages when messages tab is active
+  useEffect(() => {
+    if (!selected || drawerTab !== "messages") return;
+    let cancelled = false;
+    async function loadMessages() {
+      try {
+        const res = await fetch(`/api/campaign/message/${selected!.id}`);
+        const data = await res.json();
+        if (!cancelled && Array.isArray(data.messages)) setDrawerMessages(data.messages);
+      } catch { /* ignore */ }
+    }
+    loadMessages();
+    const interval = setInterval(loadMessages, 30000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [selected?.id, drawerTab]);
+
+  // CRM search state for drawer
+  const [drawerCrmQuery, setDrawerCrmQuery] = useState("");
+  const [drawerCrmResults, setDrawerCrmResults] = useState<CrmResult[]>([]);
+  const [drawerCrmLoading, setDrawerCrmLoading] = useState(false);
+
+  async function searchDrawerCrm() {
+    if (!drawerCrmQuery.trim()) return;
+    setDrawerCrmLoading(true);
+    try {
+      const res = await fetch("/api/campaign/crm-search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: drawerCrmQuery }),
+      });
+      const data = await res.json();
+      setDrawerCrmResults(data.results || []);
+    } catch { setDrawerCrmResults([]); }
+    setDrawerCrmLoading(false);
+  }
+
+  // Reset drawer tab & CRM query when selecting a new client
+  useEffect(() => {
+    if (selected) {
+      setDrawerTab("overview");
+      setDrawerCrmQuery(selected.business_name);
+      setDrawerCrmResults([]);
+      setDrawerMessages([]);
+    }
+  }, [selected?.id]);
+
   function renderDrawer() {
-    if (!selected || !drawerOpen) return null;
+    const matchingLead = selected
+      ? closeLeads.find((l) => l.businessName.toLowerCase() === selected.business_name.toLowerCase())
+      : null;
+
+    const drawerTabs: Array<{ key: "overview" | "campaign" | "messages" | "crm"; label: string }> = [
+      { key: "overview", label: "Overview" },
+      { key: "campaign", label: "Campaign" },
+      { key: "messages", label: "Messages" },
+      { key: "crm", label: "Close CRM" },
+    ];
+
+    const csHealthEntry = selected ? getCsHealth(selected) : undefined;
+    const csHealthLabel = csHealthEntry?.health?.toUpperCase() || "";
+    const csHealthColor = (() => {
+      if (!csHealthLabel) return "#94a3b8";
+      if (csHealthLabel.includes("CRITICAL")) return "#dc2626";
+      if (csHealthLabel.includes("HIGH")) return "#f59e0b";
+      if (csHealthLabel.includes("WATCHLIST") || csHealthLabel.includes("WATCH")) return "#eab308";
+      if (csHealthLabel.includes("HEALTHY") || csHealthLabel.includes("GOOD") || csHealthLabel.includes("GREEN")) return "#22c55e";
+      return "#94a3b8";
+    })();
 
     return (
       <>
         {/* Backdrop */}
-        <div
-          onClick={() => setDrawerOpen(false)}
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.2)", zIndex: 50 }}
-        />
-        {/* Drawer */}
-        <div style={{
-          position: "fixed", top: 0, right: 0, bottom: 0, width: 360,
-          background: "#fff", zIndex: 60, overflowY: "auto",
-          boxShadow: "-4px 0 24px rgba(0,0,0,0.15)",
-          animation: "slideIn 0.25s ease",
-        }}>
-          {/* Close */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: "1px solid #e5e9ef" }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: "#1a2332" }}>Campaign Details</span>
-            <button onClick={() => setDrawerOpen(false)} style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: "#94a3b8", padding: 4 }}>
-              ×
-            </button>
-          </div>
+        {drawerOpen && selected && (
+          <div onClick={() => setDrawerOpen(false)} style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 199,
+          }} />
+        )}
 
-          <div style={{ padding: 20 }}>
-            {/* Client name + stage */}
-            <div style={{ marginBottom: 16 }}>
-              <h3 style={{ fontSize: 18, fontWeight: 800, color: "#1a2332", margin: "0 0 4px" }}>{selected.business_name}</h3>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 12, color: "#7a8a9a" }}>{selected.city}</span>
+        {/* Slide-out Panel */}
+        <div style={{
+          position: "fixed", top: 52, right: 0, width: 420, height: "calc(100vh - 52px)",
+          background: "#1B2A4A", borderLeft: "1px solid rgba(255,255,255,0.1)",
+          zIndex: 200, transform: drawerOpen && selected ? "translateX(0)" : "translateX(420px)",
+          transition: "transform 0.3s ease", overflowY: "auto",
+        }}>
+          {selected && (
+            <>
+              {/* Close X button */}
+              <button onClick={() => setDrawerOpen(false)} style={{
+                position: "absolute", top: 16, right: 16, background: "none", border: "none",
+                fontSize: 20, cursor: "pointer", color: "rgba(255,255,255,0.5)", zIndex: 1,
+                lineHeight: 1,
+              }}>×</button>
+
+              {/* TOP SECTION */}
+              <div style={{ padding: "24px 20px 16px", textAlign: "center" }}>
+                {/* Initials avatar */}
+                <div style={{
+                  width: 56, height: 56, borderRadius: "50%", background: GOLD, color: NAVY,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 20, fontWeight: 800, margin: "0 auto 10px",
+                }}>
+                  {initials(selected.business_name)}
+                </div>
+
+                {/* Business name */}
+                <div style={{ fontSize: 20, fontWeight: 700, color: "#fff", marginBottom: 4 }}>
+                  {selected.business_name}
+                </div>
+
+                {/* City */}
+                <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", marginBottom: 8 }}>
+                  {selected.city}
+                </div>
+
+                {/* Stage badge */}
                 <span style={{
-                  background: `${STAGE_COLORS[selected.stage]}18`,
+                  display: "inline-block",
+                  background: `${STAGE_COLORS[selected.stage]}30`,
                   color: STAGE_COLORS[selected.stage],
-                  fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6,
+                  fontSize: 11, fontWeight: 700, padding: "4px 12px", borderRadius: 6,
                 }}>
                   {STAGE_LABELS[selected.stage]}
                 </span>
-              </div>
-            </div>
 
-            {/* Approved direction image */}
-            {approvedDir?.imageUrl && (
-              <div style={{ marginBottom: 16 }}>
-                <p style={{ fontSize: 11, fontWeight: 700, color: GOLD, margin: "0 0 6px" }}>Approved: {selected.selected_direction}</p>
-                <img src={approvedDir.imageUrl} alt={approvedDir.name} style={{ width: "100%", borderRadius: 8, border: "1px solid #e5e9ef" }} />
-              </div>
-            )}
-
-            {/* Campaign Brief */}
-            <div style={{ background: "#f8fafc", borderRadius: 8, padding: 14, marginBottom: 16, border: "1px solid #edf0f4" }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: GOLD, margin: "0 0 8px" }}>Campaign Brief</p>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "5px 16px", fontSize: 12 }}>
-                <div><span style={{ color: "#7a8a9a" }}>Ad Size: </span><span style={{ fontWeight: 600, color: "#1a2332" }}>{selected.ad_size}</span></div>
-                <div><span style={{ color: "#7a8a9a" }}>Dims: </span><span style={{ fontWeight: 600, color: "#1a2332" }}>{AD_DIMS[selected.ad_size] || "—"}</span></div>
-                <div><span style={{ color: "#7a8a9a" }}>Tagline: </span><span style={{ fontWeight: 600, color: "#1a2332" }}>{selected.tagline || "—"}</span></div>
-                <div><span style={{ color: "#7a8a9a" }}>Services: </span><span style={{ fontWeight: 600, color: "#1a2332" }}>{selected.services}</span></div>
-              </div>
-            </div>
-
-            {/* SBR Market Data */}
-            {oppScore > 0 && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
-                <div style={{ background: "#f8fafc", border: "1px solid #edf0f4", borderRadius: 8, padding: 12, textAlign: "center" }}>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: GOLD }}>{oppScore}</div>
-                  <div style={{ fontSize: 10, color: "#7a8a9a", fontWeight: 600 }}>Opp. Score</div>
-                </div>
-                <div style={{ background: "#f8fafc", border: "1px solid #edf0f4", borderRadius: 8, padding: 12, textAlign: "center" }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "#1a2332" }}>{String(sbr.medianIncome || "—")}</div>
-                  <div style={{ fontSize: 10, color: "#7a8a9a", fontWeight: 600 }}>Income</div>
-                </div>
-                <div style={{ background: "#f8fafc", border: "1px solid #edf0f4", borderRadius: 8, padding: 12, textAlign: "center" }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "#1a2332" }}>{String(sbr.households || "—")}</div>
-                  <div style={{ fontSize: 10, color: "#7a8a9a", fontWeight: 600 }}>Households</div>
-                </div>
-              </div>
-            )}
-
-            {/* CS Intel match */}
-            {csMatch && (
-              <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 12 }}>
-                <span style={{ fontWeight: 700, color: "#166534" }}>CS Intel: </span>
-                {csMatch.health && <span style={{ color: healthBadgeColor(csMatch.health), fontWeight: 600 }}>{csMatch.health}</span>}
-                {csMatch.nps !== undefined && <span style={{ marginLeft: 8, color: "#64748b" }}>NPS: {csMatch.nps}</span>}
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-              <button onClick={sendCampaignLink} disabled={sendingLink} style={{
-                background: GOLD, color: NAVY, border: "none", borderRadius: 8,
-                padding: "10px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer",
-                opacity: sendingLink ? 0.5 : 1, width: "100%",
-              }}>{sendingLink ? "Sending..." : "Send Campaign Link"}</button>
-
-              <button onClick={copyTearsheetLink} style={{
-                background: "#fff", color: "#1a2332", border: "1px solid #e5e9ef", borderRadius: 8,
-                padding: "10px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer", width: "100%",
-              }}>Copy Tearsheet Link</button>
-
-              {selected.stage === "approved" && (
-                <button onClick={() => updateStage(selected.id, "production")} style={{
-                  background: "#8b5cf6", color: "#fff", border: "none", borderRadius: 8,
-                  padding: "10px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", width: "100%",
-                }}>Mark In Production</button>
-              )}
-              {selected.stage === "production" && (
-                <button onClick={() => updateStage(selected.id, "delivered")} style={{
-                  background: "#06b6d4", color: "#fff", border: "none", borderRadius: 8,
-                  padding: "10px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", width: "100%",
-                }}>Mark Delivered</button>
-              )}
-
-              <button onClick={sendCard} disabled={sendingCard} style={{
-                background: "#fff", color: "#1a2332", border: "1px solid #e5e9ef", borderRadius: 8,
-                padding: "10px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer", width: "100%",
-                opacity: sendingCard ? 0.5 : 1,
-              }}>{sendingCard ? "Sending..." : "Send Card"}</button>
-
-              <button onClick={printDeliveryPack} style={{
-                background: NAVY, color: "#fff", border: "none", borderRadius: 8,
-                padding: "10px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", width: "100%",
-              }}>Download Delivery Pack</button>
-            </div>
-
-            {/* Communications */}
-            <div style={{ marginBottom: 16 }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: GOLD, margin: "0 0 8px" }}>Communications</p>
-              <div style={{ maxHeight: 200, overflowY: "auto", marginBottom: 10 }}>
-                {messages.length === 0 ? (
-                  <p style={{ fontSize: 12, color: "#b0b8c4", margin: 0 }}>No messages yet.</p>
-                ) : messages.map((m, i) => (
-                  <div key={i} style={{ marginBottom: 8 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                      <span style={{
-                        fontSize: 9, fontWeight: 700, color: "#fff", padding: "1px 6px", borderRadius: 4,
-                        background: m.role === "rep" ? RAIL_BG : "#0891b2",
-                      }}>{m.role === "rep" ? "REP" : "CLIENT"}</span>
-                      <span style={{ fontSize: 10, color: "#b0b8c4" }}>{timeAgo(m.timestamp)}</span>
-                    </div>
-                    <p style={{ fontSize: 12, color: "#1a2332", margin: 0, lineHeight: 1.5 }}>{m.content}</p>
+                {/* View in Close link */}
+                {matchingLead?.closeUrl && (
+                  <div style={{ marginTop: 8 }}>
+                    <a href={matchingLead.closeUrl} target="_blank" rel="noopener noreferrer" style={{
+                      color: GOLD, fontSize: 12, fontWeight: 600, textDecoration: "none",
+                    }}>View in Close →</a>
                   </div>
+                )}
+              </div>
+
+              {/* STATS ROW */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, margin: "0 20px 20px" }}>
+                <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: "#fff" }}>
+                    {matchingLead?.monthly && parseFloat(matchingLead.monthly) > 0 ? `$${matchingLead.monthly}/mo` : "—"}
+                  </div>
+                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", fontWeight: 600 }}>Monthly</div>
+                </div>
+                <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: "#fff" }}>{selected.ad_size}</div>
+                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", fontWeight: 600 }}>Ad Size</div>
+                </div>
+                <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: oppScoreColor(oppScore) }}>{oppScore > 0 ? oppScore : "—"}</div>
+                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", fontWeight: 600 }}>Score</div>
+                </div>
+                <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
+                  <div style={{
+                    fontSize: 14, fontWeight: 800,
+                    color: matchingLead?.renewStatus === "Renewable" ? "#22c55e" : matchingLead?.renewStatus === "Cancelled" ? "#dc2626" : "rgba(255,255,255,0.6)",
+                  }}>
+                    {matchingLead?.renewStatus || "—"}
+                  </div>
+                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", fontWeight: 600 }}>Status</div>
+                </div>
+              </div>
+
+              {/* TABS */}
+              <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.1)", margin: "0 20px" }}>
+                {drawerTabs.map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setDrawerTab(tab.key)}
+                    style={{
+                      flex: 1, padding: "10px 0", fontSize: 11, fontWeight: 700, cursor: "pointer",
+                      background: "transparent", border: "none",
+                      color: drawerTab === tab.key ? GOLD : "rgba(255,255,255,0.4)",
+                      borderBottom: drawerTab === tab.key ? `2px solid ${GOLD}` : "2px solid transparent",
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    {tab.label}
+                  </button>
                 ))}
               </div>
-              <div style={{ display: "flex", gap: 6 }}>
-                <textarea
-                  value={msgInput}
-                  onChange={(e) => setMsgInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendRepMessage(); } }}
-                  placeholder="Type a message..."
-                  rows={2}
-                  style={{ flex: 1, padding: "8px 10px", borderRadius: 6, border: "1px solid #e5e9ef", fontSize: 12, resize: "none", outline: "none", boxSizing: "border-box" }}
-                />
-                <button onClick={sendRepMessage} disabled={msgSending || !msgInput.trim()} style={{
-                  background: GOLD, color: NAVY, border: "none", borderRadius: 6,
-                  padding: "8px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer",
-                  alignSelf: "flex-end", opacity: msgSending || !msgInput.trim() ? 0.5 : 1,
-                }}>Send</button>
+
+              {/* TAB CONTENT */}
+              <div style={{ padding: 20 }}>
+
+                {/* ── OVERVIEW TAB ──────────────────────────────────── */}
+                {drawerTab === "overview" && (
+                  <div>
+                    {/* Contact card */}
+                    <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 8, padding: 14, marginBottom: 14 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, marginBottom: 8 }}>Contact</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "#fff", marginBottom: 4 }}>
+                        {matchingLead?.contactName || "—"}
+                      </div>
+                      {matchingLead?.phone && (
+                        <div style={{ marginBottom: 3 }}>
+                          <a href={`tel:${matchingLead.phone}`} style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, textDecoration: "none" }}>
+                            {matchingLead.phone}
+                          </a>
+                        </div>
+                      )}
+                      {matchingLead?.email && (
+                        <div>
+                          <a href={`mailto:${matchingLead.email}`} style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, textDecoration: "none" }}>
+                            {matchingLead.email}
+                          </a>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Agreement section */}
+                    {matchingLead && (
+                      <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 8, padding: 14, marginBottom: 14 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, marginBottom: 8 }}>Agreement</div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 16px", fontSize: 12 }}>
+                          <div><span style={{ color: "rgba(255,255,255,0.4)" }}>Agreement #: </span><span style={{ color: "#fff", fontWeight: 600 }}>{matchingLead.agreementNumber || "—"}</span></div>
+                          <div><span style={{ color: "rgba(255,255,255,0.4)" }}>Ad Type: </span><span style={{ color: "#fff", fontWeight: 600 }}>{matchingLead.adType || "—"}</span></div>
+                          <div><span style={{ color: "rgba(255,255,255,0.4)" }}>Publications: </span><span style={{ color: "#fff", fontWeight: 600 }}>{matchingLead.publications || "—"}</span></div>
+                          <div><span style={{ color: "rgba(255,255,255,0.4)" }}>Cadence: </span><span style={{ color: "#fff", fontWeight: 600 }}>{matchingLead.cadence || "—"}</span></div>
+                          <div><span style={{ color: "rgba(255,255,255,0.4)" }}>First Ed: </span><span style={{ color: "#fff", fontWeight: 600 }}>{matchingLead.firstEdition || "—"}</span></div>
+                          <div><span style={{ color: "rgba(255,255,255,0.4)" }}>Last Ed: </span><span style={{ color: "#fff", fontWeight: 600 }}>{matchingLead.lastEdition || "—"}</span></div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* SBR section */}
+                    {oppScore > 0 && (
+                      <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 8, padding: 14, marginBottom: 14 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, marginBottom: 8 }}>SBR Market Data</div>
+                        {/* Opp score bar */}
+                        <div style={{ marginBottom: 10 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>Opportunity Score</span>
+                            <span style={{ fontSize: 13, fontWeight: 800, color: oppScoreColor(oppScore) }}>{oppScore}</span>
+                          </div>
+                          <div style={{ height: 6, background: "rgba(255,255,255,0.1)", borderRadius: 3, overflow: "hidden" }}>
+                            <div style={{ height: "100%", width: `${Math.min(oppScore, 100)}%`, background: oppScoreColor(oppScore), borderRadius: 3 }} />
+                          </div>
+                        </div>
+                        {/* Income */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                          <div style={{
+                            width: 36, height: 36, borderRadius: "50%", border: `3px solid ${GOLD}`,
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: 10, fontWeight: 700, color: "#fff",
+                          }}>
+                            {sbr.medianIncome ? "$" : "—"}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>{String(sbr.medianIncome || "—")}</div>
+                            <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>Median Income</div>
+                          </div>
+                        </div>
+                        {/* Top category */}
+                        {Array.isArray(sbr.topCategories) && (sbr.topCategories as string[]).length > 0 && (
+                          <div style={{ marginBottom: 6 }}>
+                            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>Top Category: </span>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: "#fff" }}>{(sbr.topCategories as string[])[0]}</span>
+                          </div>
+                        )}
+                        {/* Competitor gap */}
+                        {sbr.competitorGap !== undefined && (
+                          <div>
+                            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>Competitor Gap: </span>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: "#fff" }}>{String(sbr.competitorGap)}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* CS Health */}
+                    {csHealthEntry && (
+                      <div style={{
+                        background: `${csHealthColor}18`, borderRadius: 8, padding: 12, marginBottom: 14,
+                        border: `1px solid ${csHealthColor}40`,
+                      }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <div style={{
+                            width: 8, height: 8, borderRadius: "50%", background: csHealthColor,
+                          }} />
+                          <span style={{ fontSize: 12, fontWeight: 700, color: csHealthColor }}>
+                            {csHealthEntry.health || "Unknown"}
+                          </span>
+                          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginLeft: "auto" }}>CS Health</span>
+                        </div>
+                        {csHealthEntry.nps !== undefined && (
+                          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 4 }}>NPS: {csHealthEntry.nps}</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── CAMPAIGN TAB ──────────────────────────────────── */}
+                {drawerTab === "campaign" && (
+                  <div>
+                    {/* Approved direction image */}
+                    {approvedDir?.imageUrl && (
+                      <div style={{ marginBottom: 16 }}>
+                        <p style={{ fontSize: 11, fontWeight: 700, color: GOLD, margin: "0 0 6px" }}>Approved: {selected.selected_direction}</p>
+                        <img src={approvedDir.imageUrl} alt={approvedDir.name} style={{ width: "100%", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)" }} />
+                      </div>
+                    )}
+
+                    {/* Tagline */}
+                    {selected.tagline && (
+                      <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 8, padding: 12, marginBottom: 12 }}>
+                        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", fontWeight: 600, marginBottom: 4 }}>Tagline</div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: "#fff", fontStyle: "italic" }}>{selected.tagline}</div>
+                      </div>
+                    )}
+
+                    {/* Services */}
+                    {selected.services && (
+                      <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 8, padding: 12, marginBottom: 16 }}>
+                        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", fontWeight: 600, marginBottom: 4 }}>Services</div>
+                        <div style={{ fontSize: 13, color: "#fff" }}>{selected.services}</div>
+                      </div>
+                    )}
+
+                    {/* Action buttons */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <button onClick={sendCampaignLink} disabled={sendingLink} style={{
+                        background: GOLD, color: NAVY, border: "none", borderRadius: 8,
+                        padding: "11px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer",
+                        opacity: sendingLink ? 0.5 : 1, width: "100%",
+                      }}>{sendingLink ? "Sending..." : "Send Campaign Link"}</button>
+
+                      <button onClick={() => {
+                        if (!selected) return;
+                        navigator.clipboard.writeText(window.location.origin + "/campaign/tearsheet/" + selected.id);
+                        showToast("Tearsheet link copied!");
+                      }} style={{
+                        background: "rgba(255,255,255,0.08)", color: "#fff", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8,
+                        padding: "11px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer", width: "100%",
+                      }}>Copy Tearsheet Link</button>
+
+                      {selected.stage === "approved" && (
+                        <button onClick={() => updateStage(selected.id, "production")} style={{
+                          background: "#8b5cf6", color: "#fff", border: "none", borderRadius: 8,
+                          padding: "11px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", width: "100%",
+                        }}>Mark In Production</button>
+                      )}
+
+                      {selected.stage === "production" && (
+                        <button onClick={() => updateStage(selected.id, "delivered")} style={{
+                          background: "#06b6d4", color: "#fff", border: "none", borderRadius: 8,
+                          padding: "11px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", width: "100%",
+                        }}>Mark Delivered</button>
+                      )}
+
+                      <button onClick={sendCard} disabled={sendingCard} style={{
+                        background: "rgba(255,255,255,0.08)", color: "#fff", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8,
+                        padding: "11px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer", width: "100%",
+                        opacity: sendingCard ? 0.5 : 1,
+                      }}>{sendingCard ? "Sending..." : "Send Card"}</button>
+
+                      <button onClick={printDeliveryPack} style={{
+                        background: NAVY, color: "#fff", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 8,
+                        padding: "11px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", width: "100%",
+                      }}>Download Delivery Pack</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── MESSAGES TAB ──────────────────────────────────── */}
+                {drawerTab === "messages" && (
+                  <div>
+                    <div style={{ maxHeight: 360, overflowY: "auto", marginBottom: 12 }}>
+                      {drawerMessages.length === 0 ? (
+                        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", margin: 0, textAlign: "center", padding: 20 }}>No messages yet.</p>
+                      ) : drawerMessages.map((m, i) => (
+                        <div key={i} style={{ marginBottom: 10 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                            <span style={{
+                              fontSize: 9, fontWeight: 700, color: "#fff", padding: "2px 6px", borderRadius: 4,
+                              background: m.role === "rep" ? NAVY : "#0891b2",
+                            }}>{m.role === "rep" ? "REP" : "CLIENT"}</span>
+                            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.35)" }}>{timeAgo(m.timestamp)}</span>
+                          </div>
+                          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.85)", margin: 0, lineHeight: 1.5 }}>{m.content}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <textarea
+                        value={msgInput}
+                        onChange={(e) => setMsgInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendRepMessage(); } }}
+                        placeholder="Type a message..."
+                        rows={2}
+                        style={{
+                          flex: 1, padding: "8px 10px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.15)",
+                          background: "rgba(255,255,255,0.06)", color: "#fff", fontSize: 12, resize: "none", outline: "none", boxSizing: "border-box",
+                        }}
+                      />
+                      <button onClick={sendRepMessage} disabled={msgSending || !msgInput.trim()} style={{
+                        background: GOLD, color: NAVY, border: "none", borderRadius: 6,
+                        padding: "8px 14px", fontSize: 11, fontWeight: 700, cursor: "pointer",
+                        alignSelf: "flex-end", opacity: msgSending || !msgInput.trim() ? 0.5 : 1,
+                      }}>Send as Rep</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── CLOSE CRM TAB ──────────────────────────────────── */}
+                {drawerTab === "crm" && (
+                  <div>
+                    <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+                      <input
+                        value={drawerCrmQuery}
+                        onChange={(e) => setDrawerCrmQuery(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && searchDrawerCrm()}
+                        placeholder="Business name..."
+                        style={{
+                          flex: 1, padding: "9px 12px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.15)",
+                          background: "rgba(255,255,255,0.06)", color: "#fff", fontSize: 12, outline: "none", boxSizing: "border-box",
+                        }}
+                      />
+                      <button onClick={searchDrawerCrm} disabled={drawerCrmLoading} style={{
+                        background: GOLD, color: NAVY, border: "none", borderRadius: 6,
+                        padding: "9px 16px", fontSize: 11, fontWeight: 700, cursor: "pointer",
+                        opacity: drawerCrmLoading ? 0.5 : 1,
+                      }}>{drawerCrmLoading ? "..." : "Search"}</button>
+                    </div>
+
+                    {drawerCrmResults.length > 0 && (
+                      <div style={{ borderRadius: 8, overflow: "hidden" }}>
+                        {drawerCrmResults.map((r) => (
+                          <div key={r.id} style={{
+                            padding: "12px 14px", borderBottom: "1px solid rgba(255,255,255,0.08)",
+                            background: "rgba(255,255,255,0.04)",
+                          }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>{r.name}</div>
+                            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 3 }}>
+                              {r.dealStage} &middot; {r.dealValue}
+                            </div>
+                            {r.lastActivity && (
+                              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginTop: 2 }}>Last activity: {r.lastActivity}</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {matchingLead?.closeUrl && (
+                      <div style={{ marginTop: 16, textAlign: "center" }}>
+                        <a href={matchingLead.closeUrl} target="_blank" rel="noopener noreferrer" style={{
+                          color: GOLD, fontSize: 13, fontWeight: 600, textDecoration: "none",
+                        }}>Open in Close →</a>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-            </div>
-          </div>
+            </>
+          )}
         </div>
       </>
     );

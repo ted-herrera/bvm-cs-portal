@@ -263,6 +263,17 @@ function IncomeBar({ label, range, color, pct }: { label: string; range: string;
   );
 }
 
+/* ─── Eyebrow Label ───────────────────────────────────────────────────────── */
+
+function Eyebrow({ text }: { text: string }) {
+  return (
+    <div style={{
+      color: "#F5C842", fontSize: 10, fontWeight: 700, textTransform: "uppercase",
+      letterSpacing: "0.15em", marginBottom: 8,
+    }}>{text}</div>
+  );
+}
+
 /* ─── Main Component ───────────────────────────────────────────────────────── */
 
 export default function CampaignClientPage({ params }: { params: Promise<{ id: string }> }) {
@@ -292,6 +303,9 @@ export default function CampaignClientPage({ params }: { params: Promise<{ id: s
   const [clientMsgInput, setClientMsgInput] = useState("");
   const [clientMsgSending, setClientMsgSending] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Sidebar messages expand
+  const [sidebarMsgsExpanded, setSidebarMsgsExpanded] = useState(false);
 
   // Locked section CTAs
   const [bizProfileSent, setBizProfileSent] = useState(false);
@@ -588,7 +602,7 @@ export default function CampaignClientPage({ params }: { params: Promise<{ id: s
     );
   }
 
-  /* ─── STATE 2: Post-Approval (Main Portal) ─────────────────────────────── */
+  /* ─── STATE 2: Post-Approval (Dashboard Portal) ──────────────────────── */
 
   const sbr = (client.sbr_data || {}) as Record<string, unknown>;
   const currentStage = stageIndex(client.stage);
@@ -628,6 +642,24 @@ export default function CampaignClientPage({ params }: { params: Promise<{ id: s
     { num: 3, title: "Growing With BVM", desc: "Explore how print + digital + web work together to build a dominant local presence." },
   ];
 
+  const stageColorMap: Record<string, string> = {
+    approved: "#22c55e",
+    production: "#f59e0b",
+    review: "#3B82F6",
+    delivered: "#8B5CF6",
+  };
+  const stageBadgeColor = stageColorMap[client.stage] || "#F5C842";
+
+  const nextStepText = client.stage === "approved"
+    ? "Your ad is being prepared"
+    : client.stage === "production"
+    ? "Final review coming soon"
+    : client.stage === "delivered"
+    ? "Campaign complete!"
+    : "Your campaign is in progress";
+
+  const sidebarMessages = sidebarMsgsExpanded ? chatMessages : chatMessages.slice(-3);
+
   return (
     <div style={{ minHeight: "100vh", background: "#1B2A4A", fontFamily: "'DM Sans', sans-serif" }}>
       <style>{`
@@ -649,7 +681,7 @@ export default function CampaignClientPage({ params }: { params: Promise<{ id: s
             color: #1B2A4A; margin-bottom: 8px; font-family: 'Playfair Display', serif;
           }
           #market-report::after {
-            content: "Powered by BVM \u00b7 Bruno Analytics";
+            content: "Powered by BVM \\00b7 Bruno Analytics";
             display: block; font-size: 11px; color: #999; margin-top: 24px;
           }
         }
@@ -658,552 +690,690 @@ export default function CampaignClientPage({ params }: { params: Promise<{ id: s
       {/* LMS Modal */}
       {lmsModal && <LmsModal title={lmsModal} onClose={() => setLmsModal(null)} />}
 
-      {/* Top bar */}
-      <div style={{ height: 56, background: "#2d3e50", display: "flex", alignItems: "center", padding: "0 24px", gap: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.25)", position: "sticky", top: 0, zIndex: 40 }}>
-        <img src="/bvm_logo.png" alt="BVM" style={{ height: 28, filter: "brightness(0) invert(1)" }} />
-        <div style={{ borderLeft: "1px solid rgba(255,255,255,0.2)", paddingLeft: 16 }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>{client.business_name}</span>
+      {/* ── FIXED TOP HEADER (72px) ─────────────────────────────────────── */}
+      <div style={{
+        height: 72, background: "#1B2A4A", display: "flex", alignItems: "center",
+        padding: "0 24px", boxShadow: "0 1px 4px rgba(0,0,0,0.25)",
+        position: "sticky", top: 0, zIndex: 40,
+        justifyContent: "space-between",
+      }}>
+        {/* Left: Logo + Business Name */}
+        <div style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>
+          <img src="/bvm_logo.png" alt="BVM" style={{ height: 28, filter: "brightness(0) invert(1)" }} />
+          <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 700, color: "#fff" }}>
+            {client.business_name}
+          </span>
+        </div>
+
+        {/* Center: Progress bar nodes inline */}
+        <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
+          {STAGES.map((stage, i) => (
+            <div key={stage} style={{ display: "flex", alignItems: "center" }}>
+              <div style={{ textAlign: "center" }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: "50%",
+                  background: i <= currentStage ? "#F5C842" : "rgba(255,255,255,0.1)",
+                  color: i <= currentStage ? "#1B2A4A" : "rgba(255,255,255,0.3)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 12, fontWeight: 800,
+                  ...(i === currentStage ? { animation: "goldPulse 2s ease infinite" } : {}),
+                }}>
+                  {i < currentStage ? "\u2713" : i + 1}
+                </div>
+                <div style={{ fontSize: 9, color: i <= currentStage ? "#F5C842" : "rgba(255,255,255,0.3)", marginTop: 4, fontWeight: 600, whiteSpace: "nowrap" }}>
+                  {STAGE_LABELS[stage]}
+                </div>
+              </div>
+              {i < STAGES.length - 1 && (
+                <div style={{ width: 48, height: 2, background: i < currentStage ? "#F5C842" : "rgba(255,255,255,0.1)", margin: "0 6px", marginBottom: 18 }} />
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Right: Stage badge */}
+        <div style={{
+          background: `${stageBadgeColor}20`, color: stageBadgeColor,
+          fontSize: 11, fontWeight: 700, padding: "6px 14px", borderRadius: 20,
+          border: `1px solid ${stageBadgeColor}40`, flexShrink: 0, whiteSpace: "nowrap",
+        }}>
+          {STAGE_LABELS[client.stage] || client.stage}
         </div>
       </div>
 
-      <div style={{ maxWidth: 960, margin: "0 auto", padding: "40px 24px 80px" }}>
+      {/* ── TWO COLUMN LAYOUT ──────────────────────────────────────────── */}
+      <div style={{ display: "flex" }}>
 
-        {/* ── 1. HERO + PROGRESS BAR ─────────────────────────────────────── */}
-        <div style={{ textAlign: "center", marginBottom: 48 }}>
-          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 40, color: "#fff", margin: "0 0 8px", fontWeight: 700 }}>
-            {client.business_name}
-          </h1>
-          <p style={{ fontSize: 16, color: "rgba(255,255,255,0.5)", margin: "0 0 36px" }}>
-            {client.city} &middot; {client.category}
-          </p>
+        {/* ── LEFT COLUMN (65%, scrollable) ────────────────────────────── */}
+        <div style={{
+          flex: "0 0 65%", overflowY: "auto", padding: 24,
+          maxHeight: "calc(100vh - 72px)",
+        }}>
 
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0 }}>
-            {STAGES.map((stage, i) => (
-              <div key={stage} style={{ display: "flex", alignItems: "center" }}>
-                <div style={{ textAlign: "center" }}>
-                  <div style={{
-                    width: 40, height: 40, borderRadius: "50%",
-                    background: i <= currentStage ? "#F5C842" : "rgba(255,255,255,0.1)",
-                    color: i <= currentStage ? "#1B2A4A" : "rgba(255,255,255,0.3)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 15, fontWeight: 800,
-                    ...(i === currentStage ? { animation: "goldPulse 2s ease infinite" } : {}),
-                  }}>
-                    {i < currentStage ? "\u2713" : i + 1}
-                  </div>
-                  <div style={{ fontSize: 10, color: i <= currentStage ? "#F5C842" : "rgba(255,255,255,0.3)", marginTop: 8, fontWeight: 600, whiteSpace: "nowrap" }}>
-                    {STAGE_LABELS[stage]}
-                  </div>
+          {/* ── ONBOARDING ──────────────────────────────────────────────── */}
+          {showOnboarding && (
+            <>
+              <Eyebrow text="GETTING STARTED" />
+              <Section>
+                <div style={{ borderLeft: "3px solid #F5C842", paddingLeft: 24 }}>
+                  <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 26, color: "#fff", margin: "0 0 8px" }}>
+                    Welcome to your Campaign Portal
+                  </h2>
+                  <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", margin: "0 0 28px", lineHeight: 1.6 }}>
+                    Your campaign is being built by our team. Here&apos;s what happens next.
+                  </p>
+
+                  {[
+                    { num: 1, title: "We're building your ad", desc: "Our design team is producing your campaign based on the direction you approved." },
+                    { num: 2, title: "You'll review and confirm", desc: "We'll notify you when your ad is ready for final review." },
+                    { num: 3, title: "Your campaign goes live", desc: "Your ad runs in the next available edition in your market." },
+                  ].map((step) => (
+                    <div key={step.num} style={{ display: "flex", gap: 14, marginBottom: 20 }}>
+                      <div style={{
+                        width: 32, height: 32, borderRadius: "50%", background: "#F5C842",
+                        color: "#1B2A4A", display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 14, fontWeight: 800, flexShrink: 0,
+                      }}>{step.num}</div>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", marginBottom: 2 }}>{step.title}</div>
+                        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", lineHeight: 1.5 }}>{step.desc}</div>
+                      </div>
+                    </div>
+                  ))}
+
+                  <button onClick={dismissOnboarding} style={{
+                    background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 8,
+                    padding: "12px 28px", fontSize: 14, fontWeight: 800, cursor: "pointer", marginTop: 8,
+                  }}>Got it &rarr;</button>
                 </div>
-                {i < STAGES.length - 1 && (
-                  <div style={{ width: 80, height: 2, background: i < currentStage ? "#F5C842" : "rgba(255,255,255,0.1)", margin: "0 8px", marginBottom: 24 }} />
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+              </Section>
+            </>
+          )}
 
-        {/* ── 2. ONBOARDING ──────────────────────────────────────────────── */}
-        {showOnboarding && (
-          <Section>
-            <div style={{ borderLeft: "3px solid #F5C842", paddingLeft: 24 }}>
-              <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 26, color: "#fff", margin: "0 0 8px" }}>
-                Welcome to your Campaign Portal
-              </h2>
-              <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", margin: "0 0 28px", lineHeight: 1.6 }}>
-                Your campaign is being built by our team. Here&apos;s what happens next.
-              </p>
-
-              {[
-                { num: 1, title: "We're building your ad", desc: "Our design team is producing your campaign based on the direction you approved." },
-                { num: 2, title: "You'll review and confirm", desc: "We'll notify you when your ad is ready for final review." },
-                { num: 3, title: "Your campaign goes live", desc: "Your ad runs in the next available edition in your market." },
-              ].map((step) => (
-                <div key={step.num} style={{ display: "flex", gap: 14, marginBottom: 20 }}>
-                  <div style={{
-                    width: 32, height: 32, borderRadius: "50%", background: "#F5C842",
-                    color: "#1B2A4A", display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 14, fontWeight: 800, flexShrink: 0,
-                  }}>{step.num}</div>
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", marginBottom: 2 }}>{step.title}</div>
-                    <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", lineHeight: 1.5 }}>{step.desc}</div>
-                  </div>
+          {/* ── LMS -- Campaign Success Guide ──────────────────────────── */}
+          {!showOnboarding && (
+            <>
+              <Eyebrow text="LEARNING" />
+              <Section>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F5C842" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                  <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, color: "#fff", margin: 0 }}>
+                    Campaign Success Guide
+                  </h2>
                 </div>
-              ))}
 
-              <button onClick={dismissOnboarding} style={{
-                background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 8,
-                padding: "12px 28px", fontSize: 14, fontWeight: 800, cursor: "pointer", marginTop: 8,
-              }}>Got it &rarr;</button>
-            </div>
-          </Section>
-        )}
-
-        {/* ── 3. LMS -- Campaign Success Guide ──────────────────────────── */}
-        {!showOnboarding && (
-          <Section>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F5C842" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-              <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, color: "#fff", margin: 0 }}>
-                Campaign Success Guide
-              </h2>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
-              {LMS_MODULES.map((mod) => (
-                <div key={mod.num} style={{
-                  background: "#1B2A4A", borderRadius: 12, padding: "20px 20px 16px",
-                  borderLeft: "3px solid #F5C842", border: "1px solid rgba(255,255,255,0.08)",
-                  position: "relative",
-                }}>
-                  <span style={{
-                    position: "absolute", top: 12, left: 12,
-                    background: "rgba(245,200,66,0.15)", color: "#F5C842",
-                    fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 6,
-                  }}>Module {mod.num}</span>
-                  <h3 style={{ fontSize: 15, fontWeight: 700, color: "#fff", margin: "24px 0 8px", fontFamily: "'DM Sans', sans-serif" }}>{mod.title}</h3>
-                  <p style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", lineHeight: 1.5, margin: "0 0 16px" }}>{mod.desc}</p>
-                  <button onClick={() => setLmsModal(mod.title)} style={{
-                    background: "transparent", border: "none", color: "#F5C842",
-                    fontSize: 13, fontWeight: 700, cursor: "pointer", padding: 0,
-                  }}>Start Module &rarr;</button>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
+                  {LMS_MODULES.map((mod) => (
+                    <div key={mod.num} style={{
+                      background: "#1B2A4A", borderRadius: 12, padding: "20px 20px 16px",
+                      borderLeft: "3px solid #F5C842", border: "1px solid rgba(255,255,255,0.08)",
+                      position: "relative",
+                    }}>
+                      <span style={{
+                        position: "absolute", top: 12, left: 12,
+                        background: "rgba(245,200,66,0.15)", color: "#F5C842",
+                        fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 6,
+                      }}>Module {mod.num}</span>
+                      <h3 style={{ fontSize: 15, fontWeight: 700, color: "#fff", margin: "24px 0 8px", fontFamily: "'DM Sans', sans-serif" }}>{mod.title}</h3>
+                      <p style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", lineHeight: 1.5, margin: "0 0 16px" }}>{mod.desc}</p>
+                      <button onClick={() => setLmsModal(mod.title)} style={{
+                        background: "transparent", border: "none", color: "#F5C842",
+                        fontSize: 13, fontWeight: 700, cursor: "pointer", padding: 0,
+                      }}>Start Module &rarr;</button>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </Section>
-        )}
+              </Section>
+            </>
+          )}
 
-        {/* ── 4. TERRITORY INTELLIGENCE ──────────────────────────────────── */}
-        <Section id="market-report">
+          {/* ── TERRITORY INTELLIGENCE ──────────────────────────────────── */}
+          <Eyebrow text="TERRITORY INTELLIGENCE" />
+          <Section id="market-report">
 
-          {/* HEADER */}
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 4, flexWrap: "wrap", gap: 12 }}>
-            <div>
-              <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 32, color: "#fff", margin: "0 0 8px" }}>
-                Your Market Intelligence Report
-              </h2>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-                <span style={{ background: "rgba(245,200,66,0.15)", color: "#F5C842", fontSize: 10, fontWeight: 700, padding: "4px 12px", borderRadius: 20 }}>
-                  Powered by Bruno
-                </span>
-              </div>
-              <p style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", margin: "4px 0 0" }}>
-                Generated for {client.business_name} &middot; {client.city} &middot; {todayStr}
-              </p>
-            </div>
-            <button onClick={handlePrintReport} style={{
-              background: "linear-gradient(135deg, #F5C842, #e6b935)", color: "#1B2A4A",
-              border: "none", borderRadius: 10, padding: "12px 28px",
-              fontSize: 13, fontWeight: 800, cursor: "pointer",
-              boxShadow: "0 4px 16px rgba(245,200,66,0.3)", whiteSpace: "nowrap",
-            }}>Download Market Report</button>
-          </div>
-
-          {/* TIER 1 -- 5 HERO METRIC CARDS */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 16, margin: "32px 0 32px" }}>
-
-            {/* Card 1: Opportunity Score */}
-            <OpportunityScoreCard score={oppScore} />
-
-            {/* Card 2: Median Income */}
-            <MedianIncomeCard target={medianIncomeNum} />
-
-            {/* Card 3: Total Households */}
-            <HouseholdsCard target={householdsNum} />
-
-            {/* Card 4: 5-Year Growth */}
-            <MetricCard label="5-Year Market Outlook">
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
-                <span className="metric-val" style={{ fontSize: 28, fontWeight: 800, color: "#22c55e", lineHeight: 1 }}>{growthOutlook(oppScore)}</span>
-              </div>
-            </MetricCard>
-
-            {/* Card 5: Market Rank */}
-            <MetricCard label="National Market Ranking">
-              <div className="metric-val" style={{ fontSize: 28, fontWeight: 800, color: "#F5C842", lineHeight: 1 }}>{marketRank(oppScore)}</div>
-            </MetricCard>
-          </div>
-
-          {/* TIER 2 -- LEAFLET MAP */}
-          <div ref={mapRef} style={{ height: 420, borderRadius: 12, background: "#0d1a2e", border: "1px solid rgba(255,255,255,0.08)", marginBottom: 16, overflow: "hidden" }} />
-
-          {/* Ring Legend */}
-          <div style={{ display: "flex", gap: 24, justifyContent: "center", flexWrap: "wrap", marginBottom: 32 }}>
-            {[
-              { label: "Core (2 mi)", color: "#F5C842", households: coreHouseholds },
-              { label: "Ring 1 (5 mi)", color: "#3B82F6", households: ring1Households },
-              { label: "Ring 2 (10 mi)", color: "#8B5CF6", households: ring2Households },
-            ].map((ring) => (
-              <div key={ring.label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ width: 12, height: 12, borderRadius: "50%", background: ring.color }} />
-                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{ring.label}</span>
-                <span style={{ fontSize: 12, color: ring.color, fontWeight: 700 }}>{ring.households.toLocaleString()} households</span>
-              </div>
-            ))}
-          </div>
-
-          {/* TIER 3 -- INCOME DISTRIBUTION */}
-          <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: "#fff", margin: "0 0 16px" }}>Income Distribution</h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
-            {incomeRings.map((ring) => (
-              <IncomeBar key={ring.label} label={ring.label} range={`${ring.pct}%`} color={ring.color} pct={ring.pct} />
-            ))}
-          </div>
-          <div style={{
-            background: "rgba(245,200,66,0.06)", border: "1px solid rgba(245,200,66,0.15)",
-            borderRadius: 10, padding: "14px 18px", marginBottom: 32,
-          }}>
-            <p style={{ fontSize: 13, color: "#F5C842", margin: 0, fontWeight: 600 }}>
-              Your campaign targets the <strong>{targetRing}</strong> market -- the highest-value households in your distribution area.
-            </p>
-          </div>
-
-          {/* TIER 4 -- CONSUMER BEHAVIOR PROFILE */}
-          <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: "#fff", margin: "0 0 8px" }}>Your Neighborhood Profile</h3>
-
-          {/* Lifestyle Segment Card */}
-          <div style={{
-            background: "rgba(245,200,66,0.04)", border: "1px solid rgba(245,200,66,0.15)",
-            borderRadius: 12, padding: "20px 24px", marginBottom: 20,
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-              <span style={{ background: "#F5C842", color: "#1B2A4A", fontSize: 10, fontWeight: 800, padding: "3px 10px", borderRadius: 6 }}>
-                PRIMARY SEGMENT
-              </span>
-            </div>
-            <h4 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, color: "#fff", margin: "0 0 8px" }}>{segment.name}</h4>
-            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", lineHeight: 1.6, margin: 0 }}>{segment.desc}</p>
-          </div>
-
-          {/* 4 Behavior Cards */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 32 }}>
-            {[
-              { title: "Top Spending Categories", items: topCats.length > 0 ? topCats.slice(0, 3).join(", ") : "Home services, dining, healthcare" },
-              { title: "Media Consumption", items: "Print magazines, local news, social media, neighborhood apps" },
-              { title: "Purchase Decision Style", items: oppScore > 70 ? "Quality-driven, brand-loyal, referral-based" : "Value-conscious, comparison shoppers, deal-seekers" },
-              { title: "Business Opportunity", items: `${client.category} demand is ${oppScore > 70 ? "strong" : "growing"} in ${client.city}. Local print presence builds trust.` },
-            ].map((card) => (
-              <div key={card.title} style={{
-                background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)",
-                borderRadius: 10, padding: "16px 18px",
-              }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>{card.title}</div>
-                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", lineHeight: 1.5, margin: 0 }}>{card.items}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* TIER 5 -- MARKET MOMENTUM */}
-          <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: "#fff", margin: "0 0 16px" }}>Market Momentum</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 32 }}>
-            <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: 16, borderLeft: "3px solid #F5C842" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", marginBottom: 6 }}>Competitor Landscape</div>
-              <div style={{ fontSize: 14, color: "#fff", fontWeight: 600 }}>{competitorGap || `Limited ${client.category} advertisers in ${client.city} -- opportunity to own the space`}</div>
-            </div>
-            <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: 16, borderLeft: "3px solid #3B82F6" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", marginBottom: 6 }}>Top Business Category</div>
-              <div style={{ fontSize: 14, color: "#fff", fontWeight: 600 }}>
-                {topCats[0] ? `"${topCats[0]}" is the #1 searched service in your area` : `${client.category} is a high-demand category`}
-              </div>
-            </div>
-            <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: 16, borderLeft: "3px solid #8B5CF6" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", marginBottom: 6 }}>Campaign Timing</div>
-              <div style={{ fontSize: 14, color: "#fff", fontWeight: 600 }}>Your market is in an active growth cycle -- ideal time to establish print presence</div>
-            </div>
-          </div>
-
-          {/* TIER 6 -- BRUNO'S MARKET BRIEF */}
-          <div style={{
-            background: "rgba(245,200,66,0.04)", borderLeft: "4px solid #F5C842",
-            borderRadius: "0 12px 12px 0", padding: "24px 28px", marginBottom: 24,
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
-              <div style={{
-                width: 40, height: 40, borderRadius: "50%", background: "#F5C842",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontWeight: 800, color: "#1B2A4A", fontSize: 16,
-              }}>B</div>
-              <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: "#fff", margin: 0 }}>Bruno&apos;s Market Brief</h3>
-            </div>
-            <p style={{ fontSize: 14, color: "rgba(255,255,255,0.65)", lineHeight: 1.7, margin: 0, fontStyle: "italic" }}>
-              {marketBrief || `${client.business_name} is positioned in ${client.city}, a market with ${oppScore > 70 ? "strong" : "growing"} demand for ${client.category} services. With ${households} households in the distribution area and a median income of ${medianIncome}, the local consumer base has significant purchasing power. The ${oppScore > 70 ? "limited" : "moderate"} competition in the ${client.category} space means ${client.business_name} has a clear opportunity to establish dominant local brand awareness through consistent print presence. The ${segment.name} demographic profile of this market responds exceptionally well to magazine-based advertising.`}
-            </p>
-          </div>
-
-          {/* Download Market Report (bottom) */}
-          <div style={{ textAlign: "center" }}>
-            <button onClick={handlePrintReport} style={{
-              background: "linear-gradient(135deg, #F5C842, #e6b935)", color: "#1B2A4A",
-              border: "none", borderRadius: 10, padding: "14px 36px",
-              fontSize: 14, fontWeight: 800, cursor: "pointer",
-              boxShadow: "0 4px 16px rgba(245,200,66,0.3)",
-            }}>Download Market Report</button>
-          </div>
-        </Section>
-
-        {/* ── 5. YOUR CAMPAIGN -- "Your Ad Direction" ───────────────────── */}
-        <Section>
-          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, color: "#fff", margin: "0 0 24px" }}>Your Ad Direction</h2>
-          <div style={{ display: "flex", gap: 28, alignItems: "flex-start", flexWrap: "wrap" }}>
-            <div style={{ position: "relative", flexShrink: 0 }}>
-              {approvedDir?.imageUrl ? (
-                <div style={{ width: 320, borderRadius: 12, overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)" }}>
-                  <img src={approvedDir.imageUrl} alt={approvedDir.name} style={{ width: "100%", display: "block" }} />
+            {/* HEADER */}
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 4, flexWrap: "wrap", gap: 12 }}>
+              <div>
+                <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 32, color: "#fff", margin: "0 0 8px" }}>
+                  Your Market Intelligence Report
+                </h2>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                  <span style={{ background: "rgba(245,200,66,0.15)", color: "#F5C842", fontSize: 10, fontWeight: 700, padding: "4px 12px", borderRadius: 20 }}>
+                    Powered by Bruno
+                  </span>
                 </div>
-              ) : (
-                <div style={{ width: 320, height: 320, background: "rgba(255,255,255,0.04)", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.2)" }}>No image</div>
-              )}
-              <span style={{ position: "absolute", top: 12, right: 12, background: "rgba(245,200,66,0.9)", color: "#1B2A4A", fontSize: 10, fontWeight: 800, padding: "4px 10px", borderRadius: 6 }}>
-                {client.ad_size?.toUpperCase() || "AD"}
-              </span>
-            </div>
-            <div style={{ flex: 1, minWidth: 220 }}>
-              <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, color: "#fff", margin: "0 0 12px" }}>{client.selected_direction || "Campaign Direction"}</h3>
-              <p style={{ fontSize: 14, color: "rgba(255,255,255,0.55)", lineHeight: 1.6, margin: "0 0 16px" }}>{approvedDir?.description || ""}</p>
-
-              {client.tagline ? (
-                <p style={{ fontSize: 18, color: "#F5C842", fontStyle: "italic", fontFamily: "'Playfair Display', serif", margin: "0 0 20px" }}>&ldquo;{client.tagline}&rdquo;</p>
-              ) : editingTagline ? (
-                <div style={{ marginBottom: 20 }}>
-                  <input type="text" value={taglineInput} onChange={(e) => setTaglineInput(e.target.value)} placeholder="Enter your tagline..." style={{ width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 6, padding: "10px 14px", fontSize: 14, color: "#fff", outline: "none", boxSizing: "border-box" }} />
-                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                    <button onClick={saveTagline} disabled={taglineSaving || !taglineInput.trim()} style={{ background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{taglineSaving ? "Saving..." : "Save"}</button>
-                    <button onClick={() => setEditingTagline(false)} style={{ background: "transparent", color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "8px 16px", fontSize: 12, cursor: "pointer" }}>Cancel</button>
-                  </div>
-                </div>
-              ) : (
-                <button onClick={() => setEditingTagline(true)} style={{ background: "transparent", border: "none", color: "#F5C842", fontSize: 14, fontWeight: 700, cursor: "pointer", padding: 0, marginBottom: 20, display: "block" }}>Add Your Tagline &rarr;</button>
-              )}
-
-              <div style={{ background: client.stage === "production" ? "rgba(245,158,11,0.1)" : "rgba(34,197,94,0.1)", border: `1px solid ${client.stage === "production" ? "rgba(245,158,11,0.2)" : "rgba(34,197,94,0.2)"}`, borderRadius: 10, padding: "12px 16px", marginBottom: 16 }}>
-                <p style={{ fontSize: 14, color: client.stage === "production" ? "#f59e0b" : "#22c55e", fontWeight: 600, margin: 0 }}>
-                  {client.stage === "production" ? "Your campaign is in production" : client.stage === "delivered" ? "Campaign delivered!" : "Campaign approved"}
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", margin: "4px 0 0" }}>
+                  Generated for {client.business_name} &middot; {client.city} &middot; {todayStr}
                 </p>
               </div>
+              <button onClick={handlePrintReport} style={{
+                background: "linear-gradient(135deg, #F5C842, #e6b935)", color: "#1B2A4A",
+                border: "none", borderRadius: 10, padding: "12px 28px",
+                fontSize: 13, fontWeight: 800, cursor: "pointer",
+                boxShadow: "0 4px 16px rgba(245,200,66,0.3)", whiteSpace: "nowrap",
+              }}>Download Market Report</button>
+            </div>
 
-              {approvedDir?.imageUrl && (
-                <a href={approvedDir.imageUrl} download={`${client.business_name}-campaign.png`} style={{ display: "inline-block", background: "rgba(255,255,255,0.08)", color: "#fff", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 600, textDecoration: "none" }}>Download Preview</a>
+            {/* TIER 1 -- 5 HERO METRIC CARDS */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 16, margin: "32px 0 32px" }}>
+
+              {/* Card 1: Opportunity Score */}
+              <OpportunityScoreCard score={oppScore} />
+
+              {/* Card 2: Median Income */}
+              <MedianIncomeCard target={medianIncomeNum} />
+
+              {/* Card 3: Total Households */}
+              <HouseholdsCard target={householdsNum} />
+
+              {/* Card 4: 5-Year Growth */}
+              <MetricCard label="5-Year Market Outlook">
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+                  <span className="metric-val" style={{ fontSize: 28, fontWeight: 800, color: "#22c55e", lineHeight: 1 }}>{growthOutlook(oppScore)}</span>
+                </div>
+              </MetricCard>
+
+              {/* Card 5: Market Rank */}
+              <MetricCard label="National Market Ranking">
+                <div className="metric-val" style={{ fontSize: 28, fontWeight: 800, color: "#F5C842", lineHeight: 1 }}>{marketRank(oppScore)}</div>
+              </MetricCard>
+            </div>
+
+            {/* TIER 2 -- LEAFLET MAP */}
+            <div ref={mapRef} style={{ height: 420, borderRadius: 12, background: "#0d1a2e", border: "1px solid rgba(255,255,255,0.08)", marginBottom: 16, overflow: "hidden" }} />
+
+            {/* Ring Legend */}
+            <div style={{ display: "flex", gap: 24, justifyContent: "center", flexWrap: "wrap", marginBottom: 32 }}>
+              {[
+                { label: "Core (2 mi)", color: "#F5C842", households: coreHouseholds },
+                { label: "Ring 1 (5 mi)", color: "#3B82F6", households: ring1Households },
+                { label: "Ring 2 (10 mi)", color: "#8B5CF6", households: ring2Households },
+              ].map((ring) => (
+                <div key={ring.label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ width: 12, height: 12, borderRadius: "50%", background: ring.color }} />
+                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{ring.label}</span>
+                  <span style={{ fontSize: 12, color: ring.color, fontWeight: 700 }}>{ring.households.toLocaleString()} households</span>
+                </div>
+              ))}
+            </div>
+
+            {/* TIER 3 -- INCOME DISTRIBUTION */}
+            <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: "#fff", margin: "0 0 16px" }}>Income Distribution</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
+              {incomeRings.map((ring) => (
+                <IncomeBar key={ring.label} label={ring.label} range={`${ring.pct}%`} color={ring.color} pct={ring.pct} />
+              ))}
+            </div>
+            <div style={{
+              background: "rgba(245,200,66,0.06)", border: "1px solid rgba(245,200,66,0.15)",
+              borderRadius: 10, padding: "14px 18px", marginBottom: 32,
+            }}>
+              <p style={{ fontSize: 13, color: "#F5C842", margin: 0, fontWeight: 600 }}>
+                Your campaign targets the <strong>{targetRing}</strong> market -- the highest-value households in your distribution area.
+              </p>
+            </div>
+
+            {/* TIER 4 -- CONSUMER BEHAVIOR PROFILE */}
+            <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: "#fff", margin: "0 0 8px" }}>Your Neighborhood Profile</h3>
+
+            {/* Lifestyle Segment Card */}
+            <div style={{
+              background: "rgba(245,200,66,0.04)", border: "1px solid rgba(245,200,66,0.15)",
+              borderRadius: 12, padding: "20px 24px", marginBottom: 20,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                <span style={{ background: "#F5C842", color: "#1B2A4A", fontSize: 10, fontWeight: 800, padding: "3px 10px", borderRadius: 6 }}>
+                  PRIMARY SEGMENT
+                </span>
+              </div>
+              <h4 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, color: "#fff", margin: "0 0 8px" }}>{segment.name}</h4>
+              <p style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", lineHeight: 1.6, margin: 0 }}>{segment.desc}</p>
+            </div>
+
+            {/* 4 Behavior Cards */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 32 }}>
+              {[
+                { title: "Top Spending Categories", items: topCats.length > 0 ? topCats.slice(0, 3).join(", ") : "Home services, dining, healthcare" },
+                { title: "Media Consumption", items: "Print magazines, local news, social media, neighborhood apps" },
+                { title: "Purchase Decision Style", items: oppScore > 70 ? "Quality-driven, brand-loyal, referral-based" : "Value-conscious, comparison shoppers, deal-seekers" },
+                { title: "Business Opportunity", items: `${client.category} demand is ${oppScore > 70 ? "strong" : "growing"} in ${client.city}. Local print presence builds trust.` },
+              ].map((card) => (
+                <div key={card.title} style={{
+                  background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: 10, padding: "16px 18px",
+                }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>{card.title}</div>
+                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", lineHeight: 1.5, margin: 0 }}>{card.items}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* TIER 5 -- MARKET MOMENTUM */}
+            <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: "#fff", margin: "0 0 16px" }}>Market Momentum</h3>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 32 }}>
+              <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: 16, borderLeft: "3px solid #F5C842" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", marginBottom: 6 }}>Competitor Landscape</div>
+                <div style={{ fontSize: 14, color: "#fff", fontWeight: 600 }}>{competitorGap || `Limited ${client.category} advertisers in ${client.city} -- opportunity to own the space`}</div>
+              </div>
+              <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: 16, borderLeft: "3px solid #3B82F6" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", marginBottom: 6 }}>Top Business Category</div>
+                <div style={{ fontSize: 14, color: "#fff", fontWeight: 600 }}>
+                  {topCats[0] ? `"${topCats[0]}" is the #1 searched service in your area` : `${client.category} is a high-demand category`}
+                </div>
+              </div>
+              <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: 16, borderLeft: "3px solid #8B5CF6" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", marginBottom: 6 }}>Campaign Timing</div>
+                <div style={{ fontSize: 14, color: "#fff", fontWeight: 600 }}>Your market is in an active growth cycle -- ideal time to establish print presence</div>
+              </div>
+            </div>
+
+            {/* TIER 6 -- BRUNO'S MARKET BRIEF */}
+            <div style={{
+              background: "rgba(245,200,66,0.04)", borderLeft: "4px solid #F5C842",
+              borderRadius: "0 12px 12px 0", padding: "24px 28px", marginBottom: 24,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+                <div style={{
+                  width: 40, height: 40, borderRadius: "50%", background: "#F5C842",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontWeight: 800, color: "#1B2A4A", fontSize: 16,
+                }}>B</div>
+                <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: "#fff", margin: 0 }}>Bruno&apos;s Market Brief</h3>
+              </div>
+              <p style={{ fontSize: 14, color: "rgba(255,255,255,0.65)", lineHeight: 1.7, margin: 0, fontStyle: "italic" }}>
+                {marketBrief || `${client.business_name} is positioned in ${client.city}, a market with ${oppScore > 70 ? "strong" : "growing"} demand for ${client.category} services. With ${households} households in the distribution area and a median income of ${medianIncome}, the local consumer base has significant purchasing power. The ${oppScore > 70 ? "limited" : "moderate"} competition in the ${client.category} space means ${client.business_name} has a clear opportunity to establish dominant local brand awareness through consistent print presence. The ${segment.name} demographic profile of this market responds exceptionally well to magazine-based advertising.`}
+              </p>
+            </div>
+
+            {/* Download Market Report (bottom) */}
+            <div style={{ textAlign: "center" }}>
+              <button onClick={handlePrintReport} style={{
+                background: "linear-gradient(135deg, #F5C842, #e6b935)", color: "#1B2A4A",
+                border: "none", borderRadius: 10, padding: "14px 36px",
+                fontSize: 14, fontWeight: 800, cursor: "pointer",
+                boxShadow: "0 4px 16px rgba(245,200,66,0.3)",
+              }}>Download Market Report</button>
+            </div>
+          </Section>
+
+          {/* ── YOUR CAMPAIGN -- "Your Ad Direction" ───────────────────── */}
+          <Eyebrow text="YOUR CAMPAIGN" />
+          <Section>
+            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, color: "#fff", margin: "0 0 24px" }}>Your Ad Direction</h2>
+            <div style={{ display: "flex", gap: 28, alignItems: "flex-start", flexWrap: "wrap" }}>
+              <div style={{ position: "relative", flexShrink: 0 }}>
+                {approvedDir?.imageUrl ? (
+                  <div style={{ width: 320, borderRadius: 12, overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)" }}>
+                    <img src={approvedDir.imageUrl} alt={approvedDir.name} style={{ width: "100%", display: "block" }} />
+                  </div>
+                ) : (
+                  <div style={{ width: 320, height: 320, background: "rgba(255,255,255,0.04)", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.2)" }}>No image</div>
+                )}
+                <span style={{ position: "absolute", top: 12, right: 12, background: "rgba(245,200,66,0.9)", color: "#1B2A4A", fontSize: 10, fontWeight: 800, padding: "4px 10px", borderRadius: 6 }}>
+                  {client.ad_size?.toUpperCase() || "AD"}
+                </span>
+              </div>
+              <div style={{ flex: 1, minWidth: 220 }}>
+                <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, color: "#fff", margin: "0 0 12px" }}>{client.selected_direction || "Campaign Direction"}</h3>
+                <p style={{ fontSize: 14, color: "rgba(255,255,255,0.55)", lineHeight: 1.6, margin: "0 0 16px" }}>{approvedDir?.description || ""}</p>
+
+                {client.tagline ? (
+                  <p style={{ fontSize: 18, color: "#F5C842", fontStyle: "italic", fontFamily: "'Playfair Display', serif", margin: "0 0 20px" }}>&ldquo;{client.tagline}&rdquo;</p>
+                ) : editingTagline ? (
+                  <div style={{ marginBottom: 20 }}>
+                    <input type="text" value={taglineInput} onChange={(e) => setTaglineInput(e.target.value)} placeholder="Enter your tagline..." style={{ width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 6, padding: "10px 14px", fontSize: 14, color: "#fff", outline: "none", boxSizing: "border-box" }} />
+                    <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                      <button onClick={saveTagline} disabled={taglineSaving || !taglineInput.trim()} style={{ background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{taglineSaving ? "Saving..." : "Save"}</button>
+                      <button onClick={() => setEditingTagline(false)} style={{ background: "transparent", color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "8px 16px", fontSize: 12, cursor: "pointer" }}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => setEditingTagline(true)} style={{ background: "transparent", border: "none", color: "#F5C842", fontSize: 14, fontWeight: 700, cursor: "pointer", padding: 0, marginBottom: 20, display: "block" }}>Add Your Tagline &rarr;</button>
+                )}
+
+                <div style={{ background: client.stage === "production" ? "rgba(245,158,11,0.1)" : "rgba(34,197,94,0.1)", border: `1px solid ${client.stage === "production" ? "rgba(245,158,11,0.2)" : "rgba(34,197,94,0.2)"}`, borderRadius: 10, padding: "12px 16px", marginBottom: 16 }}>
+                  <p style={{ fontSize: 14, color: client.stage === "production" ? "#f59e0b" : "#22c55e", fontWeight: 600, margin: 0 }}>
+                    {client.stage === "production" ? "Your campaign is in production" : client.stage === "delivered" ? "Campaign delivered!" : "Campaign approved"}
+                  </p>
+                </div>
+
+                {approvedDir?.imageUrl && (
+                  <a href={approvedDir.imageUrl} download={`${client.business_name}-campaign.png`} style={{ display: "inline-block", background: "rgba(255,255,255,0.08)", color: "#fff", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 600, textDecoration: "none" }}>Download Preview</a>
+                )}
+              </div>
+            </div>
+
+            <div style={{ marginTop: 32, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 24 }}>
+              <h3 style={{ fontSize: 16, color: "#fff", margin: "0 0 12px", fontWeight: 700 }}>Request a Change</h3>
+              <textarea value={revisionNote} onChange={(e) => setRevisionNote(e.target.value)} placeholder="Describe what you'd like changed..." style={{ width: "100%", minHeight: 80, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: 14, fontSize: 14, color: "#fff", resize: "vertical", outline: "none", boxSizing: "border-box" }} />
+              <button onClick={submitRevision} disabled={!revisionNote.trim() || revisionSending} style={{ marginTop: 8, background: revisionNote.trim() ? "#F5C842" : "rgba(255,255,255,0.08)", color: revisionNote.trim() ? "#1B2A4A" : "rgba(255,255,255,0.3)", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 14, fontWeight: 700, cursor: revisionNote.trim() ? "pointer" : "not-allowed" }}>
+                {revisionSending ? "Sending..." : "Submit Change Request"}
+              </button>
+              {revisionSent && <p style={{ fontSize: 13, color: "#22c55e", margin: "8px 0 0" }}>Change request submitted -- your rep will be in touch.</p>}
+            </div>
+          </Section>
+
+          {/* ── FULL CAMPAIGN PREVIEW ───────────────────────────────────── */}
+          <Eyebrow text="CAMPAIGN SUITE" />
+          <Section>
+            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, color: "#fff", margin: "0 0 4px" }}>See Your Complete BVM Campaign</h2>
+            <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", margin: "0 0 4px" }}>This is what a full print + digital + web campaign looks like for {client.business_name}.</p>
+            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", margin: "0 0 28px" }}>Your current campaign includes {client.ad_size} print. The preview below shows the complete suite.</p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 20, marginBottom: 28 }}>
+              {/* Print - Active */}
+              <div style={{ background: "rgba(245,200,66,0.04)", border: "2px solid rgba(245,200,66,0.3)", borderRadius: 14, overflow: "hidden" }}>
+                <div style={{ height: 200, background: "#0d1a2e", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                  {approvedDir?.imageUrl ? <img src={approvedDir.imageUrl} alt="Print Ad" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ color: "rgba(255,255,255,0.15)", fontSize: 13 }}>Preview</div>}
+                </div>
+                <div style={{ padding: "16px 20px" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>Your Magazine Ad</span>
+                    <span style={{ background: "rgba(34,197,94,0.15)", color: "#22c55e", fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 8 }}>Active</span>
+                  </div>
+                  <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", margin: 0 }}>PRINT</p>
+                </div>
+              </div>
+
+              {/* Web - Available */}
+              <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, overflow: "hidden" }}>
+                <div style={{ height: 200, background: "#0d1a2e", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <svg width="160" height="120" viewBox="0 0 160 120">
+                    <rect x="20" y="8" width="120" height="80" rx="6" fill="#243454" stroke="rgba(255,255,255,0.15)" strokeWidth="2" />
+                    <rect x="28" y="16" width="104" height="64" rx="2" fill="url(#webGrad)" />
+                    <rect x="10" y="88" width="140" height="8" rx="4" fill="#243454" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+                    <defs><linearGradient id="webGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#1B2A4A" /><stop offset="100%" stopColor="#F5C842" stopOpacity="0.2" /></linearGradient></defs>
+                    <text x="80" y="52" textAnchor="middle" fill="rgba(255,255,255,0.3)" fontSize="9" fontFamily="DM Sans">{client.business_name}</text>
+                  </svg>
+                </div>
+                <div style={{ padding: "16px 20px" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>Your Business Website</span>
+                    <span style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 8 }}>Available</span>
+                  </div>
+                  <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", margin: 0 }}>WEB</p>
+                </div>
+              </div>
+
+              {/* Digital - Available */}
+              <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, overflow: "hidden" }}>
+                <div style={{ height: 200, background: "#0d1a2e", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <svg width="80" height="140" viewBox="0 0 80 140">
+                    <rect x="8" y="4" width="64" height="132" rx="12" fill="#243454" stroke="rgba(255,255,255,0.15)" strokeWidth="2" />
+                    <rect x="14" y="20" width="52" height="100" rx="2" fill="url(#digGrad)" />
+                    <defs><linearGradient id="digGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.3" /><stop offset="100%" stopColor="#F5C842" stopOpacity="0.2" /></linearGradient></defs>
+                    <circle cx="40" cy="130" r="4" fill="rgba(255,255,255,0.1)" />
+                    <text x="40" y="72" textAnchor="middle" fill="rgba(255,255,255,0.3)" fontSize="7" fontFamily="DM Sans">Digital Ad</text>
+                  </svg>
+                </div>
+                <div style={{ padding: "16px 20px" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>Digital Ad Campaign</span>
+                    <span style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 8 }}>Available</span>
+                  </div>
+                  <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", margin: 0 }}>DIGITAL</p>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ textAlign: "center" }}>
+              {upsellSent ? (
+                <div style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 10, padding: "16px 24px", display: "inline-block" }}>
+                  <p style={{ fontSize: 15, color: "#22c55e", fontWeight: 700, margin: 0 }}>Your rep has been notified -- expect a call soon!</p>
+                </div>
+              ) : (
+                <button onClick={sendUpsellInterest} disabled={upsellSending} style={{
+                  background: "linear-gradient(135deg, #F5C842, #e6b935)", color: "#1B2A4A",
+                  border: "none", borderRadius: 10, padding: "16px 40px",
+                  fontSize: 15, fontWeight: 800, cursor: upsellSending ? "not-allowed" : "pointer",
+                  boxShadow: "0 4px 16px rgba(245,200,66,0.3)", opacity: upsellSending ? 0.6 : 1,
+                }}>{upsellSending ? "Sending..." : "Talk to Your Rep About the Full Suite \u2192"}</button>
               )}
             </div>
-          </div>
+          </Section>
 
-          <div style={{ marginTop: 32, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 24 }}>
-            <h3 style={{ fontSize: 16, color: "#fff", margin: "0 0 12px", fontWeight: 700 }}>Request a Change</h3>
-            <textarea value={revisionNote} onChange={(e) => setRevisionNote(e.target.value)} placeholder="Describe what you'd like changed..." style={{ width: "100%", minHeight: 80, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: 14, fontSize: 14, color: "#fff", resize: "vertical", outline: "none", boxSizing: "border-box" }} />
-            <button onClick={submitRevision} disabled={!revisionNote.trim() || revisionSending} style={{ marginTop: 8, background: revisionNote.trim() ? "#F5C842" : "rgba(255,255,255,0.08)", color: revisionNote.trim() ? "#1B2A4A" : "rgba(255,255,255,0.3)", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 14, fontWeight: 700, cursor: revisionNote.trim() ? "pointer" : "not-allowed" }}>
-              {revisionSending ? "Sending..." : "Submit Change Request"}
-            </button>
-            {revisionSent && <p style={{ fontSize: 13, color: "#22c55e", margin: "8px 0 0" }}>Change request submitted -- your rep will be in touch.</p>}
-          </div>
-        </Section>
+          {/* ── BUSINESS PROFILE (locked) ───────────────────────────────── */}
+          <Eyebrow text="PREMIUM" />
+          <Section>
+            <div style={{ borderLeft: "3px solid #F5C842", paddingLeft: 24, position: "relative" }}>
+              <div style={{ position: "absolute", top: 0, right: 0, fontSize: 20, opacity: 0.5 }}>{"\uD83D\uDD12"}</div>
+              <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, color: "#fff", margin: "0 0 8px" }}>Business Profile</h2>
+              <p style={{ fontSize: 15, color: "rgba(255,255,255,0.55)", margin: "0 0 16px", lineHeight: 1.6 }}>
+                Share your story with your neighborhood
+              </p>
+              <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: "0 0 20px", lineHeight: 1.6 }}>
+                A Business Profile is a full-page editorial feature in your BVM magazine. It tells your story, highlights your expertise, and introduces you to thousands of households in your community. Think of it as a magazine article about your business -- written, designed, and distributed by BVM.
+              </p>
 
-        {/* ── 6. FULL CAMPAIGN PREVIEW ───────────────────────────────────── */}
-        <Section>
-          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, color: "#fff", margin: "0 0 4px" }}>See Your Complete BVM Campaign</h2>
-          <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", margin: "0 0 4px" }}>This is what a full print + digital + web campaign looks like for {client.business_name}.</p>
-          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", margin: "0 0 28px" }}>Your current campaign includes {client.ad_size} print. The preview below shows the complete suite.</p>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 20, marginBottom: 28 }}>
-            {/* Print - Active */}
-            <div style={{ background: "rgba(245,200,66,0.04)", border: "2px solid rgba(245,200,66,0.3)", borderRadius: 14, overflow: "hidden" }}>
-              <div style={{ height: 200, background: "#0d1a2e", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                {approvedDir?.imageUrl ? <img src={approvedDir.imageUrl} alt="Print Ad" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ color: "rgba(255,255,255,0.15)", fontSize: 13 }}>Preview</div>}
-              </div>
-              <div style={{ padding: "16px 20px" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>Your Magazine Ad</span>
-                  <span style={{ background: "rgba(34,197,94,0.15)", color: "#22c55e", fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 8 }}>Active</span>
+              {/* Preview mockup */}
+              <div style={{
+                background: "#1B2A4A", border: "1px solid rgba(255,255,255,0.1)",
+                borderRadius: 12, padding: "24px 28px", marginBottom: 20, maxWidth: 480,
+              }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>PREVIEW</div>
+                <h4 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, color: "#fff", margin: "0 0 6px" }}>
+                  {client.business_name}: {client.tagline || "Your Neighborhood Partner"}
+                </h4>
+                <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", margin: "0 0 12px", lineHeight: 1.5 }}>
+                  Meet the team behind {client.business_name}, serving {client.city} with quality {client.category.toLowerCase()} services...
+                </p>
+                <div style={{ height: 80, background: "rgba(255,255,255,0.03)", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <span style={{ fontSize: 11, color: "rgba(255,255,255,0.15)" }}>Full article preview</span>
                 </div>
-                <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", margin: 0 }}>PRINT</p>
+              </div>
+
+              <span style={{
+                display: "inline-block", background: "rgba(245,158,11,0.15)", color: "#f59e0b",
+                fontSize: 11, fontWeight: 700, padding: "4px 12px", borderRadius: 6, marginBottom: 16,
+              }}>Available with 24-month agreement</span>
+
+              <div>
+                {bizProfileSent ? (
+                  <div style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 10, padding: "14px 20px", display: "inline-block" }}>
+                    <p style={{ fontSize: 14, color: "#22c55e", fontWeight: 700, margin: 0 }}>Your rep will reach out with details on Business Profiles.</p>
+                  </div>
+                ) : (
+                  <button onClick={sendBizProfileInterest} disabled={bizProfileSending} style={{
+                    background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 8,
+                    padding: "12px 28px", fontSize: 14, fontWeight: 800, cursor: bizProfileSending ? "not-allowed" : "pointer",
+                    opacity: bizProfileSending ? 0.6 : 1,
+                  }}>{bizProfileSending ? "Sending..." : "Request Your Business Profile \u2192"}</button>
+                )}
               </div>
             </div>
+          </Section>
 
-            {/* Web - Available */}
-            <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, overflow: "hidden" }}>
-              <div style={{ height: 200, background: "#0d1a2e", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <svg width="160" height="120" viewBox="0 0 160 120">
-                  <rect x="20" y="8" width="120" height="80" rx="6" fill="#243454" stroke="rgba(255,255,255,0.15)" strokeWidth="2" />
-                  <rect x="28" y="16" width="104" height="64" rx="2" fill="url(#webGrad)" />
-                  <rect x="10" y="88" width="140" height="8" rx="4" fill="#243454" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
-                  <defs><linearGradient id="webGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#1B2A4A" /><stop offset="100%" stopColor="#F5C842" stopOpacity="0.2" /></linearGradient></defs>
-                  <text x="80" y="52" textAnchor="middle" fill="rgba(255,255,255,0.3)" fontSize="9" fontFamily="DM Sans">{client.business_name}</text>
-                </svg>
+          {/* ── EXPERT CONTRIBUTOR (locked) ──────────────────────────────── */}
+          <Eyebrow text="PREMIUM" />
+          <Section>
+            <div style={{ borderLeft: "3px solid #F5C842", paddingLeft: 24, position: "relative" }}>
+              <div style={{ position: "absolute", top: 0, right: 0, fontSize: 20, opacity: 0.5 }}>{"\uD83D\uDD12"}</div>
+              <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, color: "#fff", margin: "0 0 8px" }}>Expert Contributor</h2>
+              <p style={{ fontSize: 15, color: "rgba(255,255,255,0.55)", margin: "0 0 16px", lineHeight: 1.6 }}>
+                Become the trusted voice in your neighborhood
+              </p>
+              <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: "0 0 16px", lineHeight: 1.6 }}>
+                As an Expert Contributor, you write a recurring column in your BVM magazine on topics related to your industry. This positions you as the go-to authority in your neighborhood and builds trust with thousands of local households every month.
+              </p>
+
+              {/* Primer topic bullets */}
+              <div style={{ marginBottom: 16 }}>
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", margin: "0 0 10px", fontWeight: 600 }}>Example topics for {client.category}:</p>
+                {[
+                  `Seasonal tips for ${client.category.toLowerCase()} customers`,
+                  "Common mistakes homeowners make (and how to avoid them)",
+                  `What to look for when choosing a ${client.category.toLowerCase()} provider`,
+                  "Behind the scenes: how our team serves your neighborhood",
+                ].map((topic, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#F5C842", flexShrink: 0, marginTop: 6 }} />
+                    <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", lineHeight: 1.4 }}>{topic}</span>
+                  </div>
+                ))}
               </div>
-              <div style={{ padding: "16px 20px" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>Your Business Website</span>
-                  <span style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 8 }}>Available</span>
-                </div>
-                <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", margin: 0 }}>WEB</p>
+
+              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", margin: "0 0 16px", lineHeight: 1.5 }}>
+                Submissions are reviewed by the BVM editorial team. Articles should be 300-500 words, educational in nature, and free of direct promotional language. BVM reserves the right to edit for clarity and style.
+              </p>
+
+              <div>
+                {expertContribSent ? (
+                  <div style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 10, padding: "14px 20px", display: "inline-block" }}>
+                    <p style={{ fontSize: 14, color: "#22c55e", fontWeight: 700, margin: 0 }}>Your rep will reach out with details on becoming an Expert Contributor.</p>
+                  </div>
+                ) : (
+                  <button onClick={sendExpertContribInterest} disabled={expertContribSending} style={{
+                    background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 8,
+                    padding: "12px 28px", fontSize: 14, fontWeight: 800, cursor: expertContribSending ? "not-allowed" : "pointer",
+                    opacity: expertContribSending ? 0.6 : 1,
+                  }}>{expertContribSending ? "Sending..." : "Become an Expert Contributor \u2192"}</button>
+                )}
               </div>
             </div>
+          </Section>
 
-            {/* Digital - Available */}
-            <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, overflow: "hidden" }}>
-              <div style={{ height: 200, background: "#0d1a2e", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <svg width="80" height="140" viewBox="0 0 80 140">
-                  <rect x="8" y="4" width="64" height="132" rx="12" fill="#243454" stroke="rgba(255,255,255,0.15)" strokeWidth="2" />
-                  <rect x="14" y="20" width="52" height="100" rx="2" fill="url(#digGrad)" />
-                  <defs><linearGradient id="digGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.3" /><stop offset="100%" stopColor="#F5C842" stopOpacity="0.2" /></linearGradient></defs>
-                  <circle cx="40" cy="130" r="4" fill="rgba(255,255,255,0.1)" />
-                  <text x="40" y="72" textAnchor="middle" fill="rgba(255,255,255,0.3)" fontSize="7" fontFamily="DM Sans">Digital Ad</text>
-                </svg>
-              </div>
-              <div style={{ padding: "16px 20px" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>Digital Ad Campaign</span>
-                  <span style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 8 }}>Available</span>
-                </div>
-                <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", margin: 0 }}>DIGITAL</p>
-              </div>
+        </div>{/* END LEFT COLUMN */}
+
+        {/* ── RIGHT COLUMN (35%, sticky sidebar) ──────────────────────── */}
+        <div style={{
+          flex: "0 0 35%", position: "sticky", top: 72,
+          height: "calc(100vh - 72px)", overflowY: "auto",
+          background: "#0d1a2e", padding: 20,
+          borderLeft: "1px solid rgba(255,255,255,0.08)",
+        }}>
+
+          {/* Approved Ad Image */}
+          {approvedDir?.imageUrl ? (
+            <div style={{ width: "100%", borderRadius: 12, overflow: "hidden", marginBottom: 16 }}>
+              <img src={approvedDir.imageUrl} alt={approvedDir.name} style={{ width: "100%", display: "block" }} />
             </div>
-          </div>
+          ) : (
+            <div style={{
+              width: "100%", height: 220, background: "rgba(255,255,255,0.04)",
+              borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center",
+              color: "rgba(255,255,255,0.2)", fontSize: 13, marginBottom: 16,
+            }}>No ad preview available</div>
+          )}
 
-          <div style={{ textAlign: "center" }}>
-            {upsellSent ? (
-              <div style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 10, padding: "16px 24px", display: "inline-block" }}>
-                <p style={{ fontSize: 15, color: "#22c55e", fontWeight: 700, margin: 0 }}>Your rep has been notified -- expect a call soon!</p>
-              </div>
+          {/* Ad size badge + tagline */}
+          <div style={{ marginBottom: 16 }}>
+            <span style={{
+              background: "rgba(245,200,66,0.15)", color: "#F5C842",
+              fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 6,
+            }}>{client.ad_size?.toUpperCase() || "AD"}</span>
+            {client.tagline ? (
+              <p style={{ fontSize: 16, color: "#F5C842", fontStyle: "italic", fontFamily: "'Playfair Display', serif", margin: "10px 0 0" }}>
+                &ldquo;{client.tagline}&rdquo;
+              </p>
             ) : (
-              <button onClick={sendUpsellInterest} disabled={upsellSending} style={{
-                background: "linear-gradient(135deg, #F5C842, #e6b935)", color: "#1B2A4A",
-                border: "none", borderRadius: 10, padding: "16px 40px",
-                fontSize: 15, fontWeight: 800, cursor: upsellSending ? "not-allowed" : "pointer",
-                boxShadow: "0 4px 16px rgba(245,200,66,0.3)", opacity: upsellSending ? 0.6 : 1,
-              }}>{upsellSending ? "Sending..." : "Talk to Your Rep About the Full Suite \u2192"}</button>
+              <button onClick={() => setEditingTagline(true)} style={{
+                background: "transparent", border: "none", color: "#F5C842",
+                fontSize: 13, fontWeight: 700, cursor: "pointer", padding: 0,
+                marginTop: 10, display: "block",
+              }}>Add tagline &rarr;</button>
             )}
           </div>
-        </Section>
 
-        {/* ── 7. BUSINESS PROFILE (locked) ───────────────────────────────── */}
-        <Section>
-          <div style={{ borderLeft: "3px solid #F5C842", paddingLeft: 24, position: "relative" }}>
-            <div style={{ position: "absolute", top: 0, right: 0, fontSize: 20, opacity: 0.5 }}>{"\uD83D\uDD12"}</div>
-            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, color: "#fff", margin: "0 0 8px" }}>Business Profile</h2>
-            <p style={{ fontSize: 15, color: "rgba(255,255,255,0.55)", margin: "0 0 16px", lineHeight: 1.6 }}>
-              Share your story with your neighborhood
+          {/* Stage Card */}
+          <div style={{
+            background: "#243454", border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: 12, padding: 16, marginBottom: 16,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+              <div style={{
+                width: 10, height: 10, borderRadius: "50%", background: "#F5C842",
+                animation: "goldPulse 2s ease infinite",
+              }} />
+              <span style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>
+                {STAGE_LABELS[client.stage] || client.stage}
+              </span>
+            </div>
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", margin: 0, lineHeight: 1.5 }}>
+              {nextStepText}
             </p>
-            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: "0 0 20px", lineHeight: 1.6 }}>
-              A Business Profile is a full-page editorial feature in your BVM magazine. It tells your story, highlights your expertise, and introduces you to thousands of households in your community. Think of it as a magazine article about your business -- written, designed, and distributed by BVM.
-            </p>
+          </div>
 
-            {/* Preview mockup */}
-            <div style={{
-              background: "#1B2A4A", border: "1px solid rgba(255,255,255,0.1)",
-              borderRadius: 12, padding: "24px 28px", marginBottom: 20, maxWidth: 480,
-            }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>PREVIEW</div>
-              <h4 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, color: "#fff", margin: "0 0 6px" }}>
-                {client.business_name}: {client.tagline || "Your Neighborhood Partner"}
-              </h4>
-              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", margin: "0 0 12px", lineHeight: 1.5 }}>
-                Meet the team behind {client.business_name}, serving {client.city} with quality {client.category.toLowerCase()} services...
-              </p>
-              <div style={{ height: 80, background: "rgba(255,255,255,0.03)", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ fontSize: 11, color: "rgba(255,255,255,0.15)" }}>Full article preview</span>
+          {/* Download Buttons */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+            {approvedDir?.imageUrl ? (
+              <a href={approvedDir.imageUrl} download={`${client.business_name}-campaign.png`} style={{
+                display: "block", textAlign: "center", textDecoration: "none",
+                background: "#F5C842", color: "#1B2A4A", borderRadius: 10,
+                padding: "12px 20px", fontSize: 13, fontWeight: 800, cursor: "pointer",
+              }}>Download Ad Preview</a>
+            ) : (
+              <button disabled style={{
+                background: "rgba(245,200,66,0.3)", color: "#1B2A4A", border: "none", borderRadius: 10,
+                padding: "12px 20px", fontSize: 13, fontWeight: 800, cursor: "not-allowed", opacity: 0.5,
+              }}>Download Ad Preview</button>
+            )}
+            <button onClick={handlePrintReport} style={{
+              background: "rgba(255,255,255,0.1)", color: "#F5C842", border: "none", borderRadius: 10,
+              padding: "12px 20px", fontSize: 13, fontWeight: 800, cursor: "pointer",
+            }}>Download Market Report</button>
+          </div>
+
+          {/* Rep Card */}
+          <div style={{
+            background: "#243454", border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: 12, padding: 16, marginBottom: 16,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+              <div style={{
+                width: 52, height: 52, borderRadius: "50%", background: "#F5C842",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontWeight: 800, color: "#1B2A4A", fontSize: 18, flexShrink: 0,
+              }}>TH</div>
+              <div>
+                <div style={{ fontSize: 15, color: "#fff", fontWeight: 700 }}>Ted Herrera</div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>Your BVM Account Executive</div>
               </div>
             </div>
-
-            <span style={{
-              display: "inline-block", background: "rgba(245,158,11,0.15)", color: "#f59e0b",
-              fontSize: 11, fontWeight: 700, padding: "4px 12px", borderRadius: 6, marginBottom: 16,
-            }}>Available with 24-month agreement</span>
-
-            <div>
-              {bizProfileSent ? (
-                <div style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 10, padding: "14px 20px", display: "inline-block" }}>
-                  <p style={{ fontSize: 14, color: "#22c55e", fontWeight: 700, margin: 0 }}>Your rep will reach out with details on Business Profiles.</p>
-                </div>
-              ) : (
-                <button onClick={sendBizProfileInterest} disabled={bizProfileSending} style={{
-                  background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 8,
-                  padding: "12px 28px", fontSize: 14, fontWeight: 800, cursor: bizProfileSending ? "not-allowed" : "pointer",
-                  opacity: bizProfileSending ? 0.6 : 1,
-                }}>{bizProfileSending ? "Sending..." : "Request Your Business Profile \u2192"}</button>
-              )}
-            </div>
-          </div>
-        </Section>
-
-        {/* ── 8. EXPERT CONTRIBUTOR (locked) ──────────────────────────────── */}
-        <Section>
-          <div style={{ borderLeft: "3px solid #F5C842", paddingLeft: 24, position: "relative" }}>
-            <div style={{ position: "absolute", top: 0, right: 0, fontSize: 20, opacity: 0.5 }}>{"\uD83D\uDD12"}</div>
-            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, color: "#fff", margin: "0 0 8px" }}>Expert Contributor</h2>
-            <p style={{ fontSize: 15, color: "rgba(255,255,255,0.55)", margin: "0 0 16px", lineHeight: 1.6 }}>
-              Become the trusted voice in your neighborhood
-            </p>
-            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: "0 0 16px", lineHeight: 1.6 }}>
-              As an Expert Contributor, you write a recurring column in your BVM magazine on topics related to your industry. This positions you as the go-to authority in your neighborhood and builds trust with thousands of local households every month.
-            </p>
-
-            {/* Primer topic bullets */}
-            <div style={{ marginBottom: 16 }}>
-              <p style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", margin: "0 0 10px", fontWeight: 600 }}>Example topics for {client.category}:</p>
-              {[
-                `Seasonal tips for ${client.category.toLowerCase()} customers`,
-                "Common mistakes homeowners make (and how to avoid them)",
-                `What to look for when choosing a ${client.category.toLowerCase()} provider`,
-                "Behind the scenes: how our team serves your neighborhood",
-              ].map((topic, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
-                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#F5C842", flexShrink: 0, marginTop: 6 }} />
-                  <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", lineHeight: 1.4 }}>{topic}</span>
-                </div>
-              ))}
-            </div>
-
-            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", margin: "0 0 16px", lineHeight: 1.5 }}>
-              Submissions are reviewed by the BVM editorial team. Articles should be 300-500 words, educational in nature, and free of direct promotional language. BVM reserves the right to edit for clarity and style.
-            </p>
-
-            <div>
-              {expertContribSent ? (
-                <div style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 10, padding: "14px 20px", display: "inline-block" }}>
-                  <p style={{ fontSize: 14, color: "#22c55e", fontWeight: 700, margin: 0 }}>Your rep will reach out with details on becoming an Expert Contributor.</p>
-                </div>
-              ) : (
-                <button onClick={sendExpertContribInterest} disabled={expertContribSending} style={{
-                  background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 8,
-                  padding: "12px 28px", fontSize: 14, fontWeight: 800, cursor: expertContribSending ? "not-allowed" : "pointer",
-                  opacity: expertContribSending ? 0.6 : 1,
-                }}>{expertContribSending ? "Sending..." : "Become an Expert Contributor \u2192"}</button>
-              )}
-            </div>
-          </div>
-        </Section>
-
-        {/* ── 9. YOUR REP + MESSAGES ─────────────────────────────────────── */}
-        <Section>
-          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, color: "#fff", margin: "0 0 20px" }}>Your Rep</h2>
-          <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
-            <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#F5C842", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, color: "#1B2A4A", fontSize: 18 }}>TH</div>
-            <div>
-              <div style={{ fontSize: 16, color: "#fff", fontWeight: 700 }}>Ted Herrera</div>
-              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Your BVM Account Executive</div>
-            </div>
+            <button
+              onClick={() => document.getElementById("messages-section")?.scrollIntoView({ behavior: "smooth" })}
+              style={{
+                background: "transparent", border: "none", color: "#F5C842",
+                fontSize: 13, fontWeight: 700, cursor: "pointer", padding: 0,
+              }}
+            >Send a Message</button>
           </div>
 
-          {/* Messages Thread */}
-          <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 16 }}>
+          {/* Messages Section (compact sidebar) */}
+          <div id="messages-section" style={{
+            background: "#243454", border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: 12, padding: 16,
+          }}>
             <h3 style={{ fontSize: 14, fontWeight: 700, color: "#fff", margin: "0 0 12px" }}>Messages</h3>
-            <div style={{ maxHeight: 280, overflowY: "auto", marginBottom: 14, background: "rgba(255,255,255,0.02)", borderRadius: 10, padding: chatMessages.length > 0 ? 14 : 0 }}>
+
+            <div style={{ marginBottom: 12 }}>
               {chatMessages.length === 0 ? (
-                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.3)", padding: 14, margin: 0 }}>No messages yet. Start the conversation!</p>
-              ) : chatMessages.map((m, i) => (
-                <div key={i} style={{ marginBottom: 12 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-                    <span style={{
-                      fontSize: 9, fontWeight: 700, color: "#fff", padding: "1px 6px", borderRadius: 4,
-                      background: m.role === "rep" ? "#2d3e50" : "#0891b2",
-                    }}>{m.role === "rep" ? "REP" : "YOU"}</span>
-                    <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>{timeAgo(m.timestamp)}</span>
-                  </div>
-                  <p style={{ fontSize: 13, color: "#fff", margin: 0, lineHeight: 1.5 }}>{m.content}</p>
-                </div>
-              ))}
+                <p style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", margin: 0 }}>No messages yet. Start the conversation!</p>
+              ) : (
+                <>
+                  {sidebarMessages.map((m, i) => (
+                    <div key={i} style={{ marginBottom: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                        <span style={{
+                          fontSize: 9, fontWeight: 700, color: "#fff", padding: "1px 6px", borderRadius: 4,
+                          background: m.role === "rep" ? "#2d3e50" : "#0891b2",
+                        }}>{m.role === "rep" ? "REP" : "YOU"}</span>
+                        <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>{timeAgo(m.timestamp)}</span>
+                      </div>
+                      <p style={{ fontSize: 12, color: "#fff", margin: 0, lineHeight: 1.4 }}>{m.content}</p>
+                    </div>
+                  ))}
+                  {chatMessages.length > 3 && (
+                    <button
+                      onClick={() => setSidebarMsgsExpanded(!sidebarMsgsExpanded)}
+                      style={{
+                        background: "transparent", border: "none", color: "#F5C842",
+                        fontSize: 12, fontWeight: 700, cursor: "pointer", padding: 0, marginTop: 4,
+                      }}
+                    >{sidebarMsgsExpanded ? "Show Less" : `View All (${chatMessages.length})`}</button>
+                  )}
+                </>
+              )}
               <div ref={chatEndRef} />
             </div>
 
@@ -1213,7 +1383,10 @@ export default function CampaignClientPage({ params }: { params: Promise<{ id: s
                 onChange={(e) => setClientMsgInput(e.target.value)}
                 placeholder="Type your message..."
                 rows={2}
-                style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: 12, fontSize: 13, color: "#fff", resize: "none", outline: "none", boxSizing: "border-box" }}
+                style={{
+                  flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: 8, padding: 10, fontSize: 12, color: "#fff", resize: "none", outline: "none", boxSizing: "border-box",
+                }}
               />
               <button
                 onClick={sendClientMessage}
@@ -1221,15 +1394,17 @@ export default function CampaignClientPage({ params }: { params: Promise<{ id: s
                 style={{
                   background: clientMsgInput.trim() ? "#F5C842" : "rgba(255,255,255,0.08)",
                   color: clientMsgInput.trim() ? "#1B2A4A" : "rgba(255,255,255,0.3)",
-                  border: "none", borderRadius: 8, padding: "10px 18px", fontSize: 13,
+                  border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 12,
                   fontWeight: 700, cursor: clientMsgInput.trim() ? "pointer" : "not-allowed",
                   alignSelf: "flex-end",
                 }}
               >{clientMsgSending ? "..." : "Send"}</button>
             </div>
           </div>
-        </Section>
-      </div>
+
+        </div>{/* END RIGHT COLUMN */}
+
+      </div>{/* END TWO COLUMN LAYOUT */}
     </div>
   );
 }
