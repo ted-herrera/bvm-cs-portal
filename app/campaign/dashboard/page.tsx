@@ -50,41 +50,19 @@ function timeAgo(d: string): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-function getCookie(name: string): string | null {
-  const cookies = document.cookie.split(";");
-  for (const cookie of cookies) {
-    const [key, ...rest] = cookie.trim().split("=");
-    if (key === name) return decodeURIComponent(rest.join("="));
-  }
-  return null;
-}
-
-function getRepFromCookie(): { username: string; name: string; role: string } | null {
-  // Try campaign_user cookie first
-  const raw = getCookie("campaign_user");
-  if (raw) {
-    try {
-      const payload = JSON.parse(raw);
-      return {
-        username: payload.username || "unassigned",
-        name: payload.username || "Rep",
-        role: payload.role || "rep",
-      };
-    } catch { /* fall through */ }
-  }
-  // Fallback to dc_session cookie
-  const session = getCookie("dc_session");
-  if (session) {
-    try {
-      const [encoded] = session.split(".");
-      const payload = JSON.parse(atob(encoded.replace(/-/g, "+").replace(/_/g, "/")));
-      return {
-        username: payload.username || "unassigned",
-        name: payload.name || "Rep",
-        role: payload.role || "rep",
-      };
-    } catch { /* ignore */ }
-  }
+function getRepFromCookie() {
+  try {
+    const cookies = document.cookie.split(";");
+    for (const cookie of cookies) {
+      const parts = cookie.trim().split("=");
+      const key = parts[0];
+      const value = parts.slice(1).join("=");
+      if (key === "campaign_user") {
+        const parsed = JSON.parse(decodeURIComponent(value));
+        return { username: parsed.username, name: parsed.username, role: parsed.role };
+      }
+    }
+  } catch (e) { /* ignore */ }
   return null;
 }
 
