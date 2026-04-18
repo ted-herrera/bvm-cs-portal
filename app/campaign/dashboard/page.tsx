@@ -425,9 +425,15 @@ export default function CampaignDashboardPage() {
                   !clients.some((c) => c.business_name.toLowerCase() === l.businessName.toLowerCase()) &&
                   (!search || l.businessName.toLowerCase().includes(search.toLowerCase()))
                 ).slice(0, 20).map((l) => (
-                  <div key={l.id} style={{
+                  <div key={l.id} onClick={() => selectClient({
+                    id: l.id, business_name: l.businessName, city: l.publications || "",
+                    zip: "", category: l.adType || "", services: l.saleItems || "",
+                    ad_size: l.adType || "", tagline: "", rep_id: rep!.username,
+                    stage: "intake" as const, sbr_data: null, generated_directions: null,
+                    selected_direction: null, approved_at: null, revisions: null, created_at: "",
+                  } as CampaignClient)} style={{
                     padding: "12px 16px", borderBottom: "1px solid #f1f5f9",
-                    opacity: 0.7,
+                    opacity: 0.7, cursor: "pointer",
                   }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                       <span style={{ fontSize: 13, fontWeight: 600, color: "#475569" }}>{l.businessName}</span>
