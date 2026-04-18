@@ -8,11 +8,13 @@ const PUBLIC_PATHS = [
   "/qa-demo",
   "/client",
   "/social",
+  "/campaign",
   "/_next",
   "/favicon.ico",
   "/bvm_logo.png",
   "/bruno.png",
   "/bruno-login.png",
+  "/choropleth-map.png",
   "/overview.mp4",
 ];
 
