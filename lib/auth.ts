@@ -1,7 +1,7 @@
 export interface User {
   username: string;
   password: string;
-  role: "rep" | "dev";
+  role: "rep" | "dev" | "admin";
   name: string;
 }
 
@@ -16,6 +16,13 @@ export const USERS: User[] = [
   { username: "demo", password: "demo", role: "rep", name: "Demo Rep" },
   { username: "alexa", password: "alexa", role: "rep", name: "Alex A" },
   { username: "elizabeth", password: "elizabeth", role: "rep", name: "Elizabeth" },
+  { username: "Alex Polivka", password: "password", role: "rep", name: "Alex Polivka" },
+  { username: "April Dippolito", password: "password", role: "rep", name: "April Dippolito" },
+  { username: "Genele Ekinde", password: "password", role: "rep", name: "Genele Ekinde" },
+  { username: "Kala McNeely", password: "password", role: "rep", name: "Kala McNeely" },
+  { username: "Karen Guirguis", password: "password", role: "rep", name: "Karen Guirguis" },
+  { username: "Samantha Marcus", password: "password", role: "rep", name: "Samantha Marcus" },
+  { username: "Ted Herrera", password: "password", role: "admin", name: "Ted Herrera" },
 ];
 
 const BOT_SECRET = process.env.BOT_SECRET || "designcenter2026";
@@ -45,7 +52,7 @@ export function getUserFromCookie(cookie: string): User | null {
   }
 }
 
-export function getRoleFromCookie(cookie: string): "rep" | "dev" | null {
+export function getRoleFromCookie(cookie: string): "rep" | "dev" | "admin" | null {
   const user = getUserFromCookie(cookie);
   return user?.role ?? null;
 }

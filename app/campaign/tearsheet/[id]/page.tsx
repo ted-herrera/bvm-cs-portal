@@ -212,6 +212,48 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
           })}
         </div>
 
+        {/* Download Ad Preview */}
+        {selectedDir && (() => {
+          const selDir = directions.find((d) => d.name === selectedDir);
+          return selDir?.imageUrl ? (
+            <div style={{ textAlign: "center", marginTop: 24 }}>
+              <button
+                onClick={async () => {
+                  const img = new Image();
+                  img.crossOrigin = "anonymous";
+                  img.onload = () => {
+                    const canvas = document.createElement("canvas");
+                    canvas.width = img.naturalWidth;
+                    canvas.height = img.naturalHeight;
+                    const ctx = canvas.getContext("2d");
+                    if (!ctx) return;
+                    ctx.drawImage(img, 0, 0);
+                    ctx.fillStyle = "rgba(0,0,0,0.5)";
+                    ctx.fillRect(0, canvas.height - 60, canvas.width, 60);
+                    ctx.fillStyle = "#fff";
+                    ctx.font = "bold 24px Playfair Display, Georgia, serif";
+                    ctx.fillText(client.business_name, 20, canvas.height - 24);
+                    ctx.fillStyle = "rgba(245,200,66,0.7)";
+                    ctx.font = "bold 16px DM Sans, sans-serif";
+                    ctx.fillText("BVM", canvas.width - 50, canvas.height - 24);
+                    const link = document.createElement("a");
+                    link.download = `${client.business_name.replace(/\s+/g, "_")}_CampaignPreview.png`;
+                    link.href = canvas.toDataURL("image/png");
+                    link.click();
+                  };
+                  img.src = selDir.imageUrl;
+                }}
+                style={{
+                  background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 8,
+                  padding: "10px 24px", fontSize: 13, fontWeight: 700, cursor: "pointer",
+                }}
+              >
+                Download Ad Preview
+              </button>
+            </div>
+          ) : null;
+        })()}
+
         {/* Automagic Button */}
         <div style={{ textAlign: "center", marginTop: 40 }}>
           <button
