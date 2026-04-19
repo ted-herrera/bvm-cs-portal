@@ -45,6 +45,8 @@ export default function AdminPage() {
   const [csResult, setCsResult] = useState<{ total: number; byRep: Record<string, number> } | null>(null);
   const [csError, setCsError] = useState("");
   const csFileRef = useRef<HTMLInputElement>(null);
+  const [bobData, setBobData] = useState<Array<{ rep_name: string; accounts: number; renewable: number; declined: number; mrr: number }>>([]);
+  const [bobPeriod, setBobPeriod] = useState("");
 
   async function handleCsUpload(file: File) {
     setCsUploading(true); setCsError(""); setCsResult(null);
@@ -63,6 +65,7 @@ export default function AdminPage() {
     const user = getAdminFromCookie();
     if (!user) { router.push("/campaign/login"); return; }
     loadAll();
+    loadBob();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -76,6 +79,38 @@ export default function AdminPage() {
       }
     } catch { /* */ }
     setLoading(false);
+  }
+
+  async function loadBob(dateFilter?: string) {
+    try {
+      const { getSupabase } = await import("@/lib/supabase");
+      const sb = getSupabase();
+      if (!sb) return;
+      let query = sb.from("cs_intel").select("rep_name, renew_status, monthly");
+      if (dateFilter) query = query.eq("week_of", dateFilter);
+      else {
+        // Get latest week_of
+        const { data: latest } = await sb.from("cs_intel").select("week_of").order("week_of", { ascending: false }).limit(1);
+        if (latest?.[0]?.week_of) {
+          query = query.eq("week_of", latest[0].week_of);
+          setBobPeriod(String(latest[0].week_of));
+        }
+      }
+      const { data } = await query;
+      if (!data) return;
+      const byRep = new Map<string, { accounts: number; renewable: number; declined: number; mrr: number }>();
+      for (const r of data) {
+        const name = String(r.rep_name || "");
+        if (!byRep.has(name)) byRep.set(name, { accounts: 0, renewable: 0, declined: 0, mrr: 0 });
+        const entry = byRep.get(name)!;
+        entry.accounts++;
+        const status = String(r.renew_status || "").toLowerCase().trim();
+        if (status === "renewable" || status === "yes") entry.renewable++;
+        if (status === "declined" || status === "no") entry.declined++;
+        entry.mrr += parseFloat(String(r.monthly || "0")) || 0;
+      }
+      setBobData(Array.from(byRep.entries()).map(([rep_name, d]) => ({ rep_name, ...d })).sort((a, b) => b.mrr - a.mrr));
+    } catch { /* */ }
   }
 
   if (loading) {
@@ -165,6 +200,53 @@ export default function AdminPage() {
             </div>
           )}
         </div>
+
+        {/* Team BOB Summary */}
+        {bobData.length > 0 && (
+          <div style={{ background: "#243454", borderRadius: 12, padding: 24, border: "1px solid rgba(255,255,255,0.08)", marginBottom: 32 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, color: "#fff", margin: 0 }}>Team Book of Business</h2>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>Period:</span>
+                <input type="date" value={bobPeriod} onChange={e => { setBobPeriod(e.target.value); loadBob(e.target.value); }} style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.15)", fontSize: 11, color: "#fff", background: "rgba(255,255,255,0.06)" }} />
+              </div>
+            </div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                    <th style={{ textAlign: "left", padding: "8px 12px", color: "rgba(255,255,255,0.4)", fontWeight: 600 }}>Rep</th>
+                    <th style={{ textAlign: "center", padding: "8px 12px", color: "rgba(255,255,255,0.4)", fontWeight: 600 }}>Accounts</th>
+                    <th style={{ textAlign: "center", padding: "8px 12px", color: "rgba(255,255,255,0.4)", fontWeight: 600 }}>Renewable</th>
+                    <th style={{ textAlign: "center", padding: "8px 12px", color: "rgba(255,255,255,0.4)", fontWeight: 600 }}>Declined</th>
+                    <th style={{ textAlign: "center", padding: "8px 12px", color: "rgba(255,255,255,0.4)", fontWeight: 600 }}>MRR</th>
+                    <th style={{ textAlign: "center", padding: "8px 12px", color: "rgba(255,255,255,0.4)", fontWeight: 600 }}>ARR</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bobData.map(r => (
+                    <tr key={r.rep_name} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                      <td style={{ padding: "10px 12px", color: "#fff", fontWeight: 600 }}>{r.rep_name}</td>
+                      <td style={{ padding: "10px 12px", color: "#F5C842", fontWeight: 700, textAlign: "center" }}>{r.accounts}</td>
+                      <td style={{ padding: "10px 12px", color: "#22c55e", fontWeight: 700, textAlign: "center" }}>{r.renewable}</td>
+                      <td style={{ padding: "10px 12px", color: "#ef4444", fontWeight: 700, textAlign: "center" }}>{r.declined}</td>
+                      <td style={{ padding: "10px 12px", color: "#F5C842", fontWeight: 700, textAlign: "center" }}>${Math.round(r.mrr).toLocaleString()}</td>
+                      <td style={{ padding: "10px 12px", color: "rgba(255,255,255,0.6)", textAlign: "center" }}>${(r.mrr * 12 / 1000).toFixed(0)}K</td>
+                    </tr>
+                  ))}
+                  <tr style={{ borderTop: "2px solid rgba(255,255,255,0.15)" }}>
+                    <td style={{ padding: "10px 12px", color: "#F5C842", fontWeight: 800 }}>TOTAL</td>
+                    <td style={{ padding: "10px 12px", color: "#F5C842", fontWeight: 800, textAlign: "center" }}>{bobData.reduce((s, r) => s + r.accounts, 0)}</td>
+                    <td style={{ padding: "10px 12px", color: "#22c55e", fontWeight: 800, textAlign: "center" }}>{bobData.reduce((s, r) => s + r.renewable, 0)}</td>
+                    <td style={{ padding: "10px 12px", color: "#ef4444", fontWeight: 800, textAlign: "center" }}>{bobData.reduce((s, r) => s + r.declined, 0)}</td>
+                    <td style={{ padding: "10px 12px", color: "#F5C842", fontWeight: 800, textAlign: "center" }}>${Math.round(bobData.reduce((s, r) => s + r.mrr, 0)).toLocaleString()}</td>
+                    <td style={{ padding: "10px 12px", color: "rgba(255,255,255,0.6)", fontWeight: 800, textAlign: "center" }}>${(bobData.reduce((s, r) => s + r.mrr, 0) * 12 / 1000).toFixed(0)}K</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Stage Counts */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 16, marginBottom: 32 }}>

@@ -88,6 +88,10 @@ function excelDateToString(serial: unknown): string {
   return date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
+function normName(n: string): string {
+  return n.toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\b(llc|inc|corp|co|ltd|the)\b/g, "").trim().replace(/\s+/g, " ");
+}
+
 /* ─── Component ──────────────────────────────────────────────────────────── */
 
 export default function CampaignDashboardPage() {
@@ -147,8 +151,15 @@ export default function CampaignDashboardPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerTab, setDrawerTab] = useState<"actions" | "bruno" | "territory" | "csIntel" | "card">("actions");
   const [detailTab, setDetailTab] = useState<"overview" | "messages" | "crm">("overview");
+  const [emptyTab, setEmptyTab] = useState<"overview" | "audit">("overview");
   const [listFilter, setListFilter] = useState<"all" | "renewable" | "declined" | "campaign">("all");
   const [visibleLeadCount, setVisibleLeadCount] = useState(50);
+  const [reportingPeriod, setReportingPeriod] = useState("");
+  const [auditBrunoResponse, setAuditBrunoResponse] = useState("");
+  const [auditBrunoLoading, setAuditBrunoLoading] = useState(false);
+  const [auditShowMatched, setAuditShowMatched] = useState(false);
+  const [auditShowCsOnly, setAuditShowCsOnly] = useState(false);
+  const [auditShowCloseOnly, setAuditShowCloseOnly] = useState(false);
 
   /* Inline note for drawer */
   const [noteOpen, setNoteOpen] = useState(false);
@@ -255,6 +266,26 @@ export default function CampaignDashboardPage() {
     const matched = rows.filter(r => Object.values(r).some(v => typeof v === "string" && v.toLowerCase().includes(rl)));
     const parsed = matched.map(r => { const ks = Object.keys(r); return { businessName: String(Object.values(r)[0] || ""), health: ks.find(k => k.toLowerCase().includes("health") || k.toLowerCase().includes("risk")) ? String(r[ks.find(k => k.toLowerCase().includes("health") || k.toLowerCase().includes("risk"))!] || "") : undefined, ...r }; });
     setCsIntelData(parsed); localStorage.setItem(`cs_intel_${rep!.username}`, JSON.stringify(parsed)); setCsModalOpen(false); showToast(`CS Intel: ${parsed.length} matched`);
+  }
+
+  async function loadCsForDate(dateStr: string) {
+    if (!rep) return;
+    try {
+      const { getSupabase } = await import("@/lib/supabase");
+      const sb = getSupabase();
+      if (sb) {
+        const { data } = await sb.from("cs_intel").select("*").eq("rep_name", rep.username).eq("week_of", dateStr);
+        if (data && data.length > 0) {
+          setCsIntelData(data.map((r: Record<string, unknown>) => ({
+            businessName: String(r.business_name || ""), health: mapRenewStatus(String(r.renew_status || "")),
+            monthly: r.monthly, saleItems: String(r.sale_items || ""), contractNumber: String(r.contract_number || ""),
+            lastEdition: excelDateToString(r.last_edition), market: String(r.market || ""),
+            industry: String(r.industry || ""), region: String(r.region || ""), attritionCause: String(r.attrition_cause || ""), ...r,
+          })));
+          showToast(`Loaded ${data.length} records for ${dateStr}`);
+        } else { showToast("No records for that date"); }
+      }
+    } catch { /* */ }
   }
 
   function handleSignOut() { document.cookie = "campaign_user=; path=/; max-age=0"; localStorage.removeItem("campaign_user"); window.location.href = "/campaign/login"; }
@@ -457,11 +488,127 @@ export default function CampaignDashboardPage() {
       <div style={{ background: BG, overflowY: "auto", padding: 20 }}>
         {!selected ? (
           <div>
-            <div style={{ textAlign: "center", padding: "48px 0 32px", color: GRAY }}>
-              <div style={{ fontSize: 36, marginBottom: 8 }}>📋</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: TEXT2 }}>Select a contact</div>
-              <div style={{ fontSize: 13, color: GRAY }}>Choose from your contacts list to view details</div>
-            </div>
+            {/* BOB Snapshot */}
+            {useCs && (
+              <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 20, marginBottom: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: GOLD, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>Book of Business</div>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: TEXT }}>{repDisplay}</div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 10, color: GRAY }}>Period:</span>
+                    <input type="date" value={reportingPeriod} onChange={e => { setReportingPeriod(e.target.value); if (e.target.value) loadCsForDate(e.target.value); }} style={{ padding: "4px 8px", borderRadius: 6, border: `1px solid ${BORDER}`, fontSize: 11, color: TEXT, background: BG }} />
+                    {(() => { const wk = csIntelData[0]?.week_of; return wk ? <span style={{ fontSize: 10, background: `${NAVY}12`, color: NAVY, padding: "2px 8px", borderRadius: 10, fontWeight: 600 }}>{String(wk).slice(0, 10)}</span> : null; })()}
+                  </div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 14 }}>
+                  <div style={{ background: BG, borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: GOLD }}>${Math.round(totalMRV).toLocaleString()}</div>
+                    <div style={{ fontSize: 9, color: GRAY, fontWeight: 600 }}>MRR</div>
+                  </div>
+                  <div style={{ background: BG, borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: TEXT }}>${(totalMRV * 12 / 1000000).toFixed(2)}M</div>
+                    <div style={{ fontSize: 9, color: GRAY, fontWeight: 600 }}>ARR</div>
+                  </div>
+                  <div style={{ background: BG, borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: TEXT2 }}>${(totalMRV * 12 * 1.75 / 1000000).toFixed(2)}M</div>
+                    <div style={{ fontSize: 9, color: GRAY, fontWeight: 600 }}>TCV (est.)</div>
+                  </div>
+                  <div style={{ background: BG, borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: NAVY }}>{totalCount}</div>
+                    <div style={{ fontSize: 9, color: GRAY, fontWeight: 600 }}>Accounts</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: GREEN, background: `${GREEN}12`, padding: "3px 10px", borderRadius: 10 }}>{renewableCount} Renewable</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: RED, background: `${RED}12`, padding: "3px 10px", borderRadius: 10 }}>{declinedCount} Declined</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: AMBER, background: `${AMBER}12`, padding: "3px 10px", borderRadius: 10 }}>{mergedCount} Merged</span>
+                </div>
+              </div>
+            )}
+
+            {/* Tabs: Overview / Audit */}
+            {useCs && closeLeads.length > 0 && (
+              <div style={{ display: "flex", gap: 4, marginBottom: 14 }}>
+                {(["overview", "audit"] as const).map(t => (
+                  <button key={t} onClick={() => setEmptyTab(t)} style={{ padding: "6px 16px", borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: "pointer", border: "none", background: emptyTab === t ? NAVY : SURFACE, color: emptyTab === t ? "#fff" : TEXT2, textTransform: "capitalize" }}>{t === "audit" ? "CSOps × Close Audit" : t}</button>
+                ))}
+              </div>
+            )}
+
+            {emptyTab === "audit" && useCs && closeLeads.length > 0 ? (() => {
+              const csNames = csIntelData.map(c => ({ orig: c.businessName, norm: normName(c.businessName), data: c }));
+              const clNames = closeLeads.map(l => ({ orig: l.businessName, norm: normName(l.businessName), data: l }));
+              const matched = csNames.filter(c => clNames.some(l => l.norm === c.norm));
+              const csOnly = csNames.filter(c => !clNames.some(l => l.norm === c.norm));
+              const closeOnly = clNames.filter(l => !csNames.some(c => c.norm === l.norm));
+              return (
+                <div>
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 700, color: TEXT, marginBottom: 4 }}>CSOps × Close CRM Reconciliation</div>
+                    <div style={{ fontSize: 12, color: GRAY }}>CSOps report vs live Close CRM data</div>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 16 }}>
+                    <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 14, textAlign: "center" }}>
+                      <div style={{ fontSize: 24, fontWeight: 800, color: GREEN }}>{matched.length}</div>
+                      <div style={{ fontSize: 10, color: GRAY, fontWeight: 600 }}>Matched</div>
+                    </div>
+                    <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 14, textAlign: "center" }}>
+                      <div style={{ fontSize: 24, fontWeight: 800, color: AMBER }}>{csOnly.length}</div>
+                      <div style={{ fontSize: 10, color: GRAY, fontWeight: 600 }}>CSOps Only</div>
+                    </div>
+                    <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 14, textAlign: "center" }}>
+                      <div style={{ fontSize: 24, fontWeight: 800, color: "#4A90D9" }}>{closeOnly.length}</div>
+                      <div style={{ fontSize: 10, color: GRAY, fontWeight: 600 }}>Close Only</div>
+                    </div>
+                    <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 14, textAlign: "center" }}>
+                      <div style={{ fontSize: 24, fontWeight: 800, color: TEXT2 }}>{Math.abs(csIntelData.length - closeLeads.length)}</div>
+                      <div style={{ fontSize: 10, color: GRAY, fontWeight: 600 }}>Discrepancy</div>
+                    </div>
+                  </div>
+
+                  {/* Expandable tables */}
+                  {[
+                    { label: "Matched", color: GREEN, items: matched.map(m => m.orig), show: auditShowMatched, toggle: () => setAuditShowMatched(p => !p) },
+                    { label: "CSOps Only", color: AMBER, items: csOnly.map(c => `${c.orig} — $${parseFloat(String(c.data.monthly || "0")).toFixed(0)}/mo — ${mapRenewStatus(c.data.health || "")}`), show: auditShowCsOnly, toggle: () => setAuditShowCsOnly(p => !p) },
+                    { label: "Close Only", color: "#4A90D9", items: closeOnly.map(c => `${c.orig} — ${c.data.status} — $${c.data.monthly}/mo`), show: auditShowCloseOnly, toggle: () => setAuditShowCloseOnly(p => !p) },
+                  ].map(section => (
+                    <div key={section.label} style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 14, marginBottom: 10 }}>
+                      <button onClick={section.toggle} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, width: "100%", padding: 0 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: section.color }}>{section.label} ({section.items.length})</span>
+                        <span style={{ fontSize: 10, color: GRAY }}>{section.show ? "▼" : "▶"}</span>
+                      </button>
+                      {section.show && (
+                        <div style={{ marginTop: 8, maxHeight: 200, overflowY: "auto" }}>
+                          {section.items.map((item, i) => (
+                            <div key={i} style={{ fontSize: 11, color: TEXT, padding: "3px 0", borderBottom: `1px solid ${BORDER}` }}>{item}</div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Bruno audit */}
+                  <button onClick={async () => {
+                    setAuditBrunoLoading(true);
+                    try {
+                      const summary = `CSOps has ${csIntelData.length} accounts. Close has ${closeLeads.length}. Matched: ${matched.length}. CSOps-only: ${csOnly.length}. Close-only: ${closeOnly.length}. Top CSOps-only names: ${csOnly.slice(0, 5).map(c => c.orig).join(", ")}. Top Close-only names: ${closeOnly.slice(0, 5).map(c => c.orig).join(", ")}.`;
+                      const res = await fetch("/api/campaign/bruno-va", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: [{ role: "user", content: `Analyze this CSOps vs Close CRM audit and give me actionable recommendations: ${summary}` }], pipeline: [] }) });
+                      const d = await res.json();
+                      setAuditBrunoResponse(d.response || "No response");
+                    } catch { setAuditBrunoResponse("Failed to analyze"); }
+                    setAuditBrunoLoading(false);
+                  }} disabled={auditBrunoLoading} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 8, padding: "10px 18px", fontSize: 12, fontWeight: 700, cursor: "pointer", marginBottom: 10, opacity: auditBrunoLoading ? 0.5 : 1 }}>
+                    {auditBrunoLoading ? "Analyzing..." : "🔍 Ask Bruno to Analyze"}
+                  </button>
+                  {auditBrunoResponse && (
+                    <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 14, fontSize: 12, color: TEXT, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{auditBrunoResponse}</div>
+                  )}
+                </div>
+              );
+            })() : (
+            <>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
               {[
                 { l: "Total Active", v: totalCount, c: NAVY },
@@ -486,6 +633,8 @@ export default function CampaignDashboardPage() {
                 </div>
               ))}
             </div>
+            </>
+            )}
           </div>
         ) : (
           <div>
