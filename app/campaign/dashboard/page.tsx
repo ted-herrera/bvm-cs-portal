@@ -144,6 +144,14 @@ export default function CampaignDashboardPage() {
   const [cardMsg, setCardMsg] = useState("");
   const [sendingCard, setSendingCard] = useState(false);
   const [cardSent, setCardSent] = useState(false);
+  const [cardTemplate, setCardTemplate] = useState<"welcome"|"thankyou"|"followup"|"congrats">("welcome");
+  const [cardDelivery, setCardDelivery] = useState<"email"|"snail">("email");
+  const [cardEmailTo, setCardEmailTo] = useState("");
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+  const [emailSending, setEmailSending] = useState(false);
 
   /* Actions */
   const [sendingLink, setSendingLink] = useState(false);
@@ -241,6 +249,7 @@ export default function CampaignDashboardPage() {
 
   function selectContact(c: CampaignClient) {
     setSelected(c); setDrawerOpen(true); setDetailTab("overview"); setMessages([]); setCardSent(false);
+    setCardEmailTo(closeLeads.find(l => l.businessName.toLowerCase() === c.business_name.toLowerCase())?.email || "");
     const lead = closeLeads.find(l => l.businessName.toLowerCase() === c.business_name.toLowerCase());
     if (!lead) {
       setHydrating(true);
@@ -259,7 +268,29 @@ export default function CampaignDashboardPage() {
 
   async function updateStage(s: string) { if (!selected) return; try { await fetch(`/api/campaign/stage/${selected.id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stage: s }) }); setClients(p => p.map(c => c.id === selected.id ? { ...c, stage: s as CampaignClient["stage"] } : c)); setSelected(p => p ? { ...p, stage: s as CampaignClient["stage"] } : p); showToast(`→ ${STAGE_LABELS[s]}`); } catch { /* */ } }
 
-  async function sendCard() { if (!selected) return; setSendingCard(true); try { await fetch("/api/campaign/send-card", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ businessName: selected.business_name, city: selected.city, message: cardMsg }) }); setCardSent(true); showToast("Card sent!"); } catch { showToast("Failed"); } setSendingCard(false); }
+  async function sendCard() {
+    if (!selected) return;
+    setSendingCard(true);
+    const templates: Record<string, {bg:string, accent:string, title:string}> = {
+      welcome: {bg:"#1B2A4A", accent:"#F5C842", title:"Welcome to the Family"},
+      thankyou: {bg:"#F5F0E8", accent:"#2C3E2D", title:"Thank You"},
+      followup: {bg:"#ffffff", accent:"#3A5F7D", title:"Just Checking In"},
+      congrats: {bg:"linear-gradient(135deg,#C8922A,#F5C842)", accent:"#fff", title:"Congratulations!"},
+    };
+    const t = templates[cardTemplate];
+    const cardHtml = `<div style="background:${t.bg};border-radius:12px;padding:32px;font-family:Georgia,serif;text-align:center;${t.bg.includes("gradient")?"color:white":"color:"+(cardTemplate==="welcome"?"white":cardTemplate==="thankyou"?"#2C3E2D":"#1B2A4A")}"><div style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:${t.accent};margin-bottom:16px">Best Version Media</div><div style="font-size:28px;font-weight:700;margin-bottom:8px">${t.title}</div><div style="width:40px;height:2px;background:${t.accent};margin:0 auto 20px"></div><div style="font-size:14px;line-height:1.8;font-style:italic">${cardMsg || "Thank you for being part of the BVM family."}</div><div style="margin-top:24px;font-size:12px;color:${t.accent}">${rep!.username}</div><div style="font-size:10px;opacity:0.5;margin-top:4px">BVM Campaign Portal</div></div>`;
+    try {
+      if (cardDelivery === "email") {
+        await fetch("/api/campaign/escalate", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ type:"card-email", to: cardEmailTo || matchingLead?.email || "", repName: rep!.username, subject: `A personal note from ${rep!.username} at BVM`, body: cardHtml }) });
+      } else {
+        await fetch("/api/campaign/escalate", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ type:"card-snail", repName: rep!.username, clientName: selected.business_name, note: cardMsg, body: cardTemplate }) });
+      }
+      setCardSent(true);
+      showToast(cardDelivery === "email" ? "Card sent!" : "Card request sent to Ted");
+      setTimeout(() => { setCardSent(false); setCardMsg(""); }, 3000);
+    } catch { showToast("Failed"); }
+    setSendingCard(false);
+  }
 
   async function askBruno() {
     if (!brunoInput.trim()) return;
@@ -775,16 +806,16 @@ export default function CampaignDashboardPage() {
             {/* Drawer header */}
             <div style={{ padding: "14px 16px", borderBottom: `1px solid ${BORDER}` }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                <button onClick={() => setDrawerOpen(false)} style={{ background: BG, border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", fontSize: 12, color: TEXT2 }}>✕</button>
+                <button onClick={() => setDrawerOpen(false)} style={{ background: BG, border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", fontSize: 14, color: TEXT2 }}>✕</button>
                 <div style={{ width: 44, height: 44, borderRadius: 10, background: avatarBg(selected.category), color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 800 }}>{initials(selected.business_name)}</div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 16, fontWeight: 800, color: TEXT }}>{selected.business_name}</div>
-                  <div style={{ fontSize: 12, color: GRAY }}>{selected.city}</div>
+                  <div style={{ fontSize: 14, color: GRAY }}>{selected.city}</div>
                 </div>
               </div>
               <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
-                <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: `${STAGE_COLORS[selected.stage]}15`, color: STAGE_COLORS[selected.stage] }}>{STAGE_LABELS[selected.stage]}</span>
-                {matchingLead?.renewStatus && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 4, color: matchingLead.renewStatus === "Renewable" ? GREEN : matchingLead.renewStatus === "Declined" ? RED : GRAY, background: matchingLead.renewStatus === "Renewable" ? `${GREEN}15` : matchingLead.renewStatus === "Declined" ? `${RED}15` : `${GRAY}15` }}>{matchingLead.renewStatus}</span>}
+                <span style={{ fontSize: 12, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: `${STAGE_COLORS[selected.stage]}15`, color: STAGE_COLORS[selected.stage] }}>{STAGE_LABELS[selected.stage]}</span>
+                {matchingLead?.renewStatus && <span style={{ fontSize: 12, fontWeight: 700, padding: "2px 8px", borderRadius: 4, color: matchingLead.renewStatus === "Renewable" ? GREEN : matchingLead.renewStatus === "Declined" ? RED : GRAY, background: matchingLead.renewStatus === "Renewable" ? `${GREEN}15` : matchingLead.renewStatus === "Declined" ? `${RED}15` : `${GRAY}15` }}>{matchingLead.renewStatus}</span>}
               </div>
               <div style={{ height: 1, background: BORDER }} />
 
@@ -792,14 +823,14 @@ export default function CampaignDashboardPage() {
               <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
                 {[
                   { icon: "📝", label: "Note", action: async () => { setNoteOpen(!noteOpen); } },
-                  { icon: "✉️", label: "Email", action: () => { window.open("mailto:" + (matchingLead?.email || "")); fetch("/api/campaign/close-action", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ action: "log-email", leadId: selected.id, data: { subject: "Campaign follow-up", body: "" } }) }); showToast("Logged in Close ✓"); } },
-                  { icon: "📞", label: "Call", action: () => { window.open("tel:" + (matchingLead?.phone || "")); fetch("/api/campaign/close-action", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ action: "log-call", leadId: selected.id, data: { note: "Outbound call" } }) }); showToast("Logged in Close ✓"); } },
+                  { icon: "✉️", label: "Email", action: () => { setEmailTo(matchingLead?.email || ""); setEmailSubject(`Following up — ${selected.business_name}`); setEmailBody(""); setEmailModalOpen(true); } },
+                  { icon: "📞", label: "Call", action: () => { window.open("tel:" + (matchingLead?.phone || "")); fetch("/api/campaign/close-action", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ action:"log-call", leadId: selected.id, data:{ note:"Call from Campaign Portal" } }) }).catch(() => {}); showToast("Call logged in Close ✓"); } },
                   { icon: "📋", label: "Task", action: () => showToast("Task created") },
                   { icon: "⚡", label: "Escalate", action: () => showToast("Escalated") },
                 ].map(a => (
                   <button key={a.label} onClick={a.action} style={{ width: 44, background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 8, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "6px 0" }}>
                     <span style={{ fontSize: 16 }}>{a.icon}</span>
-                    <span style={{ fontSize: 8, color: GRAY }}>{a.label}</span>
+                    <span style={{ fontSize: 11, color: GRAY }}>{a.label}</span>
                   </button>
                 ))}
               </div>
@@ -807,8 +838,8 @@ export default function CampaignDashboardPage() {
               {/* Inline note */}
               {noteOpen && (
                 <div style={{ marginTop: 8 }}>
-                  <textarea value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Add a note..." rows={3} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, background: BG, fontSize: 12, resize: "vertical", outline: "none", boxSizing: "border-box", color: TEXT }} />
-                  <button onClick={async () => { if (!noteText.trim()) return; try { await fetch(`/api/campaign/message/${selected.id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: "rep", content: noteText }) }); fetch("/api/campaign/close-action", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ action: "log-note", leadId: selected.id, data: { note: noteText } }) }); setNoteText(""); setNoteOpen(false); showToast("Note saved"); } catch { showToast("Failed"); } }} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 6, padding: "5px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", marginTop: 4 }}>Save</button>
+                  <textarea value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Add a note..." rows={3} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, background: BG, fontSize: 14, resize: "vertical", outline: "none", boxSizing: "border-box", color: TEXT }} />
+                  <button onClick={async () => { if (!noteText.trim()) return; try { await fetch(`/api/campaign/message/${selected.id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: "rep", content: noteText }) }); fetch("/api/campaign/close-action", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ action:"log-note", leadId: selected.id, data:{ note: noteText } }) }).catch(() => {}); setNoteText(""); setNoteOpen(false); showToast("Note logged in Close ✓"); } catch { showToast("Failed"); } }} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 6, padding: "5px 12px", fontSize: 14, fontWeight: 700, cursor: "pointer", marginTop: 4 }}>Save</button>
                 </div>
               )}
             </div>
@@ -816,7 +847,7 @@ export default function CampaignDashboardPage() {
             {/* Drawer tabs */}
             <div style={{ display: "flex", borderBottom: `1px solid ${BORDER}` }}>
               {(["actions", "bruno", "territory", "csIntel", "card"] as const).map(t => (
-                <button key={t} onClick={() => setDrawerTab(t)} style={{ flex: 1, padding: "9px 0", fontSize: 10, fontWeight: 600, cursor: "pointer", border: "none", background: "transparent", color: drawerTab === t ? NAVY : GRAY, borderBottom: drawerTab === t ? `2px solid ${GOLD}` : "2px solid transparent" }}>{t === "csIntel" ? "CS" : t === "actions" ? "Actions" : t === "bruno" ? "Bruno" : t === "territory" ? "Territory" : "Card"}</button>
+                <button key={t} onClick={() => setDrawerTab(t)} style={{ flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 600, cursor: "pointer", border: "none", background: "transparent", color: drawerTab === t ? NAVY : GRAY, borderBottom: drawerTab === t ? `2px solid ${GOLD}` : "2px solid transparent" }}>{t === "csIntel" ? "CS" : t === "actions" ? "Actions" : t === "bruno" ? "Bruno" : t === "territory" ? "Territory" : "Card"}</button>
               ))}
             </div>
 
@@ -826,11 +857,11 @@ export default function CampaignDashboardPage() {
               {/* ACTIONS TAB */}
               {drawerTab === "actions" && (
                 <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-                  <button onClick={sendCampaignLink} disabled={sendingLink} style={{ width: "100%", background: GOLD, color: NAVY, border: "none", borderRadius: 8, padding: "10px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", opacity: sendingLink ? 0.5 : 1, textAlign: "left" }}>{sendingLink ? "Sending..." : "📤 Send Campaign Link"}</button>
-                  <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/campaign/tearsheet/${selected.id}`); showToast("Tearsheet link copied!"); }} style={{ width: "100%", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>🔗 Copy Tearsheet</button>
-                  <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/campaign/client/${selected.id}`); showToast("Portal link copied!"); }} style={{ width: "100%", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>🌐 Copy Portal Link</button>
-                  {selected.stage === "approved" && <button onClick={() => updateStage("production")} style={{ width: "100%", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>▶ Mark In Production</button>}
-                  {selected.stage === "production" && <button onClick={() => updateStage("delivered")} style={{ width: "100%", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>✅ Mark Delivered</button>}
+                  <button onClick={sendCampaignLink} disabled={sendingLink} style={{ width: "100%", background: GOLD, color: NAVY, border: "none", borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 700, cursor: "pointer", opacity: sendingLink ? 0.5 : 1, textAlign: "left" }}>{sendingLink ? "Sending..." : "📤 Send Campaign Link"}</button>
+                  <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/campaign/tearsheet/${selected.id}`); showToast("Tearsheet link copied!"); }} style={{ width: "100%", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>🔗 Copy Tearsheet</button>
+                  <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/campaign/client/${selected.id}`); showToast("Portal link copied!"); }} style={{ width: "100%", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>🌐 Copy Portal Link</button>
+                  {selected.stage === "approved" && <button onClick={() => updateStage("production")} style={{ width: "100%", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>▶ Mark In Production</button>}
+                  {selected.stage === "production" && <button onClick={() => updateStage("delivered")} style={{ width: "100%", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>✅ Mark Delivered</button>}
                   <button onClick={() => {
                     const trimSize = AD_DIMS[selected.ad_size] || selected.ad_size;
                     const bleedSize = AD_BLEED[selected.ad_size] || "";
@@ -843,21 +874,21 @@ export default function CampaignDashboardPage() {
                     w.document.write(`<p style="margin-top:32px;font-size:11px;color:#9B8E7A;border-top:1px solid #DDD5C0;padding-top:12px">Best Version Media | Campaign Portal | ${new Date().toLocaleDateString()}</p></body></html>`);
                     w.document.close();
                     w.print();
-                  }} style={{ width: "100%", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>📥 Delivery Pack</button>
+                  }} style={{ width: "100%", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>📥 Delivery Pack</button>
 
                   <div style={{ height: 1, background: BORDER, margin: "12px 0" }} />
 
-                  <div style={{ fontSize: 12, fontWeight: 700, color: TEXT, marginBottom: 6 }}>⚠️ Escalation</div>
-                  <textarea value={escalationNote} onChange={e => setEscalationNote(e.target.value)} placeholder={"Describe the issue for " + selected.business_name + "..."} rows={3} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, fontSize: 12, resize: "vertical", outline: "none", boxSizing: "border-box" as const, color: TEXT, background: BG, marginBottom: 6 }} />
-                  <button onClick={async () => { try { await fetch("/api/campaign/revision/" + selected.id, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ type: "escalation", note: escalationNote }) }); showToast("Escalation sent ✓"); setEscalationNote(""); } catch { /* */ } }} disabled={!escalationNote.trim()} style={{ width: "100%", background: NAVY, color: "#fff", border: "none", borderRadius: 8, padding: "10px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", opacity: escalationNote.trim() ? 1 : 0.4 }}>Send Escalation Email →</button>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: TEXT, marginBottom: 6 }}>⚠️ Escalation</div>
+                  <textarea value={escalationNote} onChange={e => setEscalationNote(e.target.value)} placeholder={"Describe the issue for " + selected.business_name + "..."} rows={3} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, fontSize: 14, resize: "vertical", outline: "none", boxSizing: "border-box" as const, color: TEXT, background: BG, marginBottom: 6 }} />
+                  <button onClick={async () => { try { await fetch("/api/campaign/escalate", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ type: "escalation", repName: rep!.username, clientName: selected.business_name, clientStatus: selected.stage || "", note: escalationNote }) }); showToast("Escalation sent ✓"); setEscalationNote(""); } catch { /* */ } }} disabled={!escalationNote.trim()} style={{ width: "100%", background: NAVY, color: "#fff", border: "none", borderRadius: 8, padding: "10px 14px", fontSize: 15, fontWeight: 700, cursor: "pointer", opacity: escalationNote.trim() ? 1 : 0.4 }}>🚨 Escalate to Ted →</button>
 
                   <div style={{ height: 1, background: BORDER, margin: "12px 0" }} />
-                  <div style={{ fontSize: 12, fontWeight: 700, color: TEXT, marginBottom: 6 }}>✉️ Send Handwrytten Card</div>
-                  <textarea value={cardMsg} onChange={e => setCardMsg(e.target.value)} placeholder="Write your message..." rows={4} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, background: BG, fontSize: 12, resize: "vertical", outline: "none", boxSizing: "border-box" as const, marginBottom: 8, color: TEXT }} />
+                  <div style={{ fontSize: 14, fontWeight: 700, color: TEXT, marginBottom: 6 }}>✉️ Send Handwrytten Card</div>
+                  <textarea value={cardMsg} onChange={e => setCardMsg(e.target.value)} placeholder="Write your message..." rows={4} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, background: BG, fontSize: 14, resize: "vertical", outline: "none", boxSizing: "border-box" as const, marginBottom: 8, color: TEXT }} />
                   {cardSent ? (
-                    <div style={{ fontSize: 12, color: GREEN, fontWeight: 600 }}>Card sent!</div>
+                    <div style={{ fontSize: 14, color: GREEN, fontWeight: 600 }}>Card sent!</div>
                   ) : (
-                    <button onClick={sendCard} disabled={sendingCard} style={{ width: "100%", background: GOLD, color: NAVY, border: "none", borderRadius: 8, padding: "10px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", opacity: sendingCard ? 0.5 : 1 }}>{sendingCard ? "Sending..." : "Send Card"}</button>
+                    <button onClick={sendCard} disabled={sendingCard} style={{ width: "100%", background: GOLD, color: NAVY, border: "none", borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 700, cursor: "pointer", opacity: sendingCard ? 0.5 : 1 }}>{sendingCard ? "Sending..." : "Send Card"}</button>
                   )}
                 </div>
               )}
@@ -866,26 +897,26 @@ export default function CampaignDashboardPage() {
               {drawerTab === "bruno" && (
                 <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
                   <div style={{ background: `linear-gradient(135deg, ${NAVY}, #2d3e50)`, padding: "12px 16px", display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: "50%", background: GOLD, color: NAVY, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800 }}>B</div>
-                    <div><div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>Bruno</div><div style={{ fontSize: 9, color: "#22c55e" }}>● Online</div></div>
+                    <div style={{ width: 32, height: 32, borderRadius: "50%", background: GOLD, color: NAVY, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 800 }}>B</div>
+                    <div><div style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>Bruno</div><div style={{ fontSize: 11, color: "#22c55e" }}>● Online</div></div>
                   </div>
                   <div style={{ display: "flex", gap: 4, padding: "8px 12px", flexWrap: "wrap" }}>
                     {["Who needs follow up?", "At-risk clients", "Campaigns stuck?", "Top opportunities"].map(chip => (
-                      <button key={chip} onClick={() => setBrunoInput(chip)} style={{ background: BG, border: `1px solid ${BORDER}`, borderRadius: 14, padding: "4px 10px", fontSize: 10, color: TEXT2, cursor: "pointer", fontWeight: 500 }}>{chip}</button>
+                      <button key={chip} onClick={() => setBrunoInput(chip)} style={{ background: BG, border: `1px solid ${BORDER}`, borderRadius: 14, padding: "4px 10px", fontSize: 12, color: TEXT2, cursor: "pointer", fontWeight: 500 }}>{chip}</button>
                     ))}
                   </div>
                   <div style={{ flex: 1, overflowY: "auto", padding: "8px 14px", background: BG }}>
                     {brunoMsgs.map((m, i) => (
                       <div key={i} style={{ marginBottom: 10, display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
-                        <div style={{ maxWidth: "85%", padding: "8px 12px", borderRadius: 10, fontSize: 12, lineHeight: 1.5, background: m.role === "user" ? NAVY : SURFACE, color: m.role === "user" ? "#fff" : TEXT, border: m.role === "user" ? "none" : `1px solid ${BORDER}` }}>{m.content}</div>
+                        <div style={{ maxWidth: "85%", padding: "8px 12px", borderRadius: 10, fontSize: 14, lineHeight: 1.5, background: m.role === "user" ? NAVY : SURFACE, color: m.role === "user" ? "#fff" : TEXT, border: m.role === "user" ? "none" : `1px solid ${BORDER}` }}>{m.content}</div>
                       </div>
                     ))}
-                    {brunoLoading && <div style={{ fontSize: 12, color: GRAY, padding: "4px 0" }}>Thinking...</div>}
+                    {brunoLoading && <div style={{ fontSize: 14, color: GRAY, padding: "4px 0" }}>Thinking...</div>}
                     <div ref={brunoEndRef} />
                   </div>
                   <div style={{ padding: "10px 12px", borderTop: `1px solid ${BORDER}`, display: "flex", gap: 6 }}>
-                    <input value={brunoInput} onChange={e => setBrunoInput(e.target.value)} onKeyDown={e => e.key === "Enter" && askBruno()} placeholder="Ask Bruno..." style={{ flex: 1, padding: "7px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, background: BG, fontSize: 12, outline: "none", boxSizing: "border-box", color: TEXT }} />
-                    <button onClick={askBruno} disabled={brunoLoading} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 6, padding: "7px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Send</button>
+                    <input value={brunoInput} onChange={e => setBrunoInput(e.target.value)} onKeyDown={e => e.key === "Enter" && askBruno()} placeholder="Ask Bruno..." style={{ flex: 1, padding: "7px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, background: BG, fontSize: 14, outline: "none", boxSizing: "border-box", color: TEXT }} />
+                    <button onClick={askBruno} disabled={brunoLoading} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 6, padding: "7px 12px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Send</button>
                   </div>
                 </div>
               )}
@@ -893,18 +924,18 @@ export default function CampaignDashboardPage() {
               {/* TERRITORY TAB */}
               {drawerTab === "territory" && (
                 <div style={{ padding: 16 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: NAVY, marginBottom: 10 }}>Territory Scan</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: NAVY, marginBottom: 10 }}>Territory Scan</div>
                   <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-                    <input value={scanZip || selected.zip} onChange={e => setScanZip(e.target.value)} onKeyDown={e => e.key === "Enter" && runTerritoryScan()} placeholder="ZIP code..." style={{ flex: 1, padding: "7px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, background: BG, fontSize: 12, outline: "none", boxSizing: "border-box", color: TEXT }} />
-                    <button onClick={() => { if (!scanZip && selected.zip) setScanZip(selected.zip); runTerritoryScan(); }} disabled={scanLoading} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 6, padding: "7px 14px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{scanLoading ? "..." : "Scan"}</button>
+                    <input value={scanZip || selected.zip} onChange={e => setScanZip(e.target.value)} onKeyDown={e => e.key === "Enter" && runTerritoryScan()} placeholder="ZIP code..." style={{ flex: 1, padding: "7px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, background: BG, fontSize: 14, outline: "none", boxSizing: "border-box", color: TEXT }} />
+                    <button onClick={() => { if (!scanZip && selected.zip) setScanZip(selected.zip); runTerritoryScan(); }} disabled={scanLoading} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 6, padding: "7px 14px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>{scanLoading ? "..." : "Scan"}</button>
                   </div>
                   {scanResult && (
-                    <div style={{ fontSize: 12, color: TEXT, lineHeight: 2 }}>
+                    <div style={{ fontSize: 14, color: TEXT, lineHeight: 2 }}>
                       <div>Score: <strong style={{ color: GREEN, fontSize: 20 }}>{String(scanResult.opportunityScore || "---")}</strong></div>
                       <div>Income: {String(scanResult.medianIncome || "---")}</div>
                       <div>Top: {Array.isArray(scanResult.topCategories) ? (scanResult.topCategories as string[]).slice(0, 3).join(", ") : "---"}</div>
                       <div>Gap: {String(scanResult.competitorGap || "---")}</div>
-                      <Link href={`/campaign/intelligence/${selected.id}`} style={{ display: "inline-block", marginTop: 8, color: GOLD, fontSize: 12, fontWeight: 700 }}>Full Report →</Link>
+                      <Link href={`/campaign/intelligence/${selected.id}`} style={{ display: "inline-block", marginTop: 8, color: GOLD, fontSize: 14, fontWeight: 700 }}>Full Report →</Link>
                     </div>
                   )}
                 </div>
@@ -913,19 +944,19 @@ export default function CampaignDashboardPage() {
               {/* CS INTEL TAB */}
               {drawerTab === "csIntel" && (
                 <div style={{ padding: 16 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: NAVY, marginBottom: 10 }}>CS Intelligence</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: NAVY, marginBottom: 10 }}>CS Intelligence</div>
                   <div onClick={() => csFileRef.current?.click()} onDragOver={e => { e.preventDefault(); }} onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleCsUpload(f); }} style={{ border: `2px dashed ${BORDER}`, borderRadius: 10, padding: 28, textAlign: "center", cursor: "pointer", background: BG, marginBottom: 12 }}>
                     <div style={{ fontSize: 24, marginBottom: 6 }}>📊</div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: TEXT }}>Drop .xlsx/.csv</div>
-                    <div style={{ fontSize: 10, color: GRAY }}>or click to browse</div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: TEXT }}>Drop .xlsx/.csv</div>
+                    <div style={{ fontSize: 12, color: GRAY }}>or click to browse</div>
                     <input ref={csFileRef} type="file" accept=".xlsx,.csv" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handleCsUpload(f); }} />
                   </div>
                   {csIntelData.length > 0 && (
                     <div>
-                      <div style={{ fontSize: 11, color: TEXT2, marginBottom: 8 }}><strong>{csIntelData.length}</strong> matched · {csIntelData.filter(c => c.health === "CRITICAL").length} CRITICAL · {csIntelData.filter(c => c.health === "HIGH").length} HIGH</div>
+                      <div style={{ fontSize: 13, color: TEXT2, marginBottom: 8 }}><strong>{csIntelData.length}</strong> matched · {csIntelData.filter(c => c.health === "CRITICAL").length} CRITICAL · {csIntelData.filter(c => c.health === "HIGH").length} HIGH</div>
                       <div style={{ maxHeight: 200, overflowY: "auto" }}>
                         {csIntelData.sort((a, b) => (a.health === "CRITICAL" ? 0 : 1) - (b.health === "CRITICAL" ? 0 : 1)).slice(0, 15).map((c, i) => (
-                          <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: `1px solid ${BORDER}`, fontSize: 11 }}>
+                          <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: `1px solid ${BORDER}`, fontSize: 13 }}>
                             <span style={{ color: TEXT }}>{c.businessName}</span>
                             {c.health && <span style={{ fontWeight: 700, color: c.health === "CRITICAL" ? RED : c.health === "HIGH" ? AMBER : GREEN }}>{c.health}</span>}
                           </div>
@@ -939,13 +970,47 @@ export default function CampaignDashboardPage() {
               {/* CARD TAB */}
               {drawerTab === "card" && (
                 <div style={{ padding: 16 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: NAVY, marginBottom: 10 }}>Send Handwrytten Card</div>
-                  <div style={{ fontSize: 12, color: TEXT2, marginBottom: 8 }}>To: {selected.business_name}</div>
-                  <textarea value={cardMsg} onChange={e => setCardMsg(e.target.value)} placeholder="Write your message..." rows={4} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, background: BG, fontSize: 12, resize: "vertical", outline: "none", boxSizing: "border-box", marginBottom: 8, color: TEXT }} />
+                  <div style={{ fontSize: 15, fontWeight: 700, color: TEXT, marginBottom: 12 }}>✉️ Send a Card</div>
+
+                  {/* Template selector */}
+                  <div style={{ display: "flex", gap: 4, marginBottom: 14 }}>
+                    {(["welcome","thankyou","followup","congrats"] as const).map(t => (
+                      <button key={t} onClick={() => setCardTemplate(t)} style={{ flex: 1, padding: "7px 4px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", border: "none", background: cardTemplate === t ? GOLD : SURFACE, color: cardTemplate === t ? NAVY : TEXT2, textTransform: "capitalize" }}>{t === "thankyou" ? "Thanks" : t === "followup" ? "Follow Up" : t}</button>
+                    ))}
+                  </div>
+
+                  {/* Live preview */}
+                  <div style={{ transform: "scale(0.6)", transformOrigin: "top center", height: 180, marginBottom: -60 }}>
+                    <div dangerouslySetInnerHTML={{ __html: (() => {
+                      const msg = cardMsg || "Thank you for being part of the BVM family.";
+                      const name = rep!.username;
+                      if (cardTemplate === "welcome") return `<div style="background:#1B2A4A;border-radius:12px;padding:32px;color:white;font-family:Georgia,serif;text-align:center"><div style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#F5C842;margin-bottom:16px">Best Version Media</div><div style="font-size:28px;font-weight:700;margin-bottom:8px">Welcome to the Family</div><div style="width:40px;height:2px;background:#F5C842;margin:0 auto 20px"></div><div style="font-size:14px;line-height:1.8;color:rgba(255,255,255,0.85);font-style:italic">${msg}</div><div style="margin-top:24px;font-size:12px;color:#F5C842">${name}</div></div>`;
+                      if (cardTemplate === "thankyou") return `<div style="background:#F5F0E8;border-radius:12px;padding:32px;font-family:Georgia,serif;text-align:center;border:2px solid #2C3E2D"><div style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#2C3E2D;margin-bottom:16px">Best Version Media</div><div style="font-size:28px;font-weight:700;color:#2C3E2D;margin-bottom:8px">Thank You</div><div style="width:40px;height:2px;background:#C8922A;margin:0 auto 20px"></div><div style="font-size:14px;line-height:1.8;color:#4a3728;font-style:italic">${msg}</div><div style="margin-top:24px;font-size:12px;color:#2C3E2D">${name}</div></div>`;
+                      if (cardTemplate === "followup") return `<div style="background:#ffffff;border-radius:12px;padding:32px;font-family:Georgia,serif;text-align:center;border:2px solid #3A5F7D"><div style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#3A5F7D;margin-bottom:16px">Best Version Media</div><div style="font-size:28px;font-weight:700;color:#1B2A4A;margin-bottom:8px">Just Checking In</div><div style="width:40px;height:2px;background:#3A5F7D;margin:0 auto 20px"></div><div style="font-size:14px;line-height:1.8;color:#475569;font-style:italic">${msg}</div><div style="margin-top:24px;font-size:12px;color:#3A5F7D">${name}</div></div>`;
+                      return `<div style="background:linear-gradient(135deg,#C8922A,#F5C842);border-radius:12px;padding:32px;font-family:Georgia,serif;text-align:center;color:white"><div style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.8);margin-bottom:16px">Best Version Media</div><div style="font-size:28px;font-weight:700;margin-bottom:8px">Congratulations!</div><div style="width:40px;height:2px;background:white;margin:0 auto 20px"></div><div style="font-size:14px;line-height:1.8;color:rgba(255,255,255,0.9);font-style:italic">${msg}</div><div style="margin-top:24px;font-size:12px;color:white">${name}</div></div>`;
+                    })() }} />
+                  </div>
+
+                  {/* Message input */}
+                  <textarea value={cardMsg} onChange={e => setCardMsg(e.target.value)} placeholder="Write your personal message..." rows={3} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${BORDER}`, fontSize: 14, resize: "vertical", outline: "none", boxSizing: "border-box", color: TEXT, background: BG, marginBottom: 10 }} />
+
+                  {/* Delivery selector */}
+                  <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                    <button onClick={() => setCardDelivery("email")} style={{ flex: 1, padding: "8px 10px", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer", border: cardDelivery === "email" ? `2px solid ${GOLD}` : `1px solid ${BORDER}`, background: SURFACE, color: TEXT }}>📧 Email</button>
+                    <button onClick={() => setCardDelivery("snail")} style={{ flex: 1, padding: "8px 10px", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer", border: cardDelivery === "snail" ? `2px solid ${NAVY}` : `1px solid ${BORDER}`, background: SURFACE, color: TEXT }}>✉️ Snail Mail</button>
+                  </div>
+
+                  {cardDelivery === "email" && (
+                    <input value={cardEmailTo} onChange={e => setCardEmailTo(e.target.value)} placeholder="To email..." style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${BORDER}`, fontSize: 14, outline: "none", boxSizing: "border-box", color: TEXT, background: BG, marginBottom: 10 }} />
+                  )}
+                  {cardDelivery === "snail" && (
+                    <div style={{ fontSize: 14, color: AMBER, background: `${AMBER}12`, borderRadius: 8, padding: "8px 12px", marginBottom: 10 }}>Ted will handle mailing — address on file in Close</div>
+                  )}
+
                   {cardSent ? (
-                    <div style={{ fontSize: 12, color: GREEN, fontWeight: 600 }}>Card sent!</div>
+                    <div style={{ fontSize: 14, color: GREEN, fontWeight: 600, textAlign: "center", padding: "10px 0" }}>{cardDelivery === "email" ? "✓ Card sent!" : "✓ Card request sent to Ted"}</div>
                   ) : (
-                    <button onClick={sendCard} disabled={sendingCard} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", opacity: sendingCard ? 0.5 : 1 }}>{sendingCard ? "Sending..." : "Send Card"}</button>
+                    <button onClick={sendCard} disabled={sendingCard} style={{ width: "100%", background: GOLD, color: NAVY, border: "none", borderRadius: 8, padding: "12px 16px", fontSize: 15, fontWeight: 700, cursor: "pointer", opacity: sendingCard ? 0.5 : 1 }}>{sendingCard ? "Sending..." : "Send Card →"}</button>
                   )}
                 </div>
               )}
@@ -953,6 +1018,32 @@ export default function CampaignDashboardPage() {
           </>
         )}
       </div>
+
+      {/* Email Compose Modal */}
+      {emailModalOpen && selected && (
+        <>
+          <div onClick={() => setEmailModalOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 499 }} />
+          <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", background: SURFACE, borderRadius: 12, padding: 24, width: 440, zIndex: 500, boxShadow: "0 16px 48px rgba(0,0,0,0.2)", border: `1px solid ${BORDER}` }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: TEXT, marginBottom: 16 }}>Compose Email</div>
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: GRAY, display: "block", marginBottom: 4 }}>To</label>
+              <input value={emailTo} onChange={e => setEmailTo(e.target.value)} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${BORDER}`, fontSize: 14, outline: "none", boxSizing: "border-box", color: TEXT, background: BG }} />
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: GRAY, display: "block", marginBottom: 4 }}>Subject</label>
+              <input value={emailSubject} onChange={e => setEmailSubject(e.target.value)} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${BORDER}`, fontSize: 14, outline: "none", boxSizing: "border-box", color: TEXT, background: BG }} />
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: GRAY, display: "block", marginBottom: 4 }}>Message</label>
+              <textarea value={emailBody} onChange={e => setEmailBody(e.target.value)} rows={6} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${BORDER}`, fontSize: 14, resize: "vertical", outline: "none", boxSizing: "border-box", color: TEXT, background: BG }} />
+            </div>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <button onClick={async () => { setEmailSending(true); try { await fetch("/api/campaign/escalate", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ type:"email", to: emailTo, subject: emailSubject, body: emailBody }) }); await fetch("/api/campaign/close-action", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ action:"log-email", leadId: selected.id, data:{ subject: emailSubject, body: emailBody } }) }); showToast("Email sent + logged in Close ✓"); setEmailModalOpen(false); } catch { showToast("Send failed"); } setEmailSending(false); }} disabled={emailSending || !emailTo.trim()} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 15, fontWeight: 700, cursor: "pointer", opacity: emailSending ? 0.5 : 1 }}>{emailSending ? "Sending..." : "Send Email →"}</button>
+              <button onClick={() => setEmailModalOpen(false)} style={{ background: "none", border: "none", color: GRAY, fontSize: 14, cursor: "pointer" }}>Cancel</button>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* ── CS Intel Modal ─────────────────────────────────────────────── */}
       {/* Floating Bruno Bot */}
