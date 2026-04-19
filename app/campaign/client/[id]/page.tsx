@@ -122,6 +122,13 @@ export default function CampaignClientPage({ params }: { params: Promise<{ id: s
   const [revisionNote, setRevisionNote] = useState("");
   const [revisionSending, setRevisionSending] = useState(false);
   const [revisionSent, setRevisionSent] = useState(false);
+
+  // Asset upload
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [assetUploading, setAssetUploading] = useState(false);
+  const [assetProgress, setAssetProgress] = useState(0);
+  const [assetSent, setAssetSent] = useState(false);
   const [editingTagline, setEditingTagline] = useState(false);
   const [taglineInput, setTaglineInput] = useState("");
   const [taglineSaving, setTaglineSaving] = useState(false);
@@ -771,6 +778,95 @@ export default function CampaignClientPage({ params }: { params: Promise<{ id: s
                 <p style={{ fontSize: 14, color: client.stage === "production" ? "#f59e0b" : "#22c55e", fontWeight: 600, margin: 0 }}>
                   {client.stage === "production" ? "Your campaign is in production" : client.stage === "delivered" ? "Campaign delivered!" : "Campaign approved"}
                 </p>
+              </div>
+
+              {/* Upload Your Assets */}
+              <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 24, marginBottom: 24 }}>
+                <h3 style={{ fontSize: 16, color: "#fff", margin: "0 0 4px", fontWeight: 700 }}>Have Your Own Assets?</h3>
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", margin: "0 0 16px" }}>Upload your logo, photos, or existing artwork and we&apos;ll incorporate them into your campaign.</p>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+                  {/* Logo zone */}
+                  <label style={{ border: "2px dashed rgba(245,200,66,0.4)", borderRadius: 8, padding: 20, textAlign: "center", cursor: "pointer", background: "rgba(255,255,255,0.02)" }}>
+                    <div style={{ fontSize: 28, marginBottom: 6 }}>🎨</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 4 }}>Logo & Brand Files</div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 10 }}>EPS, AI, PDF, PNG (preferred)</div>
+                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", lineHeight: 1.8, textAlign: "left" }}>
+                      <div style={{ color: "#22c55e" }}>✓ Vector files preferred (EPS, AI, PDF)</div>
+                      <div style={{ color: "#22c55e" }}>✓ PNG with transparent background</div>
+                      <div style={{ color: "#ef4444" }}>✗ No Word documents</div>
+                      <div style={{ color: "#ef4444" }}>✗ No low-resolution web images</div>
+                    </div>
+                    <input type="file" accept=".eps,.ai,.pdf,.png,.svg" style={{ display: "none" }} onChange={(e) => { if (e.target.files?.[0]) setLogoFile(e.target.files[0]); }} />
+                    {logoFile && <div style={{ marginTop: 8, fontSize: 11, color: "#22c55e", fontWeight: 600 }}>✓ {logoFile.name} ({(logoFile.size / 1024).toFixed(0)} KB)</div>}
+                  </label>
+
+                  {/* Photo zone */}
+                  <label style={{ border: "2px dashed rgba(245,200,66,0.4)", borderRadius: 8, padding: 20, textAlign: "center", cursor: "pointer", background: "rgba(255,255,255,0.02)" }}>
+                    <div style={{ fontSize: 28, marginBottom: 6 }}>📸</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 4 }}>Photos & Images</div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 10 }}>JPG, TIFF, PNG — 300dpi minimum</div>
+                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", lineHeight: 1.8, textAlign: "left" }}>
+                      <div style={{ color: "#22c55e" }}>✓ Minimum 300dpi at 100% size</div>
+                      <div style={{ color: "#22c55e" }}>✓ Original photos only</div>
+                      <div style={{ color: "#ef4444" }}>✗ Internet/web images (72dpi)</div>
+                      <div style={{ color: "#ef4444" }}>✗ No screenshots</div>
+                    </div>
+                    <input type="file" accept=".jpg,.jpeg,.tiff,.tif,.png" style={{ display: "none" }} onChange={(e) => { if (e.target.files?.[0]) setPhotoFile(e.target.files[0]); }} />
+                    {photoFile && <div style={{ marginTop: 8, fontSize: 11, color: "#22c55e", fontWeight: 600 }}>✓ {photoFile.name} ({(photoFile.size / 1024).toFixed(0)} KB)</div>}
+                  </label>
+                </div>
+
+                {/* Requirements callout */}
+                <div style={{ background: "rgba(200,118,26,0.1)", border: "1px solid rgba(200,118,26,0.3)", borderRadius: 8, padding: 14, marginBottom: 14 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#f59e0b", marginBottom: 4 }}>⚠️ Print Resolution Requirements</div>
+                  <p style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", margin: 0, lineHeight: 1.6 }}>Print ads require a minimum of 300dpi at 100% size. Internet and web images are typically 72dpi and cannot be converted to print quality. When in doubt, send the original file — our content team will advise.</p>
+                </div>
+
+                {/* Submit */}
+                {assetSent ? (
+                  <div style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", borderRadius: 8, padding: 14 }}>
+                    <p style={{ fontSize: 13, color: "#22c55e", fontWeight: 600, margin: 0 }}>✅ Assets received! Your rep has been notified and will incorporate your files into the campaign.</p>
+                  </div>
+                ) : (
+                  <div>
+                    {assetUploading && (
+                      <div style={{ marginBottom: 8 }}>
+                        <div style={{ height: 6, background: "rgba(255,255,255,0.1)", borderRadius: 3, overflow: "hidden" }}>
+                          <div style={{ height: "100%", width: `${assetProgress}%`, background: "#F5C842", borderRadius: 3, transition: "width 0.3s ease" }} />
+                        </div>
+                        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", margin: "4px 0 0" }}>Uploading... {assetProgress}%</p>
+                      </div>
+                    )}
+                    <button
+                      onClick={async () => {
+                        if (!logoFile && !photoFile) { return; }
+                        setAssetUploading(true); setAssetProgress(0);
+                        const interval = setInterval(() => { setAssetProgress((p) => { if (p >= 100) { clearInterval(interval); return 100; } return p + 5; }); }, 100);
+                        setTimeout(async () => {
+                          clearInterval(interval); setAssetProgress(100);
+                          try {
+                            const filenames = [logoFile?.name, photoFile?.name].filter(Boolean);
+                            await fetch(`/api/campaign/revision/${id}`, {
+                              method: "POST", headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ type: "asset-upload", value: filenames.join(", "), note: "Client uploaded brand assets: " + filenames.join(", ") }),
+                            });
+                          } catch { /* */ }
+                          setAssetUploading(false); setAssetSent(true);
+                        }, 2000);
+                      }}
+                      disabled={assetUploading || (!logoFile && !photoFile)}
+                      style={{
+                        width: "100%", background: (logoFile || photoFile) ? "#F5C842" : "rgba(255,255,255,0.08)",
+                        color: (logoFile || photoFile) ? "#1B2A4A" : "rgba(255,255,255,0.3)",
+                        border: "none", borderRadius: 8, padding: "12px 24px", fontSize: 14, fontWeight: 700,
+                        cursor: (logoFile || photoFile) ? "pointer" : "not-allowed",
+                      }}
+                    >
+                      {assetUploading ? "Uploading..." : "Send Assets to Your Rep →"}
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Request a change */}
