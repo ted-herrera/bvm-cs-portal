@@ -64,6 +64,30 @@ function avatarBg(category: string): string {
   return GRAY;
 }
 
+function mapRenewStatus(status: string): string {
+  const s = (status || "").toLowerCase().trim();
+  if (s === "renewable" || s === "yes") return "Renewable";
+  if (s === "declined" || s === "no") return "Declined";
+  if (s === "merged") return "Merged";
+  return status || "";
+}
+
+function renewColor(status: string): string {
+  const mapped = mapRenewStatus(status);
+  if (mapped === "Renewable") return GREEN;
+  if (mapped === "Declined") return RED;
+  if (mapped === "Merged") return AMBER;
+  return GRAY;
+}
+
+function excelDateToString(serial: unknown): string {
+  if (!serial) return "";
+  const num = Number(serial);
+  if (isNaN(num) || num < 1000) return String(serial);
+  const date = new Date((num - 25569) * 86400 * 1000);
+  return date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+}
+
 /* ─── Component ──────────────────────────────────────────────────────────── */
 
 export default function CampaignDashboardPage() {
@@ -164,7 +188,15 @@ export default function CampaignDashboardPage() {
         if (data && data.length > 0) {
           setCsIntelData(data.map((r: Record<string, unknown>) => ({
             businessName: String(r.business_name || ""),
-            health: String(r.renew_status || ""),
+            health: mapRenewStatus(String(r.renew_status || "")),
+            monthly: r.monthly,
+            saleItems: String(r.sale_items || ""),
+            contractNumber: String(r.contract_number || ""),
+            lastEdition: excelDateToString(r.last_edition),
+            market: String(r.market || ""),
+            industry: String(r.industry || ""),
+            region: String(r.region || ""),
+            attritionCause: String(r.attrition_cause || ""),
             ...r,
           })));
           return;
@@ -234,31 +266,65 @@ export default function CampaignDashboardPage() {
 
   /* ─── Derived ───────────────────────────────────────────────────────────── */
 
-  const activeCloseLeads = closeLeads.filter(l => l.renewStatus !== "Cancelled" && l.status !== "Cancelled" && l.renewStatus !== "Lost");
-  const renewableLeads = closeLeads.filter(l => l.renewStatus === "Renewable");
-  const declinedLeads = closeLeads.filter(l => l.renewStatus === "Declined");
-  const cancelledCount = closeLeads.filter(l => l.renewStatus === "Cancelled" || l.status === "Cancelled").length;
+  const useCs = csIntelData.length > 0;
 
+  // Stats from cs_intel when available, otherwise from Close
+  const renewableCount = useCs
+    ? csIntelData.filter(c => mapRenewStatus(c.health || "") === "Renewable").length
+    : closeLeads.filter(l => l.renewStatus === "Renewable").length;
+  const declinedCount = useCs
+    ? csIntelData.filter(c => mapRenewStatus(c.health || "") === "Declined").length
+    : closeLeads.filter(l => l.renewStatus === "Declined").length;
+  const mergedCount = useCs
+    ? csIntelData.filter(c => mapRenewStatus(c.health || "") === "Merged").length
+    : 0;
+  const totalCount = useCs ? csIntelData.length : closeLeads.length;
+
+  // For backward compat — used in center stats and drawer
+  const activeCloseLeads = closeLeads.filter(l => l.renewStatus !== "Cancelled" && l.status !== "Cancelled" && l.renewStatus !== "Lost");
+  const totalMRV = useCs
+    ? csIntelData.reduce((s, c) => s + (parseFloat(String(c.monthly || "0")) || 0), 0)
+    : closeLeads.reduce((s, l) => s + (parseFloat(l.monthly) || 0), 0);
+  const avgMonthly = totalCount > 0 ? Math.round(totalMRV / totalCount) : 0;
+
+  type ListItem = { type: "campaign"; data: CampaignClient } | { type: "close"; data: CloseLead } | { type: "csIntel"; data: typeof csIntelData[number] };
   const sl = search.toLowerCase();
-  const filteredList: Array<{ type: "campaign"; data: CampaignClient } | { type: "close"; data: CloseLead }> = (() => {
-    const items: Array<{ type: "campaign"; data: CampaignClient } | { type: "close"; data: CloseLead }> = [];
+  const filteredList: ListItem[] = (() => {
+    const items: ListItem[] = [];
+    if (listFilter === "campaign") {
+      clients.filter(c => !sl || c.business_name.toLowerCase().includes(sl)).forEach(c => items.push({ type: "campaign", data: c }));
+      return items;
+    }
+    // Campaign clients always shown in "all"
     if (listFilter === "all") {
       clients.filter(c => !sl || c.business_name.toLowerCase().includes(sl)).forEach(c => items.push({ type: "campaign", data: c }));
-      activeCloseLeads.filter(l => !clients.some(c => c.business_name.toLowerCase() === l.businessName.toLowerCase()) && (!sl || l.businessName.toLowerCase().includes(sl))).forEach(l => items.push({ type: "close", data: l }));
-    } else if (listFilter === "renewable") {
-      renewableLeads.filter(l => !sl || l.businessName.toLowerCase().includes(sl)).forEach(l => items.push({ type: "close", data: l }));
-    } else if (listFilter === "declined") {
-      declinedLeads.filter(l => !sl || l.businessName.toLowerCase().includes(sl)).forEach(l => items.push({ type: "close", data: l }));
+    }
+    // Use cs_intel as primary when available
+    if (useCs) {
+      const filtered = csIntelData.filter(c => {
+        if (sl && !c.businessName.toLowerCase().includes(sl)) return false;
+        // Don't duplicate campaign clients
+        if (clients.some(cc => cc.business_name.toLowerCase() === c.businessName.toLowerCase())) return false;
+        const mapped = mapRenewStatus(c.health || "");
+        if (listFilter === "renewable" && mapped !== "Renewable") return false;
+        if (listFilter === "declined" && mapped !== "Declined") return false;
+        return true;
+      });
+      filtered.forEach(c => items.push({ type: "csIntel", data: c }));
     } else {
-      clients.filter(c => !sl || c.business_name.toLowerCase().includes(sl)).forEach(c => items.push({ type: "campaign", data: c }));
+      // Fallback to Close leads
+      const src = listFilter === "renewable"
+        ? closeLeads.filter(l => l.renewStatus === "Renewable")
+        : listFilter === "declined"
+        ? closeLeads.filter(l => l.renewStatus === "Declined")
+        : activeCloseLeads.filter(l => !clients.some(c => c.business_name.toLowerCase() === l.businessName.toLowerCase()));
+      src.filter(l => !sl || l.businessName.toLowerCase().includes(sl)).forEach(l => items.push({ type: "close", data: l }));
     }
     return items;
   })();
 
   const sbr = selected ? (selected.sbr_data || {}) as Record<string, unknown> : {};
   const matchingLead = selected ? closeLeads.find(l => l.businessName.toLowerCase() === selected.business_name.toLowerCase()) : null;
-  const totalMRV = closeLeads.reduce((s, l) => s + (parseFloat(l.monthly) || 0), 0);
-  const avgMonthly = closeLeads.length > 0 ? Math.round(totalMRV / closeLeads.length) : 0;
   const repDisplay = demoMode ? "Demo User" : rep.username;
 
   /* ─── Render ───────────────────────────────────────────────────────────── */
@@ -299,10 +365,10 @@ export default function CampaignDashboardPage() {
         {/* Stat pills 2x2 */}
         <div style={{ padding: "10px 12px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
           {[
-            { label: "Total", value: clients.length + activeCloseLeads.length },
-            { label: "Renewable", value: renewableLeads.length },
-            { label: "Declined", value: declinedLeads.length },
-            { label: "Cancelled", value: cancelledCount },
+            { label: "Total", value: totalCount },
+            { label: "Renewable", value: renewableCount },
+            { label: "Declined", value: declinedCount },
+            { label: useCs ? "Merged" : "Cancelled", value: useCs ? mergedCount : closeLeads.filter(l => l.renewStatus === "Cancelled" || l.status === "Cancelled").length },
           ].map(s => (
             <div key={s.label} style={{ background: BG, borderRadius: 8, padding: "6px 10px", textAlign: "center" }}>
               <div style={{ fontSize: 16, fontWeight: 700, color: TEXT }}>{s.value}</div>
@@ -343,8 +409,26 @@ export default function CampaignDashboardPage() {
                       </div>
                     </div>
                   );
+                } else if (item.type === "csIntel") {
+                  const c = item.data;
+                  const mapped = mapRenewStatus(c.health || "");
+                  const isActive = selected?.business_name?.toLowerCase() === c.businessName.toLowerCase();
+                  const mo = parseFloat(String(c.monthly || "0")) || 0;
+                  return (
+                    <div key={c.businessName + String(c.contractNumber || "")} onClick={() => selectContact({ id: c.businessName, business_name: c.businessName, city: String(c.market || c.region || ""), zip: "", category: String(c.industry || ""), services: String(c.saleItems || ""), ad_size: String(c.saleItems || ""), tagline: "", rep_id: rep!.username, stage: "intake" as const, sbr_data: null, generated_directions: null, selected_direction: null, approved_at: null, revisions: null, created_at: "" } as unknown as CampaignClient)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer", borderBottom: `1px solid ${BORDER}`, borderLeft: isActive ? `3px solid ${GOLD}` : "3px solid transparent", background: isActive ? SURFACE : "transparent" }}>
+                      <div style={{ width: 34, height: 34, borderRadius: 8, background: avatarBg(String(c.industry || "")), color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{initials(c.businessName)}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: TEXT, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.businessName}</div>
+                        <div style={{ fontSize: 10, color: GRAY }}>{c.lastEdition ? `Last: ${c.lastEdition}` : String(c.market || c.industry || "")}</div>
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
+                        {mapped && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 4, color: renewColor(c.health || ""), background: `${renewColor(c.health || "")}15` }}>{mapped}</span>}
+                        {mo > 0 && <span style={{ fontSize: 10, fontWeight: 600, color: GOLD }}>${mo.toFixed(0)}/mo</span>}
+                      </div>
+                    </div>
+                  );
                 } else {
-                  const l = item.data;
+                  const l = item.data as CloseLead;
                   const isActive = selected?.business_name?.toLowerCase() === l.businessName.toLowerCase();
                   return (
                     <div key={l.id} onClick={() => selectCloseLead(l)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer", borderBottom: `1px solid ${BORDER}`, borderLeft: isActive ? `3px solid ${GOLD}` : "3px solid transparent", background: isActive ? SURFACE : "transparent" }}>
@@ -380,9 +464,9 @@ export default function CampaignDashboardPage() {
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
               {[
-                { l: "Total Active", v: clients.length + activeCloseLeads.length, c: NAVY },
-                { l: "Renewable", v: renewableLeads.length, c: GREEN },
-                { l: "Declined", v: declinedLeads.length, c: RED },
+                { l: "Total Active", v: totalCount, c: NAVY },
+                { l: "Renewable", v: renewableCount, c: GREEN },
+                { l: "Declined", v: declinedCount, c: RED },
                 { l: "Avg Monthly", v: `$${avgMonthly}`, c: GOLD },
               ].map(s => (
                 <div key={s.l} style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 16, textAlign: "center" }}>
