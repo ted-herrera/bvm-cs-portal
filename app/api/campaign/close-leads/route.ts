@@ -87,7 +87,13 @@ export async function POST(request: Request) {
       cursor = data.cursor;
     }
 
-    const leads = allLeads.map((lead) => ({
+    // Filter out Cancelled and Lost leads
+    const activLeads = allLeads.filter((lead) => {
+      const s = (lead.status_label || "").toLowerCase();
+      return s !== "cancelled" && s !== "lost";
+    });
+
+    const leads = activLeads.map((lead) => ({
       id: lead.id || "",
       businessName: lead.display_name || "",
       status: lead.status_label || "",
