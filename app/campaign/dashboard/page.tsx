@@ -12,6 +12,7 @@ interface CloseLead {
   cadence: string; monthly: string; firstEdition: string; lastEdition: string;
   renewStatus: string; publications: string; region: string; dvl: string;
   saleItems: string; closeUrl: string; dealValue: number; dealStatus: string;
+  saleDate: string; soldBy: string;
 }
 
 /* ─── Design Tokens ──────────────────────────────────────────────────────── */
@@ -42,11 +43,11 @@ const MOCK_CLIENTS: CampaignClient[] = [
 ];
 
 const MOCK_LEADS: CloseLead[] = [
-  { id: "cl-1", businessName: "Tulsa Auto Glass", status: "Active", contactName: "Mark Rivera", phone: "+1 918-555-0101", email: "mark@tulsaautoglass.com", agreementNumber: "E-100001", adType: "Print Ad", cadence: "Monthly", monthly: "350", firstEdition: "2024-01-01", lastEdition: "2026-12-01", renewStatus: "Renewable", publications: "[101] Tulsa Living", region: "Central", dvl: "Derek", saleItems: "Print Ad", closeUrl: "", dealValue: 0, dealStatus: "" },
-  { id: "cl-2", businessName: "Broken Arrow Plumbing", status: "Active", contactName: "Sarah Chen", phone: "+1 918-555-0102", email: "sarah@baplumbing.com", agreementNumber: "E-100002", adType: "Expert Contributor", cadence: "Monthly", monthly: "520", firstEdition: "2023-06-01", lastEdition: "2026-06-01", renewStatus: "Renewable", publications: "[102] BA Neighbors", region: "Central", dvl: "Derek", saleItems: "Print Ad, Digital", closeUrl: "", dealValue: 0, dealStatus: "" },
-  { id: "cl-3", businessName: "Jenks Veterinary", status: "Cancelled", contactName: "Dr. Patel", phone: "+1 918-555-0103", email: "info@jenksvet.com", agreementNumber: "E-100003", adType: "Print Ad", cadence: "Monthly", monthly: "275", firstEdition: "2024-03-01", lastEdition: "2025-03-01", renewStatus: "Cancelled", publications: "[103] Jenks Journal", region: "South", dvl: "Alex", saleItems: "Print Ad", closeUrl: "", dealValue: 0, dealStatus: "" },
-  { id: "cl-4", businessName: "Owasso Electric", status: "Active", contactName: "Tom Baker", phone: "+1 918-555-0104", email: "tom@owassoelectric.com", agreementNumber: "E-100004", adType: "Business Profile", cadence: "Monthly", monthly: "680", firstEdition: "2025-01-01", lastEdition: "2027-01-01", renewStatus: "Renewable", publications: "[104] Owasso Life", region: "North", dvl: "Derek", saleItems: "Print Ad, Business Profile", closeUrl: "", dealValue: 0, dealStatus: "" },
-  { id: "cl-5", businessName: "Bixby Insurance Group", status: "Active", contactName: "Linda Park", phone: "+1 918-555-0105", email: "linda@bixbyins.com", agreementNumber: "E-100005", adType: "Print Ad", cadence: "Monthly", monthly: "410", firstEdition: "2024-07-01", lastEdition: "2026-07-01", renewStatus: "Renewable", publications: "[105] Bixby Buzz", region: "South", dvl: "Alex", saleItems: "Print Ad", closeUrl: "", dealValue: 0, dealStatus: "" },
+  { id: "cl-1", businessName: "Tulsa Auto Glass", status: "Active", contactName: "Mark Rivera", phone: "+1 918-555-0101", email: "mark@tulsaautoglass.com", agreementNumber: "E-100001", adType: "Print Ad", cadence: "Monthly", monthly: "350", firstEdition: "2024-01-01", lastEdition: "2026-12-01", renewStatus: "Renewable", publications: "[101] Tulsa Living", region: "Central", dvl: "Derek", saleItems: "Print Ad", closeUrl: "", dealValue: 0, dealStatus: "", saleDate: "2024-01-15", soldBy: "Derek" },
+  { id: "cl-2", businessName: "Broken Arrow Plumbing", status: "Active", contactName: "Sarah Chen", phone: "+1 918-555-0102", email: "sarah@baplumbing.com", agreementNumber: "E-100002", adType: "Expert Contributor", cadence: "Monthly", monthly: "520", firstEdition: "2023-06-01", lastEdition: "2026-06-01", renewStatus: "Renewable", publications: "[102] BA Neighbors", region: "Central", dvl: "Derek", saleItems: "Print Ad, Digital", closeUrl: "", dealValue: 0, dealStatus: "", saleDate: "2024-01-15", soldBy: "Derek" },
+  { id: "cl-3", businessName: "Jenks Veterinary", status: "Cancelled", contactName: "Dr. Patel", phone: "+1 918-555-0103", email: "info@jenksvet.com", agreementNumber: "E-100003", adType: "Print Ad", cadence: "Monthly", monthly: "275", firstEdition: "2024-03-01", lastEdition: "2025-03-01", renewStatus: "Cancelled", publications: "[103] Jenks Journal", region: "South", dvl: "Alex", saleItems: "Print Ad", closeUrl: "", dealValue: 0, dealStatus: "", saleDate: "2024-01-15", soldBy: "Derek" },
+  { id: "cl-4", businessName: "Owasso Electric", status: "Active", contactName: "Tom Baker", phone: "+1 918-555-0104", email: "tom@owassoelectric.com", agreementNumber: "E-100004", adType: "Business Profile", cadence: "Monthly", monthly: "680", firstEdition: "2025-01-01", lastEdition: "2027-01-01", renewStatus: "Renewable", publications: "[104] Owasso Life", region: "North", dvl: "Derek", saleItems: "Print Ad, Business Profile", closeUrl: "", dealValue: 0, dealStatus: "", saleDate: "2024-01-15", soldBy: "Derek" },
+  { id: "cl-5", businessName: "Bixby Insurance Group", status: "Active", contactName: "Linda Park", phone: "+1 918-555-0105", email: "linda@bixbyins.com", agreementNumber: "E-100005", adType: "Print Ad", cadence: "Monthly", monthly: "410", firstEdition: "2024-07-01", lastEdition: "2026-07-01", renewStatus: "Renewable", publications: "[105] Bixby Buzz", region: "South", dvl: "Alex", saleItems: "Print Ad", closeUrl: "", dealValue: 0, dealStatus: "", saleDate: "2024-01-15", soldBy: "Derek" },
 ];
 
 /* ─── Helpers ────────────────────────────────────────────────────────────── */
@@ -165,6 +166,15 @@ export default function CampaignDashboardPage() {
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteText, setNoteText] = useState("");
 
+  /* Contact hydration */
+  const [hydrating, setHydrating] = useState(false);
+
+  /* Escalation */
+  const [escalationNote, setEscalationNote] = useState("");
+
+  /* Floating Bruno Bot */
+  const [brunoBotOpen, setBrunoBotOpen] = useState(false);
+
   /* ─── Data Loading ─────────────────────────────────────────────────────── */
 
   useEffect(() => {
@@ -229,7 +239,15 @@ export default function CampaignDashboardPage() {
 
   function showToast(m: string) { setToast(m); setTimeout(() => setToast(""), 3000); }
 
-  function selectContact(c: CampaignClient) { setSelected(c); setDrawerOpen(true); setDetailTab("overview"); setMessages([]); setCardSent(false); }
+  function selectContact(c: CampaignClient) {
+    setSelected(c); setDrawerOpen(true); setDetailTab("overview"); setMessages([]); setCardSent(false);
+    const lead = closeLeads.find(l => l.businessName.toLowerCase() === c.business_name.toLowerCase());
+    if (!lead) {
+      setHydrating(true);
+      fetch("/api/campaign/crm-search", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ query: c.business_name }) })
+        .then(r => r.json()).then(() => { /* just log for now */ }).catch(() => {}).finally(() => setHydrating(false));
+    }
+  }
 
   function selectCloseLead(l: CloseLead) {
     selectContact({ id: l.id, business_name: l.businessName, city: l.publications || l.region || "", zip: "", category: l.adType || "", services: l.saleItems || "", ad_size: l.adType || "", tagline: "", rep_id: rep!.username, stage: "intake" as const, sbr_data: null, generated_directions: null, selected_direction: null, approved_at: null, revisions: null, created_at: new Date().toISOString() } as unknown as CampaignClient);
@@ -372,13 +390,7 @@ export default function CampaignDashboardPage() {
       <nav style={{ gridColumn: "1 / -1", height: 52, background: NAVY, display: "flex", alignItems: "center", padding: "0 16px", gap: 12, position: "relative", zIndex: 50 }}>
         <span style={{ fontSize: 13, fontWeight: 800, color: "#fff", letterSpacing: "0.12em" }}>CAMPAIGN PORTAL</span>
 
-        {/* Center search */}
-        <div style={{ flex: 1, maxWidth: 360, margin: "0 auto" }}>
-          <div style={{ display: "flex", alignItems: "center", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, padding: "0 12px" }}>
-            <input value={brunoInput} onChange={e => setBrunoInput(e.target.value)} onKeyDown={e => e.key === "Enter" && askBruno()} placeholder="Ask Bruno..." style={{ flex: 1, border: "none", background: "transparent", padding: "8px 0", fontSize: 12, outline: "none", color: "#fff" }} />
-            {brunoInput.trim() && <button onClick={askBruno} disabled={brunoLoading} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 4, padding: "3px 10px", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>{brunoLoading ? "..." : "Ask"}</button>}
-          </div>
-        </div>
+        <div style={{ flex: 1 }} />
 
         {/* Right controls */}
         <span style={{ fontSize: 11, color: "#fff" }}>{clock.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>
@@ -392,21 +404,6 @@ export default function CampaignDashboardPage() {
 
       {/* ── LEFT SIDEBAR (280px) ───────────────────────────────────────── */}
       <div style={{ background: SURFACE, borderRight: `1px solid ${BORDER}`, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-
-        {/* Stat pills 2x2 */}
-        <div style={{ padding: "10px 12px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-          {[
-            { label: "Total", value: totalCount },
-            { label: "Renewable", value: renewableCount },
-            { label: "Declined", value: declinedCount },
-            { label: useCs ? "Merged" : "Cancelled", value: useCs ? mergedCount : closeLeads.filter(l => l.renewStatus === "Cancelled" || l.status === "Cancelled").length },
-          ].map(s => (
-            <div key={s.label} style={{ background: BG, borderRadius: 8, padding: "6px 10px", textAlign: "center" }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: TEXT }}>{s.value}</div>
-              <div style={{ fontSize: 9, color: GRAY }}>{s.label}</div>
-            </div>
-          ))}
-        </div>
 
         {/* Search */}
         <div style={{ padding: "0 12px 8px" }}>
@@ -504,26 +501,26 @@ export default function CampaignDashboardPage() {
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 14 }}>
                   <div style={{ background: BG, borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
-                    <div style={{ fontSize: 22, fontWeight: 800, color: GOLD }}>${Math.round(totalMRV).toLocaleString()}</div>
-                    <div style={{ fontSize: 9, color: GRAY, fontWeight: 600 }}>MRR</div>
+                    <div style={{ fontSize: 32, fontWeight: 800, color: GOLD }}>${Math.round(totalMRV).toLocaleString()}</div>
+                    <div style={{ fontSize: 11, color: GRAY, fontWeight: 600, textTransform: "uppercase" as const }}>MRR</div>
                   </div>
                   <div style={{ background: BG, borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
-                    <div style={{ fontSize: 22, fontWeight: 800, color: TEXT }}>${(totalMRV * 12 / 1000000).toFixed(2)}M</div>
-                    <div style={{ fontSize: 9, color: GRAY, fontWeight: 600 }}>ARR</div>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: TEXT }}>${(totalMRV * 12 / 1000000).toFixed(2)}M</div>
+                    <div style={{ fontSize: 11, color: GRAY, fontWeight: 600, textTransform: "uppercase" as const }}>ARR</div>
                   </div>
                   <div style={{ background: BG, borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
-                    <div style={{ fontSize: 22, fontWeight: 800, color: TEXT2 }}>${(totalMRV * 12 * 1.75 / 1000000).toFixed(2)}M</div>
-                    <div style={{ fontSize: 9, color: GRAY, fontWeight: 600 }}>TCV (est.)</div>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: TEXT2 }}>${(totalMRV * 12 * 1.75 / 1000000).toFixed(2)}M</div>
+                    <div style={{ fontSize: 11, color: GRAY, fontWeight: 600, textTransform: "uppercase" as const }}>TCV (est.)</div>
                   </div>
                   <div style={{ background: BG, borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
-                    <div style={{ fontSize: 22, fontWeight: 800, color: NAVY }}>{totalCount}</div>
-                    <div style={{ fontSize: 9, color: GRAY, fontWeight: 600 }}>Accounts</div>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: NAVY }}>{totalCount}</div>
+                    <div style={{ fontSize: 11, color: GRAY, fontWeight: 600, textTransform: "uppercase" as const }}>Accounts</div>
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: GREEN, background: `${GREEN}12`, padding: "3px 10px", borderRadius: 10 }}>{renewableCount} Renewable</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: RED, background: `${RED}12`, padding: "3px 10px", borderRadius: 10 }}>{declinedCount} Declined</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: AMBER, background: `${AMBER}12`, padding: "3px 10px", borderRadius: 10 }}>{mergedCount} Merged</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: GREEN, background: `${GREEN}12`, padding: "3px 10px", borderRadius: 10 }}><span style={{ fontSize: 16, fontWeight: 800 }}>{renewableCount}</span> <span style={{ fontSize: 11 }}>Renewable</span></span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: RED, background: `${RED}12`, padding: "3px 10px", borderRadius: 10 }}><span style={{ fontSize: 16, fontWeight: 800 }}>{declinedCount}</span> <span style={{ fontSize: 11 }}>Declined</span></span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: AMBER, background: `${AMBER}12`, padding: "3px 10px", borderRadius: 10 }}><span style={{ fontSize: 16, fontWeight: 800 }}>{mergedCount}</span> <span style={{ fontSize: 11 }}>Merged</span></span>
                 </div>
               </div>
             )}
@@ -565,6 +562,7 @@ export default function CampaignDashboardPage() {
                     <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 14, textAlign: "center" }}>
                       <div style={{ fontSize: 24, fontWeight: 800, color: TEXT2 }}>{Math.abs(csIntelData.length - closeLeads.length)}</div>
                       <div style={{ fontSize: 10, color: GRAY, fontWeight: 600 }}>Discrepancy</div>
+                      <div style={{ fontSize: 9, color: GRAY, marginTop: 4, lineHeight: 1.4 }} title="Close CRM includes all leads including cancelled and lapsed accounts. CSOps renewal report includes only active accounts in the current reporting period. The difference represents cancelled, lapsed, or post-report accounts.">ⓘ hover for details</div>
                     </div>
                   </div>
 
@@ -681,6 +679,10 @@ export default function CampaignDashboardPage() {
                     {matchingLead?.phone && <div><a href={`tel:${matchingLead.phone}`} style={{ color: "#4A90D9" }}>{matchingLead.phone}</a></div>}
                     {matchingLead?.email && <div><a href={`mailto:${matchingLead.email}`} style={{ color: "#4A90D9" }}>{matchingLead.email}</a></div>}
                     {matchingLead?.agreementNumber && <div>Agr: {matchingLead.agreementNumber}</div>}
+                    {matchingLead?.saleDate && <div>Sale Date: <strong>{matchingLead.saleDate}</strong></div>}
+                    {matchingLead?.firstEdition && <div>First Edition: <strong>{matchingLead.firstEdition}</strong></div>}
+                    {matchingLead?.lastEdition && <div>Last Edition: <strong style={{ color: (() => { const d = Math.floor((new Date(matchingLead.lastEdition).getTime() - Date.now()) / 86400000); return d <= 60 ? AMBER : TEXT; })() }}>{matchingLead.lastEdition}</strong></div>}
+                    {matchingLead?.soldBy && <div>Sold By: <strong>{matchingLead.soldBy}</strong></div>}
                     {matchingLead?.cadence && <div>Cadence: {matchingLead.cadence}</div>}
                   </div>
                 </div>
@@ -789,9 +791,9 @@ export default function CampaignDashboardPage() {
               {/* Action buttons row */}
               <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
                 {[
-                  { icon: "📝", label: "Note", action: () => setNoteOpen(!noteOpen) },
-                  { icon: "✉️", label: "Email", action: () => { if (matchingLead?.email) window.open(`mailto:${matchingLead.email}`); } },
-                  { icon: "📞", label: "Call", action: () => { if (matchingLead?.phone) window.open(`tel:${matchingLead.phone}`); } },
+                  { icon: "📝", label: "Note", action: async () => { setNoteOpen(!noteOpen); } },
+                  { icon: "✉️", label: "Email", action: () => { window.open("mailto:" + (matchingLead?.email || "")); fetch("/api/campaign/close-action", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ action: "log-email", leadId: selected.id, data: { subject: "Campaign follow-up", body: "" } }) }); showToast("Logged in Close ✓"); } },
+                  { icon: "📞", label: "Call", action: () => { window.open("tel:" + (matchingLead?.phone || "")); fetch("/api/campaign/close-action", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ action: "log-call", leadId: selected.id, data: { note: "Outbound call" } }) }); showToast("Logged in Close ✓"); } },
                   { icon: "📋", label: "Task", action: () => showToast("Task created") },
                   { icon: "⚡", label: "Escalate", action: () => showToast("Escalated") },
                 ].map(a => (
@@ -806,7 +808,7 @@ export default function CampaignDashboardPage() {
               {noteOpen && (
                 <div style={{ marginTop: 8 }}>
                   <textarea value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Add a note..." rows={3} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, background: BG, fontSize: 12, resize: "vertical", outline: "none", boxSizing: "border-box", color: TEXT }} />
-                  <button onClick={async () => { if (!noteText.trim()) return; try { await fetch(`/api/campaign/message/${selected.id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: "rep", content: noteText }) }); setNoteText(""); setNoteOpen(false); showToast("Note saved"); } catch { showToast("Failed"); } }} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 6, padding: "5px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", marginTop: 4 }}>Save</button>
+                  <button onClick={async () => { if (!noteText.trim()) return; try { await fetch(`/api/campaign/message/${selected.id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: "rep", content: noteText }) }); fetch("/api/campaign/close-action", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ action: "log-note", leadId: selected.id, data: { note: noteText } }) }); setNoteText(""); setNoteOpen(false); showToast("Note saved"); } catch { showToast("Failed"); } }} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 6, padding: "5px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", marginTop: 4 }}>Save</button>
                 </div>
               )}
             </div>
@@ -842,6 +844,21 @@ export default function CampaignDashboardPage() {
                     w.document.close();
                     w.print();
                   }} style={{ width: "100%", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>📥 Delivery Pack</button>
+
+                  <div style={{ height: 1, background: BORDER, margin: "12px 0" }} />
+
+                  <div style={{ fontSize: 12, fontWeight: 700, color: TEXT, marginBottom: 6 }}>⚠️ Escalation</div>
+                  <textarea value={escalationNote} onChange={e => setEscalationNote(e.target.value)} placeholder={"Describe the issue for " + selected.business_name + "..."} rows={3} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, fontSize: 12, resize: "vertical", outline: "none", boxSizing: "border-box" as const, color: TEXT, background: BG, marginBottom: 6 }} />
+                  <button onClick={async () => { try { await fetch("/api/campaign/revision/" + selected.id, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ type: "escalation", note: escalationNote }) }); showToast("Escalation sent ✓"); setEscalationNote(""); } catch { /* */ } }} disabled={!escalationNote.trim()} style={{ width: "100%", background: NAVY, color: "#fff", border: "none", borderRadius: 8, padding: "10px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", opacity: escalationNote.trim() ? 1 : 0.4 }}>Send Escalation Email →</button>
+
+                  <div style={{ height: 1, background: BORDER, margin: "12px 0" }} />
+                  <div style={{ fontSize: 12, fontWeight: 700, color: TEXT, marginBottom: 6 }}>✉️ Send Handwrytten Card</div>
+                  <textarea value={cardMsg} onChange={e => setCardMsg(e.target.value)} placeholder="Write your message..." rows={4} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, background: BG, fontSize: 12, resize: "vertical", outline: "none", boxSizing: "border-box" as const, marginBottom: 8, color: TEXT }} />
+                  {cardSent ? (
+                    <div style={{ fontSize: 12, color: GREEN, fontWeight: 600 }}>Card sent!</div>
+                  ) : (
+                    <button onClick={sendCard} disabled={sendingCard} style={{ width: "100%", background: GOLD, color: NAVY, border: "none", borderRadius: 8, padding: "10px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", opacity: sendingCard ? 0.5 : 1 }}>{sendingCard ? "Sending..." : "Send Card"}</button>
+                  )}
                 </div>
               )}
 
@@ -938,6 +955,40 @@ export default function CampaignDashboardPage() {
       </div>
 
       {/* ── CS Intel Modal ─────────────────────────────────────────────── */}
+      {/* Floating Bruno Bot */}
+      {!brunoBotOpen && (
+        <button onClick={() => setBrunoBotOpen(true)} style={{ position: "fixed", bottom: 24, right: 24, zIndex: 300, width: 56, height: 56, borderRadius: "50%", background: GOLD, color: "#fff", border: "none", fontSize: 22, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 16px rgba(0,0,0,0.2)", animation: "pulse 2s ease infinite" }}>B</button>
+      )}
+      {brunoBotOpen && (
+        <div style={{ position: "fixed", bottom: 90, right: 24, width: 360, height: 480, background: SURFACE, borderRadius: 16, boxShadow: "0 8px 32px rgba(0,0,0,0.2)", zIndex: 300, display: "flex", flexDirection: "column", overflow: "hidden", border: `1px solid ${BORDER}` }}>
+          <div style={{ background: `linear-gradient(135deg, ${NAVY}, #2d3e50)`, padding: "12px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: "50%", background: GOLD, color: NAVY, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800 }}>B</div>
+            <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>Bruno</div><div style={{ fontSize: 9, color: GOLD }}>Powered by Close CRM</div></div>
+            <button onClick={() => setBrunoBotOpen(false)} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", width: 24, height: 24, borderRadius: "50%", cursor: "pointer", fontSize: 12 }}>✕</button>
+          </div>
+          <div style={{ display: "flex", gap: 4, padding: "8px 12px", flexWrap: "wrap" }}>
+            {["Who needs follow up?", "Top renewals", "Declined this month", "Upsell opportunities"].map(chip => (
+              <button key={chip} onClick={() => setBrunoInput(chip)} style={{ background: BG, border: `1px solid ${BORDER}`, borderRadius: 14, padding: "4px 10px", fontSize: 9, color: TEXT2, cursor: "pointer" }}>{chip}</button>
+            ))}
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", padding: "8px 14px", background: BG }}>
+            {brunoMsgs.map((m, i) => (
+              <div key={i} style={{ marginBottom: 10, display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
+                <div style={{ maxWidth: "85%", padding: "8px 12px", borderRadius: 10, fontSize: 12, lineHeight: 1.5, background: m.role === "user" ? NAVY : SURFACE, color: m.role === "user" ? "#fff" : TEXT, border: m.role === "user" ? "none" : `1px solid ${BORDER}` }}>{m.content}</div>
+              </div>
+            ))}
+            {brunoLoading && <div style={{ fontSize: 11, color: GRAY }}>Thinking...</div>}
+            <div ref={brunoEndRef} />
+          </div>
+          <div style={{ padding: "10px 12px", borderTop: `1px solid ${BORDER}`, display: "flex", gap: 6 }}>
+            <input value={brunoInput} onChange={e => setBrunoInput(e.target.value)} onKeyDown={e => e.key === "Enter" && askBruno()} placeholder="Ask Bruno..." style={{ flex: 1, padding: "7px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, fontSize: 12, outline: "none", boxSizing: "border-box" as const, color: TEXT, background: BG }} />
+            <button onClick={askBruno} disabled={brunoLoading} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 6, padding: "7px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Send</button>
+          </div>
+        </div>
+      )}
+
+      <style>{`@keyframes pulse { 0%,100% { box-shadow: 0 4px 16px rgba(200,146,42,0.3); } 50% { box-shadow: 0 4px 24px rgba(200,146,42,0.6); } }`}</style>
+
       {csModalOpen && (
         <>
           <div onClick={() => setCsModalOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 600 }} />
