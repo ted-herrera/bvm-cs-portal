@@ -761,6 +761,13 @@ export default function CampaignDashboardPage() {
                       w.document.write(`<h1>BVM Campaign Delivery Pack</h1><p><strong>${selected.business_name}</strong> — ${selected.city} — ${new Date().toLocaleDateString()}</p>`);
                       w.document.write(`<h2>Campaign Details</h2><table><tr><td>Business Name</td><td>${selected.business_name}</td></tr><tr><td>City / ZIP</td><td>${selected.city} ${selected.zip}</td></tr><tr><td>Category</td><td>${selected.category}</td></tr><tr><td>Ad Size</td><td>${selected.ad_size}</td></tr><tr><td>Tagline</td><td>${selected.tagline || "—"}</td></tr><tr><td>Services / Ad Copy</td><td>${selected.services}</td></tr><tr><td>Selected Direction</td><td>${selected.selected_direction || "—"}</td></tr></table>`);
                       w.document.write(`<h2>Print Specifications</h2><table><tr><td>Trim Size</td><td class="gold">${trimSize}</td></tr><tr><td>Document with Bleed</td><td class="gold">${bleedSize}</td></tr><tr><td>Bleed</td><td>0.125" all sides</td></tr><tr><td>Safe Space</td><td>0.25" minimum from trim edge</td></tr><tr><td>Resolution</td><td>300dpi minimum</td></tr><tr><td>Color Mode</td><td>CMYK (convert from RGB before sending to printer)</td></tr><tr><td>Border</td><td>Visual border required around perimeter</td></tr><tr><td>File Formats</td><td>PDF, JPG, TIFF, EPS, PSD, AI, SVG</td></tr></table>`);
+                      // QR Code section
+                      const qrUrl = (selected as unknown as Record<string,unknown>).qr_url as string | undefined;
+                      if (qrUrl) {
+                        w.document.write(`<h2>QR Code</h2><table><tr><td>QR URL</td><td class="gold">${qrUrl}</td></tr><tr><td>Placement</td><td>Bottom right corner of ad (recommended)</td></tr><tr><td>Minimum Size</td><td>0.75" x 0.75" (minimum scannable)</td></tr></table>`);
+                      } else {
+                        w.document.write(`<p style="color:#9B8E7A;margin-top:16px">No QR code — client can add from their portal</p>`);
+                      }
                       w.document.write(`<p style="margin-top:32px;font-size:11px;color:#9B8E7A;border-top:1px solid #DDD5C0;padding-top:12px">Best Version Media | Campaign Portal | ${new Date().toLocaleDateString()}</p></body></html>`);
                       w.document.close();
                       w.print();

@@ -12,6 +12,7 @@ interface CollectedFields {
   services: string | null;
   adSize: string | null;
   tagline: string | null;
+  qrUrl: string | null;
 }
 
 interface Message {
@@ -28,6 +29,7 @@ const EMPTY_FIELDS: CollectedFields = {
   services: null,
   adSize: null,
   tagline: null,
+  qrUrl: null,
 };
 
 function coreFieldCount(f: CollectedFields): number {
@@ -86,7 +88,8 @@ function CampaignIntakeInner() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [fields, setFields] = useState<CollectedFields>(EMPTY_FIELDS);
-  const [phase, setPhase] = useState<"chat" | "tagline" | "scanning" | "generating">("chat");
+  const [phase, setPhase] = useState<"chat" | "tagline" | "qr" | "scanning" | "generating">("chat");
+  const [qrInput, setQrInput] = useState("");
   const [taglineOptions, setTaglineOptions] = useState<string[]>([]);
   const [selectedTagline, setSelectedTagline] = useState<string | null>(null);
   const [sbrData, setSbrData] = useState<Record<string, unknown> | null>(null);
@@ -286,22 +289,52 @@ ${sbr?.localAdvantage ? `Local advantage: ${sbr.localAdvantage}` : ""}`,
   }
 
   function confirmTagline() {
-    const finalFields = { ...fields, tagline: selectedTagline };
+    setFields((prev) => ({ ...prev, tagline: selectedTagline }));
     setMessages((prev) => [
       ...prev,
       { role: "user", text: selectedTagline || "Skip tagline" },
-      { role: "assistant", text: selectedTagline ? "Great choice — let's build your campaign." : "No problem — your rep can add a tagline later. Let's build your campaign." },
+      { role: "assistant", text: selectedTagline ? "Great choice!" : "No problem — your rep can add one later." },
     ]);
-    setTimeout(() => startGeneration(finalFields as CollectedFields), 600);
+    setTimeout(() => startQrStep(), 400);
   }
 
   function skipTagline() {
-    const finalFields = { ...fields, tagline: null };
+    setFields((prev) => ({ ...prev, tagline: null }));
     setMessages((prev) => [
       ...prev,
       { role: "user", text: "Skip for now" },
-      { role: "assistant", text: "No problem — your rep can add a tagline later. Let's build your campaign." },
+      { role: "assistant", text: "No problem — your rep can add a tagline later." },
     ]);
+    setTimeout(() => startQrStep(), 400);
+  }
+
+  function startQrStep() {
+    setPhase("qr");
+    setMessages((prev) => [
+      ...prev,
+      { role: "assistant", text: "What's your website URL? We'll generate a QR code for your ad. If you don't have one yet just say skip." },
+    ]);
+  }
+
+  function submitQrUrl() {
+    let url = qrInput.trim();
+    if (!url || url.toLowerCase() === "skip" || url.toLowerCase() === "no" || url.toLowerCase() === "none") {
+      setFields((prev) => ({ ...prev, qrUrl: null }));
+      setMessages((prev) => [
+        ...prev,
+        { role: "user", text: url || "Skip" },
+        { role: "assistant", text: "No problem — you can add a QR link anytime from your campaign portal. Let's build your campaign directions." },
+      ]);
+    } else {
+      if (!url.startsWith("http://") && !url.startsWith("https://")) url = "https://" + url;
+      setFields((prev) => ({ ...prev, qrUrl: url }));
+      setMessages((prev) => [
+        ...prev,
+        { role: "user", text: url },
+        { role: "assistant", text: `Got it — your QR code will link to ${url}. Scanning it from your ad takes readers straight to your site. Let's build your campaign directions.` },
+      ]);
+    }
+    const finalFields = { ...fields, tagline: fields.tagline, qrUrl: url && url.toLowerCase() !== "skip" && url.toLowerCase() !== "no" && url.toLowerCase() !== "none" ? (url.startsWith("http") ? url : "https://" + url) : null };
     setTimeout(() => startGeneration(finalFields as CollectedFields), 600);
   }
 
@@ -381,6 +414,7 @@ ${sbr?.localAdvantage ? `Local advantage: ${sbr.localAdvantage}` : ""}`,
           ad_size: finalFields.adSize,
           rep_id: getRepIdFromCookie(),
           tagline: finalFields.tagline,
+          qr_url: finalFields.qrUrl || null,
           stage: "tearsheet",
           sbr_data: sbr,
           generated_directions: directions,
@@ -389,6 +423,18 @@ ${sbr?.localAdvantage ? `Local advantage: ${sbr.localAdvantage}` : ""}`,
       }
     } catch (e) {
       console.error("Supabase save error:", e);
+    }
+
+    // Hydrate contact info from Close CRM (fire and forget)
+    if (finalFields.businessName) {
+      fetch("/api/campaign/crm-search", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query: finalFields.businessName }) })
+        .then(r => r.json())
+        .then(data => {
+          if (data.results?.[0]) {
+            const lead = data.results[0];
+            fetch("/api/campaign/update-contact", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: clientId, client_email: lead.email || "", client_phone: lead.phone || "", client_first_name: lead.name?.split(" ")[0] || "" }) }).catch(() => {});
+          }
+        }).catch(() => {});
     }
 
     router.push(`/campaign/tearsheet/${clientId}`);
@@ -493,6 +539,23 @@ ${sbr?.localAdvantage ? `Local advantage: ${sbr.localAdvantage}` : ""}`,
           </div>
 
           {/* Input — hidden during tagline phase */}
+          {phase === "qr" && (
+            <div style={{ padding: "12px 24px 24px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  type="text"
+                  value={qrInput}
+                  onChange={(e) => setQrInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") submitQrUrl(); }}
+                  placeholder="https://yourwebsite.com or type skip"
+                  style={{ flex: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, padding: "12px 16px", fontSize: 14, color: "#fff", outline: "none" }}
+                />
+                <button onClick={submitQrUrl} style={{ background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 8, padding: "12px 20px", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+                  {qrInput.trim() && qrInput.trim().toLowerCase() !== "skip" ? "Add QR →" : "Skip →"}
+                </button>
+              </div>
+            </div>
+          )}
           {phase === "chat" && (
             <div style={{ padding: "12px 24px 24px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
               <div style={{ display: "flex", gap: 8 }}>
@@ -656,6 +719,17 @@ ${sbr?.localAdvantage ? `Local advantage: ${sbr.localAdvantage}` : ""}`,
             ) : (
               <div style={{ height: 20, background: "rgba(255,255,255,0.06)", borderRadius: 4, width: "70%" }} />
             )}
+          {/* QR URL field */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
+              QR Code URL
+            </div>
+            {fields.qrUrl ? (
+              <div style={{ fontSize: 13, color: "#F5C842", fontWeight: 600, wordBreak: "break-all" }}>{fields.qrUrl}</div>
+            ) : (
+              <div style={{ height: 20, background: "rgba(255,255,255,0.06)", borderRadius: 4, width: "70%" }} />
+            )}
+          </div>
           </div>
         </div>
       </div>

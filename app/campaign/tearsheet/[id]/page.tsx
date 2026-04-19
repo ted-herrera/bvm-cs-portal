@@ -13,11 +13,20 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
   const [regenerating, setRegenerating] = useState(false);
   const [checks, setChecks] = useState([false, false, false, false]);
   const [approving, setApproving] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState("");
+  const [qrEditMode, setQrEditMode] = useState(false);
+  const [qrEditValue, setQrEditValue] = useState("");
 
   useEffect(() => {
     loadClient();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  useEffect(() => {
+    if ((client as unknown as Record<string, unknown>)?.qr_url) {
+      import("@/lib/qr").then(({ generateQRCode }) => generateQRCode((client as unknown as Record<string, unknown>).qr_url as string).then(setQrDataUrl));
+    }
+  }, [(client as unknown as Record<string, unknown>)?.qr_url]);
 
   async function loadClient() {
     try {
@@ -301,6 +310,37 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
           >
             {regenerating ? "Regenerating..." : "✨ Automagic — Regenerate Directions"}
           </button>
+        </div>
+      </div>
+
+      {/* QR Code Section */}
+      <div style={{ padding: "24px 48px", maxWidth: 600, margin: "0 auto" }}>
+        <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, padding: 24, textAlign: "center" }}>
+          {(client as unknown as Record<string,unknown>).qr_url ? (
+            <>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#F5C842", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 12 }}>Your QR Code</div>
+              {qrDataUrl && <img src={qrDataUrl} alt="QR Code" style={{ width: 120, height: 120, borderRadius: 8, marginBottom: 8 }} />}
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", fontFamily: "monospace", wordBreak: "break-all", marginBottom: 8 }}>{String((client as unknown as Record<string,unknown>).qr_url)}</div>
+              {qrEditMode ? (
+                <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
+                  <input value={qrEditValue} onChange={e => setQrEditValue(e.target.value)} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.06)", color: "#fff", fontSize: 12, outline: "none", width: 200 }} />
+                  <button onClick={async () => { const url = qrEditValue.startsWith("http") ? qrEditValue : "https://" + qrEditValue; await fetch("/api/campaign/update-contact", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ id, qr_url: url }) }); setQrEditMode(false); loadClient(); }} style={{ background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Save</button>
+                </div>
+              ) : (
+                <button onClick={() => { setQrEditValue(String((client as unknown as Record<string,unknown>).qr_url)); setQrEditMode(true); }} style={{ background: "transparent", border: "none", color: "#F5C842", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Change URL &rarr;</button>
+              )}
+              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", marginTop: 8 }}>This QR code will appear on your print ad</div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 8 }}>Add a QR Code</div>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 12 }}>Link your ad to your website, email, or booking page</div>
+              <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
+                <input value={qrEditValue} onChange={e => setQrEditValue(e.target.value)} placeholder="https://yourwebsite.com" style={{ padding: "8px 12px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.06)", color: "#fff", fontSize: 12, outline: "none", width: 220 }} />
+                <button onClick={async () => { if (!qrEditValue.trim()) return; const url = qrEditValue.startsWith("http") ? qrEditValue : "https://" + qrEditValue; await fetch("/api/campaign/update-contact", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ id, qr_url: url }) }); setQrEditValue(""); loadClient(); }} style={{ background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Generate QR &rarr;</button>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
