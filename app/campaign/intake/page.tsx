@@ -13,6 +13,9 @@ interface CollectedFields {
   adSize: string | null;
   tagline: string | null;
   qrUrl: string | null;
+  contactPhone: string | null;
+  contactEmail: string | null;
+  contactAddress: string | null;
 }
 
 interface Message {
@@ -30,6 +33,9 @@ const EMPTY_FIELDS: CollectedFields = {
   adSize: null,
   tagline: null,
   qrUrl: null,
+  contactPhone: null,
+  contactEmail: null,
+  contactAddress: null,
 };
 
 function coreFieldCount(f: CollectedFields): number {
@@ -88,8 +94,10 @@ function CampaignIntakeInner() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [fields, setFields] = useState<CollectedFields>(EMPTY_FIELDS);
-  const [phase, setPhase] = useState<"chat" | "tagline" | "qr" | "scanning" | "generating">("chat");
+  const [phase, setPhase] = useState<"chat" | "tagline" | "qr" | "contact" | "scanning" | "generating">("chat");
   const [qrInput, setQrInput] = useState("");
+  const [contactStep, setContactStep] = useState<"phone" | "email" | "address" | "done">("phone");
+  const [contactInput, setContactInput] = useState("");
   const [taglineOptions, setTaglineOptions] = useState<string[]>([]);
   const [selectedTagline, setSelectedTagline] = useState<string | null>(null);
   const [sbrData, setSbrData] = useState<Record<string, unknown> | null>(null);
@@ -320,22 +328,43 @@ ${sbr?.localAdvantage ? `Local advantage: ${sbr.localAdvantage}` : ""}`,
     let url = qrInput.trim();
     if (!url || url.toLowerCase() === "skip" || url.toLowerCase() === "no" || url.toLowerCase() === "none") {
       setFields((prev) => ({ ...prev, qrUrl: null }));
-      setMessages((prev) => [
-        ...prev,
-        { role: "user", text: url || "Skip" },
-        { role: "assistant", text: "No problem — you can add a QR link anytime from your campaign portal. Let's build your campaign directions." },
-      ]);
+      setMessages((prev) => [...prev, { role: "user", text: url || "Skip" }, { role: "assistant", text: "No problem — you can add a QR link anytime from your portal." }]);
     } else {
       if (!url.startsWith("http://") && !url.startsWith("https://")) url = "https://" + url;
       setFields((prev) => ({ ...prev, qrUrl: url }));
-      setMessages((prev) => [
-        ...prev,
-        { role: "user", text: url },
-        { role: "assistant", text: `Got it — your QR code will link to ${url}. Scanning it from your ad takes readers straight to your site. Let's build your campaign directions.` },
-      ]);
+      setMessages((prev) => [...prev, { role: "user", text: url }, { role: "assistant", text: `Got it — your QR code will link to ${url}.` }]);
     }
-    const finalFields = { ...fields, tagline: fields.tagline, qrUrl: url && url.toLowerCase() !== "skip" && url.toLowerCase() !== "no" && url.toLowerCase() !== "none" ? (url.startsWith("http") ? url : "https://" + url) : null };
-    setTimeout(() => startGeneration(finalFields as CollectedFields), 600);
+    setTimeout(() => startContactStep(), 400);
+  }
+
+  function startContactStep() {
+    setPhase("contact");
+    setContactStep("phone");
+    setContactInput("");
+    setMessages((prev) => [...prev, { role: "assistant", text: "Last thing — what phone number should appear on your ad? If you'd rather leave it off just say skip." }]);
+  }
+
+  function submitContactField() {
+    const val = contactInput.trim();
+    const isSkip = !val || val.toLowerCase() === "skip" || val.toLowerCase() === "no" || val.toLowerCase() === "none";
+
+    if (contactStep === "phone") {
+      setFields((prev) => ({ ...prev, contactPhone: isSkip ? null : val }));
+      setMessages((prev) => [...prev, { role: "user", text: val || "Skip" }, { role: "assistant", text: isSkip ? "No problem. What email address should appear on the ad?" : `Got it — ${val}. What email address?` }]);
+      setContactStep("email");
+      setContactInput("");
+    } else if (contactStep === "email") {
+      setFields((prev) => ({ ...prev, contactEmail: isSkip ? null : val }));
+      setMessages((prev) => [...prev, { role: "user", text: val || "Skip" }, { role: "assistant", text: isSkip ? "No problem. And your business address?" : `Perfect — ${val}. And your business address?` }]);
+      setContactStep("address");
+      setContactInput("");
+    } else if (contactStep === "address") {
+      setFields((prev) => ({ ...prev, contactAddress: isSkip ? null : val }));
+      setMessages((prev) => [...prev, { role: "user", text: val || "Skip" }, { role: "assistant", text: "Great — let's build your campaign directions!" }]);
+      setContactStep("done");
+      const finalFields = { ...fields, contactPhone: fields.contactPhone, contactEmail: fields.contactEmail, contactAddress: isSkip ? null : val };
+      setTimeout(() => startGeneration(finalFields as CollectedFields), 600);
+    }
   }
 
   async function startGeneration(finalFields: CollectedFields) {
@@ -415,6 +444,9 @@ ${sbr?.localAdvantage ? `Local advantage: ${sbr.localAdvantage}` : ""}`,
           rep_id: getRepIdFromCookie(),
           tagline: finalFields.tagline,
           qr_url: finalFields.qrUrl || null,
+          contact_phone: finalFields.contactPhone || null,
+          contact_email: finalFields.contactEmail || null,
+          contact_address: finalFields.contactAddress || null,
           stage: "tearsheet",
           sbr_data: sbr,
           generated_directions: directions,
@@ -552,6 +584,23 @@ ${sbr?.localAdvantage ? `Local advantage: ${sbr.localAdvantage}` : ""}`,
                 />
                 <button onClick={submitQrUrl} style={{ background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 8, padding: "12px 20px", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
                   {qrInput.trim() && qrInput.trim().toLowerCase() !== "skip" ? "Add QR →" : "Skip →"}
+                </button>
+              </div>
+            </div>
+          )}
+          {phase === "contact" && contactStep !== "done" && (
+            <div style={{ padding: "12px 24px 24px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  type="text"
+                  value={contactInput}
+                  onChange={(e) => setContactInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") submitContactField(); }}
+                  placeholder={contactStep === "phone" ? "Phone number or skip" : contactStep === "email" ? "Email address or skip" : "Business address or skip"}
+                  style={{ flex: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, padding: "12px 16px", fontSize: 14, color: "#fff", outline: "none" }}
+                />
+                <button onClick={submitContactField} style={{ background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 8, padding: "12px 20px", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+                  {contactInput.trim() && contactInput.trim().toLowerCase() !== "skip" ? "Next →" : "Skip →"}
                 </button>
               </div>
             </div>
@@ -730,6 +779,21 @@ ${sbr?.localAdvantage ? `Local advantage: ${sbr.localAdvantage}` : ""}`,
               <div style={{ height: 20, background: "rgba(255,255,255,0.06)", borderRadius: 4, width: "70%" }} />
             )}
           </div>
+          {/* Contact info */}
+          {[
+            { label: "Phone", value: fields.contactPhone },
+            { label: "Email", value: fields.contactEmail },
+            { label: "Address", value: fields.contactAddress },
+          ].map((f, i) => (
+            <div key={i} style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>{f.label}</div>
+              {f.value ? (
+                <div style={{ fontSize: 13, color: "#fff", fontWeight: 600 }}>{f.value}</div>
+              ) : (
+                <div style={{ height: 16, background: "rgba(255,255,255,0.06)", borderRadius: 4, width: "60%" }} />
+              )}
+            </div>
+          ))}
           </div>
         </div>
       </div>
