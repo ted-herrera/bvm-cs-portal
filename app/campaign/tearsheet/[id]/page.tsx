@@ -54,6 +54,10 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
       });
       const data = await res.json();
 
+      if (data.error) {
+        console.error("Generation API error:", data.error);
+      }
+
       if (data.directions) {
         // Update in Supabase
         const { getSupabase } = await import("@/lib/supabase");
@@ -62,9 +66,25 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
           await sb.from("campaign_clients").update({ generated_directions: data.directions }).eq("id", id);
         }
         setClient((prev) => prev ? { ...prev, generated_directions: data.directions } : prev);
+      } else {
+        // Fallback placeholder directions
+        console.error("No directions returned, using placeholders");
+        const placeholders = [
+          { name: "Bold & Direct", imageUrl: "https://placehold.co/1024x1024/1B2A4A/F5C842?text=Bold+%26+Direct", description: "Bold, high-contrast design with strong typography.", prompt: "" },
+          { name: "Warm & Local", imageUrl: "https://placehold.co/1024x1024/2C3E2D/F5F0E8?text=Warm+%26+Local", description: "Warm, inviting community feel.", prompt: "" },
+          { name: "Premium & Polished", imageUrl: "https://placehold.co/1024x1024/C8922A/FFFFFF?text=Premium+%26+Polished", description: "Upscale, sophisticated design.", prompt: "" },
+        ];
+        setClient((prev) => prev ? { ...prev, generated_directions: placeholders } : prev);
       }
     } catch (e) {
       console.error("Regenerate error:", e);
+      // Show placeholders on network error
+      const placeholders = [
+        { name: "Bold & Direct", imageUrl: "https://placehold.co/1024x1024/1B2A4A/F5C842?text=Bold+%26+Direct", description: "Bold, high-contrast design with strong typography.", prompt: "" },
+        { name: "Warm & Local", imageUrl: "https://placehold.co/1024x1024/2C3E2D/F5F0E8?text=Warm+%26+Local", description: "Warm, inviting community feel.", prompt: "" },
+        { name: "Premium & Polished", imageUrl: "https://placehold.co/1024x1024/C8922A/FFFFFF?text=Premium+%26+Polished", description: "Upscale, sophisticated design.", prompt: "" },
+      ];
+      setClient((prev) => prev ? { ...prev, generated_directions: placeholders } : prev);
     }
     setRegenerating(false);
   }

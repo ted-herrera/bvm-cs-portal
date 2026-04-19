@@ -161,8 +161,12 @@ export default function CampaignDashboardPage() {
   const [drawerTab, setDrawerTab] = useState<"actions" | "bruno" | "territory" | "csIntel" | "card">("actions");
   const [detailTab, setDetailTab] = useState<"overview" | "messages" | "crm">("overview");
   const [emptyTab, setEmptyTab] = useState<"overview" | "audit">("overview");
-  const [listFilter, setListFilter] = useState<"all" | "renewable" | "declined" | "campaign">("all");
+  const [listFilter, setListFilter] = useState<"priority" | "all" | "renewable" | "declined" | "campaign">("priority");
   const [visibleLeadCount, setVisibleLeadCount] = useState(50);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteCode, setDeleteCode] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const [reportingPeriod, setReportingPeriod] = useState("");
   const [auditBrunoResponse, setAuditBrunoResponse] = useState("");
   const [auditBrunoLoading, setAuditBrunoLoading] = useState(false);
@@ -339,6 +343,43 @@ export default function CampaignDashboardPage() {
 
   function handleSignOut() { document.cookie = "campaign_user=; path=/; max-age=0"; localStorage.removeItem("campaign_user"); window.location.href = "/campaign/login"; }
 
+  async function handleDeleteClient() {
+    if (!selected || deleteCode !== "BVM2026") { setDeleteError("Invalid code"); return; }
+    setDeleting(true);
+    try {
+      const { getSupabase } = await import("@/lib/supabase");
+      const sb = getSupabase();
+      if (sb) { await sb.from("campaign_clients").delete().eq("id", selected.id); }
+      setClients(p => p.filter(c => c.id !== selected.id));
+      setSelected(null); setDrawerOpen(false); setDeleteModalOpen(false); setDeleteCode(""); setDeleteError("");
+      showToast("Client deleted");
+    } catch { showToast("Delete failed — try again"); }
+    setDeleting(false);
+  }
+
+  function priorityScore(item: { businessName: string; health?: string; monthly?: unknown; lastEdition?: string }): number {
+    let score = 0;
+    const mapped = mapRenewStatus(item.health || "");
+    const mo = parseFloat(String(item.monthly || "0")) || 0;
+    const le = item.lastEdition || "";
+    if (le) {
+      const days = Math.floor((new Date(le).getTime() - Date.now()) / 86400000);
+      if (days <= 30 && days > -365) score += 50;
+      else if (days <= 60 && days > -365) score += 30;
+    }
+    if (mapped === "Declined") score += 40;
+    if (mapped === "Renewable" && mo > 500) score += 25;
+    else if (mapped === "Renewable" && mo > 300) score += 15;
+    if (clients.some(c => c.business_name.toLowerCase() === item.businessName.toLowerCase())) score += 20;
+    return score;
+  }
+
+  function priDotColor(score: number): string {
+    if (score > 70) return RED;
+    if (score >= 40) return AMBER;
+    return GRAY;
+  }
+
   /* ─── Auth Guard ───────────────────────────────────────────────────────── */
 
   if (!authChecked) return <div style={{ background: BG, height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: GRAY }}>Loading...</div>;
@@ -367,39 +408,46 @@ export default function CampaignDashboardPage() {
     : closeLeads.reduce((s, l) => s + (parseFloat(l.monthly) || 0), 0);
   const avgMonthly = totalCount > 0 ? Math.round(totalMRV / totalCount) : 0;
 
-  type ListItem = { type: "campaign"; data: CampaignClient } | { type: "close"; data: CloseLead } | { type: "csIntel"; data: typeof csIntelData[number] };
+  type ListItem = { type: "campaign"; data: CampaignClient; score: number } | { type: "close"; data: CloseLead; score: number } | { type: "csIntel"; data: typeof csIntelData[number]; score: number };
   const sl = search.toLowerCase();
   const filteredList: ListItem[] = (() => {
     const items: ListItem[] = [];
+
     if (listFilter === "campaign") {
-      clients.filter(c => !sl || c.business_name.toLowerCase().includes(sl)).forEach(c => items.push({ type: "campaign", data: c }));
+      clients.filter(c => !sl || c.business_name.toLowerCase().includes(sl)).forEach(c => items.push({ type: "campaign", data: c, score: 20 }));
       return items;
     }
-    // Campaign clients always shown in "all"
-    if (listFilter === "all") {
-      clients.filter(c => !sl || c.business_name.toLowerCase().includes(sl)).forEach(c => items.push({ type: "campaign", data: c }));
-    }
-    // Use cs_intel as primary when available
+
+    // Build full list from csIntel or Close
     if (useCs) {
-      const filtered = csIntelData.filter(c => {
+      // Campaign clients
+      clients.filter(c => !sl || c.business_name.toLowerCase().includes(sl)).forEach(c => {
+        const csMatch = csIntelData.find(ci => ci.businessName.toLowerCase() === c.business_name.toLowerCase());
+        items.push({ type: "campaign", data: c, score: csMatch ? priorityScore(csMatch) + 20 : 20 });
+      });
+      // CS Intel clients (no campaign duplicate)
+      csIntelData.filter(c => {
         if (sl && !c.businessName.toLowerCase().includes(sl)) return false;
-        // Don't duplicate campaign clients
         if (clients.some(cc => cc.business_name.toLowerCase() === c.businessName.toLowerCase())) return false;
         const mapped = mapRenewStatus(c.health || "");
         if (listFilter === "renewable" && mapped !== "Renewable") return false;
         if (listFilter === "declined" && mapped !== "Declined") return false;
         return true;
-      });
-      filtered.forEach(c => items.push({ type: "csIntel", data: c }));
+      }).forEach(c => items.push({ type: "csIntel", data: c, score: priorityScore(c) }));
     } else {
-      // Fallback to Close leads
-      const src = listFilter === "renewable"
-        ? closeLeads.filter(l => l.renewStatus === "Renewable")
-        : listFilter === "declined"
-        ? closeLeads.filter(l => l.renewStatus === "Declined")
+      clients.filter(c => !sl || c.business_name.toLowerCase().includes(sl)).forEach(c => items.push({ type: "campaign", data: c, score: 20 }));
+      const src = listFilter === "renewable" ? closeLeads.filter(l => l.renewStatus === "Renewable")
+        : listFilter === "declined" ? closeLeads.filter(l => l.renewStatus === "Declined")
         : activeCloseLeads.filter(l => !clients.some(c => c.business_name.toLowerCase() === l.businessName.toLowerCase()));
-      src.filter(l => !sl || l.businessName.toLowerCase().includes(sl)).forEach(l => items.push({ type: "close", data: l }));
+      src.filter(l => !sl || l.businessName.toLowerCase().includes(sl)).forEach(l => items.push({ type: "close", data: l, score: 0 }));
     }
+
+    // Sort by priority score descending
+    items.sort((a, b) => b.score - a.score);
+
+    // Priority filter: top 25 only (unless searching or other filter)
+    if (listFilter === "priority" && !sl) return items.slice(0, 25);
+
     return items;
   })();
 
@@ -436,14 +484,20 @@ export default function CampaignDashboardPage() {
       {/* ── LEFT SIDEBAR (280px) ───────────────────────────────────────── */}
       <div style={{ background: SURFACE, borderRight: `1px solid ${BORDER}`, display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
+        {/* Header */}
+        <div style={{ padding: "10px 12px 4px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: TEXT }}>{listFilter === "priority" ? "Priority Queue" : listFilter === "all" ? "All Contacts" : listFilter.charAt(0).toUpperCase() + listFilter.slice(1)}</span>
+          <span style={{ fontSize: 10, color: GRAY }}>{sl ? `${filteredList.length} results` : listFilter === "priority" ? `Top 25 of ${totalCount}` : `${filteredList.length}`}</span>
+        </div>
+
         {/* Search */}
         <div style={{ padding: "0 12px 8px" }}>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..." style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, background: BG, fontSize: 12, outline: "none", boxSizing: "border-box", color: TEXT }} />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search all contacts..." style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, background: BG, fontSize: 12, outline: "none", boxSizing: "border-box", color: TEXT }} />
         </div>
 
         {/* Filter tabs */}
         <div style={{ display: "flex", borderBottom: `1px solid ${BORDER}` }}>
-          {(["all", "renewable", "declined", "campaign"] as const).map(f => (
+          {(["priority", "renewable", "declined", "campaign", "all"] as const).map(f => (
             <button key={f} onClick={() => setListFilter(f)} style={{ flex: 1, padding: "7px 0", fontSize: 10, fontWeight: 600, cursor: "pointer", border: "none", background: "transparent", color: listFilter === f ? NAVY : GRAY, borderBottom: listFilter === f ? `2px solid ${GOLD}` : "2px solid transparent", textTransform: "capitalize" }}>{f}</button>
           ))}
         </div>
@@ -475,7 +529,10 @@ export default function CampaignDashboardPage() {
                   const mo = parseFloat(String(c.monthly || "0")) || 0;
                   return (
                     <div key={c.businessName + String(c.contractNumber || "")} onClick={() => selectContact({ id: c.businessName, business_name: c.businessName, city: String(c.market || c.region || ""), zip: "", category: String(c.industry || ""), services: String(c.saleItems || ""), ad_size: String(c.saleItems || ""), tagline: "", rep_id: rep!.username, stage: "intake" as const, sbr_data: null, generated_directions: null, selected_direction: null, approved_at: null, revisions: null, created_at: "" } as unknown as CampaignClient)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer", borderBottom: `1px solid ${BORDER}`, borderLeft: isActive ? `3px solid ${GOLD}` : "3px solid transparent", background: isActive ? SURFACE : "transparent" }}>
-                      <div style={{ width: 34, height: 34, borderRadius: 8, background: avatarBg(String(c.industry || "")), color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{initials(c.businessName)}</div>
+                      <div style={{ position: "relative" }}>
+                        <div style={{ width: 34, height: 34, borderRadius: 8, background: avatarBg(String(c.industry || "")), color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{initials(c.businessName)}</div>
+                        {item.score > 0 && <div style={{ position: "absolute", top: -2, right: -2, width: 8, height: 8, borderRadius: "50%", background: priDotColor(item.score), border: "1px solid " + SURFACE }} />}
+                      </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: TEXT, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.businessName}</div>
                         <div style={{ fontSize: 10, color: GRAY }}>{c.lastEdition ? `Last: ${c.lastEdition}` : String(c.market || c.industry || "")}</div>
@@ -807,6 +864,7 @@ export default function CampaignDashboardPage() {
             <div style={{ padding: "14px 16px", borderBottom: `1px solid ${BORDER}` }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                 <button onClick={() => setDrawerOpen(false)} style={{ background: BG, border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", fontSize: 14, color: TEXT2 }}>✕</button>
+                {selected.id && !selected.id.startsWith("cl-") && !selected.id.startsWith("demo-") && <button onClick={() => { setDeleteCode(""); setDeleteError(""); setDeleteModalOpen(true); }} style={{ background: `${RED}15`, border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", fontSize: 13, color: RED }} title="Delete client">🗑</button>}
                 <div style={{ width: 44, height: 44, borderRadius: 10, background: avatarBg(selected.category), color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 800 }}>{initials(selected.business_name)}</div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 16, fontWeight: 800, color: TEXT }}>{selected.business_name}</div>
@@ -1046,6 +1104,25 @@ export default function CampaignDashboardPage() {
       )}
 
       {/* ── CS Intel Modal ─────────────────────────────────────────────── */}
+      {/* Delete Confirmation Modal */}
+      {deleteModalOpen && selected && (
+        <>
+          <div onClick={() => setDeleteModalOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 599 }} />
+          <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", background: SURFACE, borderRadius: 12, padding: 24, width: 400, zIndex: 600, boxShadow: "0 16px 48px rgba(0,0,0,0.2)", border: `1px solid ${BORDER}` }}>
+            <div style={{ fontSize: 32, textAlign: "center", marginBottom: 8 }}>⚠️</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: RED, textAlign: "center", marginBottom: 8 }}>Delete Campaign Client</div>
+            <p style={{ fontSize: 13, color: TEXT2, textAlign: "center", lineHeight: 1.6, margin: "0 0 16px" }}>This will permanently remove <strong>{selected.business_name}</strong> from the Campaign Portal. This cannot be undone.</p>
+            <label style={{ fontSize: 12, fontWeight: 600, color: GRAY, display: "block", marginBottom: 6 }}>Enter approval code to confirm:</label>
+            <input value={deleteCode} onChange={e => setDeleteCode(e.target.value)} placeholder="Enter code..." style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: `2px solid ${deleteError ? RED : BORDER}`, fontSize: 16, textAlign: "center", outline: "none", boxSizing: "border-box", color: TEXT, background: BG, letterSpacing: "0.15em", marginBottom: 8 }} />
+            {deleteError && <div style={{ fontSize: 12, color: RED, textAlign: "center", marginBottom: 8 }}>{deleteError}</div>}
+            <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 8 }}>
+              <button onClick={handleDeleteClient} disabled={deleting || !deleteCode.trim()} style={{ background: RED, color: "#fff", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 14, fontWeight: 700, cursor: "pointer", opacity: deleting || !deleteCode.trim() ? 0.4 : 1 }}>{deleting ? "Deleting..." : "Confirm Delete"}</button>
+              <button onClick={() => setDeleteModalOpen(false)} style={{ background: "none", border: "none", color: GRAY, fontSize: 14, cursor: "pointer" }}>Cancel</button>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Floating Bruno Bot */}
       {!brunoBotOpen && (
         <button onClick={() => setBrunoBotOpen(true)} style={{ position: "fixed", bottom: 24, right: 24, zIndex: 300, width: 56, height: 56, borderRadius: "50%", background: GOLD, color: "#fff", border: "none", fontSize: 22, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 16px rgba(0,0,0,0.2)", animation: "pulse 2s ease infinite" }}>B</button>

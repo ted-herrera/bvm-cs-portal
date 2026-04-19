@@ -7,15 +7,11 @@ const AD_PRINT_SPECS: Record<string, { width: number; height: number; bleedWidth
   "front cover": { width: 2250, height: 3000, bleedWidth: 2325, bleedHeight: 3075, trimW: '7.5"', trimH: '10"', bleedW: '7.75"', bleedH: '10.25"' },
 };
 
-function getImageSize(adSize: string): string {
-  const spec = AD_PRINT_SPECS[adSize];
-  if (!spec) return "1024x1024";
-  const { bleedWidth, bleedHeight } = spec;
-  // gpt-image-1 supported sizes: 1024x1024, 1536x1024, 1024x1536, auto
-  if (bleedHeight > bleedWidth) return "1024x1536"; // portrait
-  if (bleedWidth > bleedHeight) return "1536x1024"; // landscape
-  return "1024x1024"; // square
-}
+const PLACEHOLDER_IMAGES: Record<string, string> = {
+  "Bold & Direct": "https://placehold.co/1024x1024/1B2A4A/F5C842?text=Bold+%26+Direct",
+  "Warm & Local": "https://placehold.co/1024x1024/2C3E2D/F5F0E8?text=Warm+%26+Local",
+  "Premium & Polished": "https://placehold.co/1024x1024/C8922A/FFFFFF?text=Premium+%26+Polished",
+};
 
 export async function POST(request: Request) {
   const {
@@ -39,30 +35,18 @@ export async function POST(request: Request) {
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
+    console.error("[generate-image] OPENAI_API_KEY not set in environment");
     return Response.json({ error: "OPENAI_API_KEY not configured" }, { status: 500 });
   }
 
   const incomeRing = (sbrData?.medianIncome as string) || "";
   const marketBrief = (sbrData?.marketBrief as string) || "";
   const printSpec = AD_PRINT_SPECS[adSize] || null;
-  const imageSize = getImageSize(adSize);
 
   const directions = [
-    {
-      name: "Bold & Direct",
-      style: "Bold, high-contrast design with strong typography. Direct call to action. Eye-catching and impossible to ignore.",
-      mood: "confident, powerful, attention-grabbing",
-    },
-    {
-      name: "Warm & Local",
-      style: "Warm, inviting community feel. Friendly tones, approachable imagery. Feels like a trusted neighbor.",
-      mood: "friendly, warm, trustworthy, community-focused",
-    },
-    {
-      name: "Premium & Polished",
-      style: "Upscale, sophisticated design. Clean lines, premium feel. Conveys quality and professionalism.",
-      mood: "elegant, premium, refined, professional",
-    },
+    { name: "Bold & Direct", style: "Bold, high-contrast design with strong typography. Direct call to action. Eye-catching and impossible to ignore.", mood: "confident, powerful, attention-grabbing" },
+    { name: "Warm & Local", style: "Warm, inviting community feel. Friendly tones, approachable imagery. Feels like a trusted neighbor.", mood: "friendly, warm, trustworthy, community-focused" },
+    { name: "Premium & Polished", style: "Upscale, sophisticated design. Clean lines, premium feel. Conveys quality and professionalism.", mood: "elegant, premium, refined, professional" },
   ];
 
   function buildPrompt(dir: typeof directions[number]): string {
@@ -94,71 +78,76 @@ Requirements:
 - Leave 0.25 inch safe zone from edges for text and important elements`;
   }
 
-  try {
-    const results = await Promise.all(
-      directions.map(async (dir) => {
-        const prompt = buildPrompt(dir);
+  // Generate sequentially to avoid rate limits
+  const results = [];
 
-        const res = await fetch("https://api.openai.com/v1/images/generations", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({
-            model: "gpt-image-1",
-            prompt,
-            n: 1,
-            size: imageSize,
-            quality: "high",
-          }),
-        });
+  for (const dir of directions) {
+    const prompt = buildPrompt(dir);
+    let imageUrl = "";
 
-        if (!res.ok) {
-          const err = await res.text();
-          console.error(`[generate-image] Error for ${dir.name}:`, err);
-          return {
-            name: dir.name,
-            imageUrl: "",
-            description: dir.style,
-            prompt,
-            error: true,
-            printSpecs: null,
-          };
-        }
+    try {
+      console.log(`[generate-image] Generating ${dir.name} for "${businessName}"...`);
 
+      const res = await fetch("https://api.openai.com/v1/images/generations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: "dall-e-3",
+          prompt,
+          n: 1,
+          size: "1024x1024",
+          quality: "standard",
+          response_format: "url",
+        }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error(`[generate-image] OpenAI error for ${dir.name}: HTTP ${res.status}`, errText);
+        imageUrl = PLACEHOLDER_IMAGES[dir.name] || "";
+      } else {
         const data = (await res.json()) as {
-          data?: Array<{ url?: string; b64_json?: string }>;
+          data?: Array<{ url?: string; b64_json?: string; revised_prompt?: string }>;
         };
 
         const imageData = data.data?.[0];
-        let imageUrl = imageData?.url || "";
+        imageUrl = imageData?.url || "";
 
         if (!imageUrl && imageData?.b64_json) {
           imageUrl = `data:image/png;base64,${imageData.b64_json}`;
         }
 
-        return {
-          name: dir.name,
-          imageUrl,
-          description: dir.style,
-          prompt,
-          printSpecs: printSpec ? {
-            trimWidth: printSpec.trimW,
-            trimHeight: printSpec.trimH,
-            bleedWidth: printSpec.bleedW,
-            bleedHeight: printSpec.bleedH,
-            dpi: 300,
-            colorNote: "Convert to CMYK before print",
-            safeZone: "0.25 inches from trim edge",
-          } : null,
-        };
-      })
-    );
+        if (!imageUrl) {
+          console.error(`[generate-image] No URL returned for ${dir.name}:`, JSON.stringify(data));
+          imageUrl = PLACEHOLDER_IMAGES[dir.name] || "";
+        } else {
+          console.log(`[generate-image] ${dir.name} generated successfully`);
+        }
+      }
+    } catch (e) {
+      console.error(`[generate-image] Exception for ${dir.name}:`, e);
+      imageUrl = PLACEHOLDER_IMAGES[dir.name] || "";
+    }
 
-    return Response.json({ directions: results });
-  } catch (e) {
-    console.error("[generate-image] Error:", e);
-    return Response.json({ error: "Image generation failed" }, { status: 500 });
+    results.push({
+      name: dir.name,
+      imageUrl,
+      description: dir.style,
+      prompt,
+      printSpecs: printSpec ? {
+        trimWidth: printSpec.trimW,
+        trimHeight: printSpec.trimH,
+        bleedWidth: printSpec.bleedW,
+        bleedHeight: printSpec.bleedH,
+        dpi: 300,
+        colorNote: "Convert to CMYK before print",
+        safeZone: "0.25 inches from trim edge",
+      } : null,
+    });
   }
+
+  return Response.json({ directions: results });
 }
