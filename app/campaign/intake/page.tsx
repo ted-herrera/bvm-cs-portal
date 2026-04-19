@@ -43,14 +43,28 @@ function allFieldCount(f: CollectedFields): number {
 
 function getRepIdFromCookie(): string {
   try {
-    const match = document.cookie.match(/dc_session=([^;]+)/);
-    if (!match) return "unassigned";
-    const [encoded] = match[1].split(".");
-    const payload = JSON.parse(atob(encoded.replace(/-/g, "+").replace(/_/g, "/")));
-    return payload.username || "unassigned";
-  } catch {
-    return "unassigned";
-  }
+    const cookies = document.cookie.split(";");
+    for (const cookie of cookies) {
+      const parts = cookie.trim().split("=");
+      const key = parts[0];
+      const value = parts.slice(1).join("=");
+      if (key === "campaign_user") {
+        const parsed = JSON.parse(decodeURIComponent(value));
+        return parsed.username || "unassigned";
+      }
+    }
+    // fallback to dc_session for Design Center reps
+    for (const cookie of cookies) {
+      const parts = cookie.trim().split("=");
+      const key = parts[0];
+      const value = parts.slice(1).join("=");
+      if (key === "dc_session") {
+        const parsed = JSON.parse(atob(decodeURIComponent(value)));
+        return parsed.username || "unassigned";
+      }
+    }
+  } catch { /* */ }
+  return "unassigned";
 }
 
 function getRepNameFromCookie(): string {
