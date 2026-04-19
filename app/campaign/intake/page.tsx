@@ -333,6 +333,7 @@ ${sbr?.localAdvantage ? `Local advantage: ${sbr.localAdvantage}` : ""}`,
     // Fire image generation
     let directions = null;
     try {
+      console.log("[intake] Calling generate-image API...");
       const imgRes = await fetch("/api/campaign/generate-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -347,9 +348,22 @@ ${sbr?.localAdvantage ? `Local advantage: ${sbr.localAdvantage}` : ""}`,
         }),
       });
       const imgData = await imgRes.json();
-      directions = imgData.directions;
+      console.log("[intake] generate-image response:", imgData.error || `${(imgData.directions || []).length} directions`);
+      if (imgData.directions) {
+        directions = imgData.directions;
+      } else {
+        console.error("[intake] No directions in response:", imgData);
+      }
     } catch (e) {
-      console.error("Image gen error:", e);
+      console.error("[intake] Image gen error:", e);
+    }
+    // Fallback if generation failed
+    if (!directions || directions.length === 0) {
+      directions = [
+        { name: "Bold & Direct", imageUrl: "https://placehold.co/1024x1024/1B2A4A/F5C842?text=Bold+%26+Direct", description: "Bold, high-contrast design with strong typography.", prompt: "" },
+        { name: "Warm & Local", imageUrl: "https://placehold.co/1024x1024/2C3E2D/F5F0E8?text=Warm+%26+Local", description: "Warm, inviting community feel.", prompt: "" },
+        { name: "Premium & Polished", imageUrl: "https://placehold.co/1024x1024/C8922A/FFFFFF?text=Premium+%26+Polished", description: "Upscale, sophisticated design.", prompt: "" },
+      ];
     }
 
     // Save to Supabase

@@ -1028,82 +1028,6 @@ export default function CampaignClientPage({ params }: { params: Promise<{ id: s
             </div>
           </div>
 
-          {/* ── SECTION 5: LEARNING CENTER ──────────────────────────────── */}
-          <div id="section-learning" style={{ marginBottom: 32 }}>
-            <Eyebrow text="LEARNING CENTER" />
-            <div style={{
-              background: "#243454", border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: 16, padding: 32,
-            }}>
-              <div style={{ display: "flex", gap: 32, flexWrap: "wrap" }}>
-                {/* Left sub: Onboarding */}
-                <div style={{ flex: 1, minWidth: 260 }}>
-                  {showOnboarding ? (
-                    <div>
-                      <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, color: "#fff", margin: "0 0 16px" }}>Getting Started</h3>
-                      <div style={{ borderLeft: "3px solid #F5C842", paddingLeft: 20 }}>
-                        {[
-                          { num: 1, title: "We're building your ad", desc: "Our design team is producing your campaign based on the direction you approved." },
-                          { num: 2, title: "You'll review and confirm", desc: "We'll notify you when your ad is ready for final review." },
-                          { num: 3, title: "Your campaign goes live", desc: "Your ad runs in the next available edition in your market." },
-                        ].map((step) => (
-                          <div key={step.num} style={{ display: "flex", gap: 14, marginBottom: 18 }}>
-                            <div style={{
-                              width: 28, height: 28, borderRadius: "50%", background: "#F5C842",
-                              color: "#1B2A4A", display: "flex", alignItems: "center", justifyContent: "center",
-                              fontSize: 13, fontWeight: 800, flexShrink: 0,
-                            }}>{step.num}</div>
-                            <div>
-                              <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 2 }}>{step.title}</div>
-                              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", lineHeight: 1.5 }}>{step.desc}</div>
-                            </div>
-                          </div>
-                        ))}
-                        <button onClick={dismissOnboarding} style={{
-                          background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 8,
-                          padding: "10px 24px", fontSize: 13, fontWeight: 800, cursor: "pointer",
-                        }}>Got it &rarr;</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                        <span style={{ fontSize: 16, color: "#22c55e" }}>{"\u2713"}</span>
-                        <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: "rgba(255,255,255,0.5)", margin: 0 }}>Getting Started</h3>
-                      </div>
-                      <p style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", margin: 0 }}>Onboarding complete</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Right sub: LMS Modules */}
-                <div style={{ flex: 1, minWidth: 260 }}>
-                  <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, color: "#fff", margin: "0 0 16px" }}>Campaign Success Guide</h3>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    {LMS_MODULES.map((mod) => (
-                      <div key={mod.num} style={{
-                        background: "#1B2A4A", borderRadius: 12, padding: "16px 18px",
-                        border: "1px solid rgba(255,255,255,0.08)", position: "relative",
-                      }}>
-                        <span style={{
-                          position: "absolute", top: 10, left: 12,
-                          background: "rgba(245,200,66,0.15)", color: "#F5C842",
-                          fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 6,
-                        }}>Module {mod.num}</span>
-                        <h4 style={{ fontSize: 14, fontWeight: 700, color: "#fff", margin: "22px 0 6px" }}>{mod.title}</h4>
-                        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", lineHeight: 1.5, margin: "0 0 12px" }}>{mod.desc}</p>
-                        <button onClick={() => setLmsModal(mod.title)} style={{
-                          background: "transparent", border: "none", color: "#F5C842",
-                          fontSize: 12, fontWeight: 700, cursor: "pointer", padding: 0,
-                        }}>Start &rarr;</button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* ── BUSINESS PROFILE (locked) ───────────────────────────────── */}
           <div style={{ marginBottom: 32 }}>
             <Eyebrow text="PREMIUM" />
@@ -1209,6 +1133,59 @@ export default function CampaignClientPage({ params }: { params: Promise<{ id: s
                       opacity: expertContribSending ? 0.6 : 1,
                     }}>{expertContribSending ? "Sending..." : "Become an Expert Contributor \u2192"}</button>
                   )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── LEARNING CENTER (bottom) ───────────────────────────────── */}
+          <div id="section-learning" style={{ marginBottom: 32 }}>
+            <Eyebrow text="LEARNING CENTER" />
+            <div style={{ background: "#243454", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: 32 }}>
+              <div style={{ display: "flex", gap: 32, flexWrap: "wrap" }}>
+                <div style={{ flex: 1, minWidth: 260 }}>
+                  {showOnboarding ? (
+                    <div>
+                      <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, color: "#fff", margin: "0 0 16px" }}>Getting Started</h3>
+                      <div style={{ borderLeft: "3px solid #F5C842", paddingLeft: 20 }}>
+                        {[
+                          { num: 1, title: "We're building your ad", desc: "Our design team is producing your campaign based on the direction you approved." },
+                          { num: 2, title: "You'll review and confirm", desc: "We'll notify you when your ad is ready for final review." },
+                          { num: 3, title: "Your campaign goes live", desc: "Your ad runs in the next available edition in your market." },
+                        ].map((step) => (
+                          <div key={step.num} style={{ display: "flex", gap: 14, marginBottom: 18 }}>
+                            <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#F5C842", color: "#1B2A4A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, flexShrink: 0 }}>{step.num}</div>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 2 }}>{step.title}</div>
+                              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", lineHeight: 1.5 }}>{step.desc}</div>
+                            </div>
+                          </div>
+                        ))}
+                        <button onClick={dismissOnboarding} style={{ background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>Got it &rarr;</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                        <span style={{ fontSize: 16, color: "#22c55e" }}>{"\u2713"}</span>
+                        <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: "rgba(255,255,255,0.5)", margin: 0 }}>Getting Started</h3>
+                      </div>
+                      <p style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", margin: 0 }}>Onboarding complete</p>
+                    </div>
+                  )}
+                </div>
+                <div style={{ flex: 1, minWidth: 260 }}>
+                  <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, color: "#fff", margin: "0 0 16px" }}>Campaign Success Guide</h3>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {LMS_MODULES.map((mod) => (
+                      <div key={mod.num} style={{ background: "#1B2A4A", borderRadius: 12, padding: "16px 18px", border: "1px solid rgba(255,255,255,0.08)", position: "relative" }}>
+                        <span style={{ position: "absolute", top: 10, left: 12, background: "rgba(245,200,66,0.15)", color: "#F5C842", fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 6 }}>Module {mod.num}</span>
+                        <h4 style={{ fontSize: 14, fontWeight: 700, color: "#fff", margin: "22px 0 6px" }}>{mod.title}</h4>
+                        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", lineHeight: 1.5, margin: "0 0 12px" }}>{mod.desc}</p>
+                        <button onClick={() => setLmsModal(mod.title)} style={{ background: "transparent", border: "none", color: "#F5C842", fontSize: 12, fontWeight: 700, cursor: "pointer", padding: 0 }}>Start &rarr;</button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>

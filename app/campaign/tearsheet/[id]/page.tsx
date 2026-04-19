@@ -207,7 +207,13 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
                   ) : dir.imageUrl ? (
                     <img src={dir.imageUrl} alt={dir.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   ) : (
-                    <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 14 }}>Image unavailable</div>
+                    <div style={{
+                      width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8,
+                      background: dir.name === "Bold & Direct" ? "linear-gradient(135deg, #1B2A4A, #2d3e50)" : dir.name === "Warm & Local" ? "linear-gradient(135deg, #2C3E2D, #4a6b4f)" : "linear-gradient(135deg, #C8922A, #F5C842)",
+                    }}>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: "#fff", textAlign: "center" }}>{dir.name}</div>
+                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)" }}>Generating...</div>
+                    </div>
                   )}
                 </div>
 
