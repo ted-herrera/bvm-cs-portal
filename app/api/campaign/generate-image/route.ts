@@ -1,3 +1,22 @@
+const AD_PRINT_SPECS: Record<string, { width: number; height: number; bleedWidth: number; bleedHeight: number; trimW: string; trimH: string; bleedW: string; bleedH: string }> = {
+  "1/8 page": { width: 1095, height: 750, bleedWidth: 1170, bleedHeight: 825, trimW: '3.65"', trimH: '2.5"', bleedW: '3.9"', bleedH: '2.75"' },
+  "1/4 page": { width: 1095, height: 1500, bleedWidth: 1170, bleedHeight: 1575, trimW: '3.65"', trimH: '5"', bleedW: '3.9"', bleedH: '5.25"' },
+  "1/3 page": { width: 2250, height: 975, bleedWidth: 2325, bleedHeight: 1050, trimW: '7.5"', trimH: '3.25"', bleedW: '7.75"', bleedH: '3.5"' },
+  "1/2 page": { width: 2250, height: 1500, bleedWidth: 2325, bleedHeight: 1575, trimW: '7.5"', trimH: '5"', bleedW: '7.75"', bleedH: '5.25"' },
+  "full page": { width: 2250, height: 3000, bleedWidth: 2325, bleedHeight: 3075, trimW: '7.5"', trimH: '10"', bleedW: '7.75"', bleedH: '10.25"' },
+  "front cover": { width: 2250, height: 3000, bleedWidth: 2325, bleedHeight: 3075, trimW: '7.5"', trimH: '10"', bleedW: '7.75"', bleedH: '10.25"' },
+};
+
+function getImageSize(adSize: string): string {
+  const spec = AD_PRINT_SPECS[adSize];
+  if (!spec) return "1024x1024";
+  const { bleedWidth, bleedHeight } = spec;
+  // gpt-image-1 supported sizes: 1024x1024, 1536x1024, 1024x1536, auto
+  if (bleedHeight > bleedWidth) return "1024x1536"; // portrait
+  if (bleedWidth > bleedHeight) return "1536x1024"; // landscape
+  return "1024x1024"; // square
+}
+
 export async function POST(request: Request) {
   const {
     businessName,
@@ -25,6 +44,8 @@ export async function POST(request: Request) {
 
   const incomeRing = (sbrData?.medianIncome as string) || "";
   const marketBrief = (sbrData?.marketBrief as string) || "";
+  const printSpec = AD_PRINT_SPECS[adSize] || null;
+  const imageSize = getImageSize(adSize);
 
   const directions = [
     {
@@ -50,7 +71,7 @@ export async function POST(request: Request) {
 Business: "${businessName}" — a ${category} business in ${city}
 Primary service/offer: ${services}
 Tagline: "${tagline}"
-Ad size: ${adSize}
+Ad size: ${adSize}${printSpec ? ` (trim: ${printSpec.trimW} x ${printSpec.trimH})` : ""}
 ${incomeRing ? `Market demographics: ${incomeRing} median income area` : ""}
 ${marketBrief ? `Market insight: ${marketBrief}` : ""}
 
@@ -67,7 +88,10 @@ Requirements:
 - Use appropriate imagery for a ${category} business
 - Professional, magazine-quality design
 - Do NOT include any phone numbers or addresses — just the brand, tagline, and CTA
-- The ad should look like it belongs in a premium local magazine`;
+- The ad should look like it belongs in a premium local magazine
+- The image must have a subtle but visible border around the entire perimeter
+- Designed for print at 300dpi
+- Leave 0.25 inch safe zone from edges for text and important elements`;
   }
 
   try {
@@ -85,7 +109,7 @@ Requirements:
             model: "gpt-image-1",
             prompt,
             n: 1,
-            size: "1024x1024",
+            size: imageSize,
             quality: "high",
           }),
         });
@@ -99,6 +123,7 @@ Requirements:
             description: dir.style,
             prompt,
             error: true,
+            printSpecs: null,
           };
         }
 
@@ -109,7 +134,6 @@ Requirements:
         const imageData = data.data?.[0];
         let imageUrl = imageData?.url || "";
 
-        // If b64_json is returned instead of url, create a data URI
         if (!imageUrl && imageData?.b64_json) {
           imageUrl = `data:image/png;base64,${imageData.b64_json}`;
         }
@@ -119,6 +143,15 @@ Requirements:
           imageUrl,
           description: dir.style,
           prompt,
+          printSpecs: printSpec ? {
+            trimWidth: printSpec.trimW,
+            trimHeight: printSpec.trimH,
+            bleedWidth: printSpec.bleedW,
+            bleedHeight: printSpec.bleedH,
+            dpi: 300,
+            colorNote: "Convert to CMYK before print",
+            safeZone: "0.25 inches from trim edge",
+          } : null,
         };
       })
     );

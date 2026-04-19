@@ -31,6 +31,7 @@ const RED = "#8B3A2A";
 const STAGE_COLORS: Record<string, string> = { intake: "#64748b", tearsheet: "#f59e0b", approved: "#22c55e", production: "#3b82f6", delivered: "#8b5cf6" };
 const STAGE_LABELS: Record<string, string> = { intake: "Intake", tearsheet: "Tearsheet", approved: "Approved", production: "Production", delivered: "Delivered" };
 const AD_DIMS: Record<string, string> = { "1/8 page": '3.65"x2.5"', "1/4 page": '3.65"x5"', "1/2 page": '7.5"x5"', "full page": '7.5"x10"', "front cover": '7.5"x10"' };
+const AD_BLEED: Record<string, string> = { "1/8 page": '3.9"x2.75"', "1/4 page": '3.9"x5.25"', "1/2 page": '7.75"x5.25"', "full page": '7.75"x10.25"', "front cover": '7.75"x10.25"' };
 
 const MOCK_CLIENTS: CampaignClient[] = [
   { id: "demo-1", created_at: "2026-04-10", business_name: "Tulsa Family Dental", category: "Dental", city: "Tulsa", zip: "74103", services: "Cleanings, implants, cosmetic", ad_size: "1/4 page", tagline: "Smiles start here.", rep_id: "demo", stage: "approved", sbr_data: { opportunityScore: 88, medianIncome: "82000", households: "41000", topCategories: ["Dental", "Health"] }, generated_directions: [{ name: "Bold", imageUrl: "", description: "Bold direct", prompt: "" }], selected_direction: "Bold", approved_at: "2026-04-12", revisions: null } as unknown as CampaignClient,
@@ -575,7 +576,19 @@ export default function CampaignDashboardPage() {
                   <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/campaign/client/${selected.id}`); showToast("Portal link copied!"); }} style={{ width: "100%", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>🌐 Copy Portal Link</button>
                   {selected.stage === "approved" && <button onClick={() => updateStage("production")} style={{ width: "100%", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>▶ Mark In Production</button>}
                   {selected.stage === "production" && <button onClick={() => updateStage("delivered")} style={{ width: "100%", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>✅ Mark Delivered</button>}
-                  <button onClick={() => window.print()} style={{ width: "100%", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>📥 Delivery Pack</button>
+                  <button onClick={() => {
+                    const trimSize = AD_DIMS[selected.ad_size] || selected.ad_size;
+                    const bleedSize = AD_BLEED[selected.ad_size] || "";
+                    const w = window.open("", "_blank");
+                    if (!w) return;
+                    w.document.write(`<!DOCTYPE html><html><head><title>Delivery Pack — ${selected.business_name}</title><style>body{font-family:Georgia,serif;max-width:700px;margin:40px auto;color:#1C2B1D;line-height:1.8}h1{font-size:24px;border-bottom:2px solid #C8922A;padding-bottom:8px}h2{font-size:16px;color:#1B2A4A;margin-top:24px}table{width:100%;border-collapse:collapse;margin:8px 0}td{padding:6px 12px;border:1px solid #DDD5C0;font-size:13px}td:first-child{font-weight:700;width:200px;background:#F5F0E8}.gold{color:#C8922A;font-weight:700}</style></head><body>`);
+                    w.document.write(`<h1>BVM Campaign Delivery Pack</h1><p><strong>${selected.business_name}</strong> — ${selected.city} — ${new Date().toLocaleDateString()}</p>`);
+                    w.document.write(`<h2>Campaign Details</h2><table><tr><td>Business Name</td><td>${selected.business_name}</td></tr><tr><td>City / ZIP</td><td>${selected.city} ${selected.zip}</td></tr><tr><td>Category</td><td>${selected.category}</td></tr><tr><td>Ad Size</td><td>${selected.ad_size}</td></tr><tr><td>Tagline</td><td>${selected.tagline || "—"}</td></tr><tr><td>Services / Ad Copy</td><td>${selected.services}</td></tr><tr><td>Selected Direction</td><td>${selected.selected_direction || "—"}</td></tr></table>`);
+                    w.document.write(`<h2>Print Specifications</h2><table><tr><td>Trim Size</td><td class="gold">${trimSize}</td></tr><tr><td>Document with Bleed</td><td class="gold">${bleedSize}</td></tr><tr><td>Bleed</td><td>0.125" all sides</td></tr><tr><td>Safe Space</td><td>0.25" minimum from trim edge</td></tr><tr><td>Resolution</td><td>300dpi minimum</td></tr><tr><td>Color Mode</td><td>CMYK (convert from RGB before sending to printer)</td></tr><tr><td>Border</td><td>Visual border required around perimeter</td></tr><tr><td>File Formats</td><td>PDF, JPG, TIFF, EPS, PSD, AI, SVG</td></tr></table>`);
+                    w.document.write(`<p style="margin-top:32px;font-size:11px;color:#9B8E7A;border-top:1px solid #DDD5C0;padding-top:12px">Best Version Media | Campaign Portal | ${new Date().toLocaleDateString()}</p></body></html>`);
+                    w.document.close();
+                    w.print();
+                  }} style={{ width: "100%", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>📥 Delivery Pack</button>
                 </div>
               )}
 
