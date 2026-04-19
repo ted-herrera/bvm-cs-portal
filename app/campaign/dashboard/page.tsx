@@ -242,7 +242,11 @@ export default function CampaignDashboardPage() {
 
   useEffect(() => { if (!selected) return; loadMessages(); const i = setInterval(loadMessages, 30000); return () => clearInterval(i); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [selected?.id]);
 
-  async function loadMessages() { if (!selected) return; try { const res = await fetch(`/api/campaign/message/${selected.id}`); const d = await res.json(); if (d.messages) setMessages(d.messages); } catch { /* */ } }
+  async function loadMessages() {
+    if (!selected) return;
+    const msgId = getCampaignId(selected.business_name) || selected.id;
+    try { const res = await fetch(`/api/campaign/message/${msgId}`); const d = await res.json(); if (d.messages) setMessages(d.messages); } catch { /* */ }
+  }
 
   useEffect(() => { msgEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
   useEffect(() => { brunoEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [brunoMsgs]);
@@ -251,8 +255,16 @@ export default function CampaignDashboardPage() {
 
   function showToast(m: string) { setToast(m); setTimeout(() => setToast(""), 3000); }
 
+  // Find real campaign_clients UUID for message routing
+  function getCampaignId(businessName: string): string | null {
+    const match = clients.find(cc => cc.business_name.toLowerCase() === businessName.toLowerCase());
+    return match?.id || null;
+  }
+
   function selectContact(c: CampaignClient) {
-    setSelected(c); setDrawerOpen(true); setDetailTab("overview"); setMessages([]); setCardSent(false);
+    // If synthetic contact (csIntel/Close), swap in real campaign client if exists
+    const realClient = clients.find(cc => cc.business_name.toLowerCase() === c.business_name.toLowerCase());
+    setSelected(realClient || c); setDrawerOpen(true); setDetailTab("overview"); setMessages([]); setCardSent(false);
     setCardEmailTo(closeLeads.find(l => l.businessName.toLowerCase() === c.business_name.toLowerCase())?.email || "");
     const lead = closeLeads.find(l => l.businessName.toLowerCase() === c.business_name.toLowerCase());
     if (!lead) {
@@ -266,7 +278,14 @@ export default function CampaignDashboardPage() {
     selectContact({ id: l.id, business_name: l.businessName, city: l.publications || l.region || "", zip: "", category: l.adType || "", services: l.saleItems || "", ad_size: l.adType || "", tagline: "", rep_id: rep!.username, stage: "intake" as const, sbr_data: null, generated_directions: null, selected_direction: null, approved_at: null, revisions: null, created_at: new Date().toISOString() } as unknown as CampaignClient);
   }
 
-  async function sendMessage() { if (!msgInput.trim() || !selected) return; setMsgSending(true); try { const res = await fetch(`/api/campaign/message/${selected.id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: "rep", content: msgInput }) }); const d = await res.json(); if (d.messages) setMessages(d.messages); setMsgInput(""); } catch { /* */ } setMsgSending(false); }
+  async function sendMessage() {
+    if (!msgInput.trim() || !selected) return;
+    // Use real campaign UUID for message API, not synthetic IDs
+    const msgId = getCampaignId(selected.business_name) || selected.id;
+    setMsgSending(true);
+    try { const res = await fetch(`/api/campaign/message/${msgId}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: "rep", content: msgInput }) }); const d = await res.json(); if (d.messages) setMessages(d.messages); setMsgInput(""); } catch { /* */ }
+    setMsgSending(false);
+  }
 
   async function sendCampaignLink() { if (!selected) return; setSendingLink(true); try { await fetch("/api/campaign/send-link", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clientId: selected.id }) }); showToast("Campaign link sent!"); } catch { showToast("Failed"); } setSendingLink(false); }
 
@@ -806,10 +825,10 @@ export default function CampaignDashboardPage() {
             {/* MESSAGES TAB */}
             {detailTab === "messages" && (
               <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 16 }}>
-                {!clients.some(c => c.id === selected.id) ? (
+                {!getCampaignId(selected.business_name) ? (
                   <div style={{ textAlign: "center", padding: 20, color: GRAY }}>
-                    <div style={{ fontSize: 13, marginBottom: 8 }}>No campaign started</div>
-                    <Link href="/campaign/intake" style={{ color: GOLD, fontSize: 12, fontWeight: 700 }}>Start Campaign</Link>
+                    <div style={{ fontSize: 13, marginBottom: 8 }}>No campaign started — messages unavailable</div>
+                    <Link href={`/campaign/intake?businessName=${encodeURIComponent(selected.business_name)}`} style={{ color: GOLD, fontSize: 12, fontWeight: 700 }}>Start Campaign →</Link>
                   </div>
                 ) : (
                   <>
