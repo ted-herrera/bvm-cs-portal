@@ -146,7 +146,7 @@ function CampaignIntakeInner() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          system: CAMPAIGN_BRUNO_PROMPT,
+          system: CAMPAIGN_BRUNO_PROMPT + "\n\nADDITIONAL AD SIZE: 1/3 page vertical (2.5\" x 10\") is now available. Include it when listing ad size options alongside 1/8 page, 1/4 page, 1/2 page, full page, and front cover.",
           messages: apiMessages,
           collectedFields: fields,
           temperature: 0.7,
@@ -355,7 +355,7 @@ ${sbr?.localAdvantage ? `Local advantage: ${sbr.localAdvantage}` : ""}`,
       setContactInput("");
     } else if (contactStep === "email") {
       setFields((prev) => ({ ...prev, contactEmail: isSkip ? null : val }));
-      setMessages((prev) => [...prev, { role: "user", text: val || "Skip" }, { role: "assistant", text: isSkip ? "No problem. And your business address?" : `Perfect — ${val}. And your business address?` }]);
+      setMessages((prev) => [...prev, { role: "user", text: val || "Skip" }, { role: "assistant", text: isSkip ? "No problem. What's your full business address? Street, city, state, zip — this will appear on your ad." : `Perfect — ${val}. What's your full business address? Street, city, state, zip — this goes on the ad.` }]);
       setContactStep("address");
       setContactInput("");
     } else if (contactStep === "address") {
@@ -596,7 +596,7 @@ ${sbr?.localAdvantage ? `Local advantage: ${sbr.localAdvantage}` : ""}`,
                   value={contactInput}
                   onChange={(e) => setContactInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") submitContactField(); }}
-                  placeholder={contactStep === "phone" ? "Phone number or skip" : contactStep === "email" ? "Email address or skip" : "Business address or skip"}
+                  placeholder={contactStep === "phone" ? "Phone number or skip" : contactStep === "email" ? "Email address or skip" : "Full address (street, city, state, zip) or skip"}
                   style={{ flex: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, padding: "12px 16px", fontSize: 14, color: "#fff", outline: "none" }}
                 />
                 <button onClick={submitContactField} style={{ background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 8, padding: "12px 20px", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
