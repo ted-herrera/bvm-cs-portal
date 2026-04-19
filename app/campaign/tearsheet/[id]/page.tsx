@@ -216,16 +216,17 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
                   ) : dir.imageUrl ? (
                     <div style={{ position: "relative", width: "100%", height: "100%" }}>
                       <img src={dir.imageUrl} alt={dir.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                      {/* Compositor overlay — business info on image */}
-                      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(transparent, rgba(0,0,0,0.7))", padding: "40px 16px 16px" }}>
-                        <div style={{ fontSize: 20, fontWeight: 800, color: "#fff", fontFamily: "'Playfair Display', Georgia, serif", textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}>{client.business_name}</div>
-                        {client.tagline && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)", fontStyle: "italic", marginTop: 4 }}>{client.tagline}</div>}
-                        <div style={{ display: "flex", gap: 12, marginTop: 8, fontSize: 10, color: "rgba(255,255,255,0.7)" }}>
-                          {String((client as unknown as Record<string,unknown>).contact_phone || "") && <span>📞 {String((client as unknown as Record<string,unknown>).contact_phone)}</span>}
-                          {String((client as unknown as Record<string,unknown>).contact_email || "") && <span>📧 {String((client as unknown as Record<string,unknown>).contact_email)}</span>}
+                      {/* CSS contact overlay */}
+                      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(transparent, rgba(0,0,0,0.75))", padding: "48px 16px 14px" }}>
+                        <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", fontFamily: "'Playfair Display', Georgia, serif", textShadow: "0 2px 6px rgba(0,0,0,0.6)" }}>{client.business_name}</div>
+                        {client.tagline && <div style={{ fontSize: 13, color: "rgba(255,255,255,0.9)", fontStyle: "italic", marginTop: 4 }}>&ldquo;{client.tagline}&rdquo;</div>}
+                        <div style={{ display: "flex", gap: 10, marginTop: 8, fontSize: 10, color: "rgba(255,255,255,0.75)", flexWrap: "wrap" }}>
+                          {(() => { const p = String((client as unknown as Record<string,unknown>).contact_phone || ""); return p ? <span>📞 {p}</span> : null; })()}
+                          {(() => { const e = String((client as unknown as Record<string,unknown>).contact_email || ""); return e ? <span>📧 {e}</span> : null; })()}
+                          {(() => { const a = String((client as unknown as Record<string,unknown>).contact_address || ""); return a ? <span>📍 {a}</span> : null; })()}
                         </div>
                       </div>
-                      {qrDataUrl && <img src={qrDataUrl} alt="QR" style={{ position: "absolute", bottom: 12, right: 12, width: 48, height: 48, borderRadius: 4, border: "2px solid #fff" }} />}
+                      {qrDataUrl && <img src={qrDataUrl} alt="QR" style={{ position: "absolute", bottom: 14, right: 14, width: 56, height: 56, borderRadius: 4, border: "2px solid #fff", boxShadow: "0 2px 8px rgba(0,0,0,0.4)" }} />}
                     </div>
                   ) : (
                     <div style={{
