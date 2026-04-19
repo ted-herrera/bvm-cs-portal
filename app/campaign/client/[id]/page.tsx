@@ -606,9 +606,9 @@ export default function CampaignClientPage({ params }: { params: Promise<{ id: s
                 width: 44, height: 44, borderRadius: "50%", background: "#F5C842",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontWeight: 800, color: "#1B2A4A", fontSize: 15, flexShrink: 0,
-              }}>TH</div>
+              }}>{(client.rep_id || "Rep").split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()}</div>
               <div>
-                <div style={{ fontSize: 13, color: "#fff", fontWeight: 700 }}>Ted Herrera</div>
+                <div style={{ fontSize: 13, color: "#fff", fontWeight: 700 }}>{client.rep_id || "Your Rep"}</div>
                 <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>Your BVM AE</div>
               </div>
             </div>

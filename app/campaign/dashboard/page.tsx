@@ -244,7 +244,7 @@ export default function CampaignDashboardPage() {
 
   async function loadMessages() {
     if (!selected) return;
-    const msgId = getCampaignId(selected.business_name) || selected.id;
+    const msgId = getCampaignId(selected) || selected.id;
     try { const res = await fetch(`/api/campaign/message/${msgId}`); const d = await res.json(); if (d.messages) setMessages(d.messages); } catch { /* */ }
   }
 
@@ -255,9 +255,16 @@ export default function CampaignDashboardPage() {
 
   function showToast(m: string) { setToast(m); setTimeout(() => setToast(""), 3000); }
 
-  // Find real campaign_clients UUID for message routing
-  function getCampaignId(businessName: string): string | null {
-    const match = clients.find(cc => cc.business_name.toLowerCase() === businessName.toLowerCase());
+  function isUUID(str: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+  }
+
+  // Get valid campaign_clients UUID for message routing
+  function getCampaignId(sel: CampaignClient): string | null {
+    // If selected already has a valid UUID, use it directly
+    if (sel.id && isUUID(sel.id)) return sel.id;
+    // Otherwise try to find by business name
+    const match = clients.find(cc => cc.business_name.toLowerCase() === sel.business_name.toLowerCase());
     return match?.id || null;
   }
 
@@ -281,7 +288,7 @@ export default function CampaignDashboardPage() {
   async function sendMessage() {
     if (!msgInput.trim() || !selected) return;
     // Use real campaign UUID for message API, not synthetic IDs
-    const msgId = getCampaignId(selected.business_name) || selected.id;
+    const msgId = getCampaignId(selected) || selected.id;
     setMsgSending(true);
     try { const res = await fetch(`/api/campaign/message/${msgId}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: "rep", content: msgInput }) }); const d = await res.json(); if (d.messages) setMessages(d.messages); setMsgInput(""); } catch { /* */ }
     setMsgSending(false);
@@ -825,7 +832,7 @@ export default function CampaignDashboardPage() {
             {/* MESSAGES TAB */}
             {detailTab === "messages" && (
               <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 16 }}>
-                {!getCampaignId(selected.business_name) ? (
+                {!getCampaignId(selected) ? (
                   <div style={{ textAlign: "center", padding: 20, color: GRAY }}>
                     <div style={{ fontSize: 13, marginBottom: 8 }}>No campaign started — messages unavailable</div>
                     <Link href={`/campaign/intake?businessName=${encodeURIComponent(selected.business_name)}`} style={{ color: GOLD, fontSize: 12, fontWeight: 700 }}>Start Campaign →</Link>
