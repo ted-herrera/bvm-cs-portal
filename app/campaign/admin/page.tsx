@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { CampaignClient } from "@/lib/campaign";
@@ -41,6 +41,23 @@ export default function AdminPage() {
   const router = useRouter();
   const [clients, setClients] = useState<CampaignClient[]>([]);
   const [loading, setLoading] = useState(true);
+  const [csUploading, setCsUploading] = useState(false);
+  const [csResult, setCsResult] = useState<{ total: number; byRep: Record<string, number> } | null>(null);
+  const [csError, setCsError] = useState("");
+  const csFileRef = useRef<HTMLInputElement>(null);
+
+  async function handleCsUpload(file: File) {
+    setCsUploading(true); setCsError(""); setCsResult(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/campaign/cs-upload", { method: "POST", body: form });
+      const data = await res.json();
+      if (data.error) setCsError(data.error);
+      else setCsResult({ total: data.total, byRep: data.byRep });
+    } catch { setCsError("Upload failed"); }
+    setCsUploading(false);
+  }
 
   useEffect(() => {
     const user = getAdminFromCookie();
@@ -109,6 +126,46 @@ export default function AdminPage() {
       </nav>
 
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 24px" }}>
+        {/* CS Intel Upload */}
+        <div style={{ background: "#243454", borderRadius: 12, padding: 24, border: "1px solid rgba(255,255,255,0.08)", marginBottom: 32 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, color: "#fff", margin: 0 }}>CS Intelligence Upload</h2>
+            {csResult && <span style={{ fontSize: 12, color: "#22c55e", fontWeight: 600 }}>{csResult.total} records uploaded</span>}
+          </div>
+          <div
+            onClick={() => csFileRef.current?.click()}
+            onDragOver={(e) => { e.preventDefault(); }}
+            onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleCsUpload(f); }}
+            style={{ border: "2px dashed rgba(245,200,66,0.3)", borderRadius: 10, padding: 32, textAlign: "center", cursor: "pointer", background: "rgba(255,255,255,0.02)", marginBottom: 12 }}
+          >
+            <div style={{ fontSize: 28, marginBottom: 8 }}>📊</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#fff" }}>{csUploading ? "Uploading..." : "Drop CSOps Excel file here"}</div>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>.xlsx or .csv — will distribute to all rep dashboards</div>
+            <input ref={csFileRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleCsUpload(f); }} />
+          </div>
+          {csError && <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 8 }}>{csError}</div>}
+          {csResult && (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                    <th style={{ textAlign: "left", padding: "6px 12px", color: "rgba(255,255,255,0.4)" }}>Rep</th>
+                    <th style={{ textAlign: "center", padding: "6px 12px", color: "rgba(255,255,255,0.4)" }}>Records</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(csResult.byRep).sort((a, b) => b[1] - a[1]).map(([rep, count]) => (
+                    <tr key={rep} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                      <td style={{ padding: "8px 12px", color: "#fff", fontWeight: 600 }}>{rep}</td>
+                      <td style={{ padding: "8px 12px", color: "#F5C842", fontWeight: 700, textAlign: "center" }}>{count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
         {/* Stage Counts */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 16, marginBottom: 32 }}>
           <div style={{ background: "#243454", borderRadius: 12, padding: 20, textAlign: "center", border: "1px solid rgba(255,255,255,0.08)" }}>

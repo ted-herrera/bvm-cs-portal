@@ -135,8 +135,7 @@ export default function CampaignDashboardPage() {
   useEffect(() => {
     if (!rep) return;
     if (demoMode) { setClients(MOCK_CLIENTS); setCloseLeads(MOCK_LEADS); setLoading(false); setCloseLoading(false); return; }
-    loadCampaigns(); loadCloseData();
-    try { const cs = localStorage.getItem(`cs_intel_${rep.username}`); if (cs) setCsIntelData(JSON.parse(cs)); } catch { /* */ }
+    loadCampaigns(); loadCloseData(); loadCsIntel();
     const c1 = setInterval(() => setClock(new Date()), 1000);
     const c2 = setInterval(loadCampaigns, 30000);
     return () => { clearInterval(c1); clearInterval(c2); };
@@ -153,6 +152,27 @@ export default function CampaignDashboardPage() {
     if (!rep) return;
     try { const res = await fetch("/api/campaign/close-leads", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ repName: rep.username }) }); const data = await res.json(); setCloseLeads(data.leads || []); } catch { /* */ }
     setCloseLoading(false);
+  }
+
+  async function loadCsIntel() {
+    if (!rep) return;
+    try {
+      const { getSupabase } = await import("@/lib/supabase");
+      const sb = getSupabase();
+      if (sb) {
+        const { data } = await sb.from("cs_intel").select("*").eq("rep_name", rep.username);
+        if (data && data.length > 0) {
+          setCsIntelData(data.map((r: Record<string, unknown>) => ({
+            businessName: String(r.business_name || ""),
+            health: String(r.renew_status || ""),
+            ...r,
+          })));
+          return;
+        }
+      }
+    } catch { /* */ }
+    // Fallback to localStorage
+    try { const cs = localStorage.getItem(`cs_intel_${rep.username}`); if (cs) setCsIntelData(JSON.parse(cs)); } catch { /* */ }
   }
 
   useEffect(() => { if (!selected) return; loadMessages(); const i = setInterval(loadMessages, 30000); return () => clearInterval(i); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [selected?.id]);
