@@ -156,26 +156,20 @@ export default function CampaignDashboardPage() {
   /* Actions */
   const [sendingLink, setSendingLink] = useState(false);
 
-  /* New layout state */
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerTab, setDrawerTab] = useState<"actions" | "bruno" | "territory" | "csIntel" | "card">("actions");
-  const [detailTab, setDetailTab] = useState<"overview" | "messages" | "crm">("overview");
-  const [emptyTab, setEmptyTab] = useState<"overview" | "audit">("overview");
-  const [listFilter, setListFilter] = useState<"priority" | "all" | "renewable" | "declined" | "campaign">("priority");
-  const [visibleLeadCount, setVisibleLeadCount] = useState(50);
+  /* New 3-column layout state */
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [centerTab, setCenterTab] = useState<"activity" | "campaign" | "messages" | "crm">("activity");
+  const [rightTab, setRightTab] = useState<"actions" | "bruno" | "territory" | "csIntel">("actions");
+
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteCode, setDeleteCode] = useState("");
   const [deleteError, setDeleteError] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [reportingPeriod, setReportingPeriod] = useState("");
-  const [auditBrunoResponse, setAuditBrunoResponse] = useState("");
-  const [auditBrunoLoading, setAuditBrunoLoading] = useState(false);
-  const [auditShowMatched, setAuditShowMatched] = useState(false);
-  const [auditShowCsOnly, setAuditShowCsOnly] = useState(false);
-  const [auditShowCloseOnly, setAuditShowCloseOnly] = useState(false);
 
-  /* Inline note for drawer */
-  const [noteOpen, setNoteOpen] = useState(false);
+  /* Inline note */
+  const [showNote, setShowNote] = useState(false);
   const [noteText, setNoteText] = useState("");
 
   /* Contact hydration */
@@ -183,9 +177,6 @@ export default function CampaignDashboardPage() {
 
   /* Escalation */
   const [escalationNote, setEscalationNote] = useState("");
-
-  /* Floating Bruno Bot */
-  const [brunoBotOpen, setBrunoBotOpen] = useState(false);
 
   /* ─── Data Loading ─────────────────────────────────────────────────────── */
 
@@ -271,7 +262,7 @@ export default function CampaignDashboardPage() {
   function selectContact(c: CampaignClient) {
     // If synthetic contact (csIntel/Close), swap in real campaign client if exists
     const realClient = clients.find(cc => cc.business_name.toLowerCase() === c.business_name.toLowerCase());
-    setSelected(realClient || c); setDrawerOpen(true); setDetailTab("overview"); setMessages([]); setCardSent(false);
+    setSelected(realClient || c); setMessages([]); setCardSent(false);
     setCardEmailTo(closeLeads.find(l => l.businessName.toLowerCase() === c.business_name.toLowerCase())?.email || "");
     const lead = closeLeads.find(l => l.businessName.toLowerCase() === c.business_name.toLowerCase());
     if (!lead) {
@@ -377,33 +368,10 @@ export default function CampaignDashboardPage() {
       const sb = getSupabase();
       if (sb) { await sb.from("campaign_clients").delete().eq("id", selected.id); }
       setClients(p => p.filter(c => c.id !== selected.id));
-      setSelected(null); setDrawerOpen(false); setDeleteModalOpen(false); setDeleteCode(""); setDeleteError("");
+      setSelected(null); setDeleteModalOpen(false); setDeleteCode(""); setDeleteError("");
       showToast("Client deleted");
     } catch { showToast("Delete failed — try again"); }
     setDeleting(false);
-  }
-
-  function priorityScore(item: { businessName: string; health?: string; monthly?: unknown; lastEdition?: string }): number {
-    let score = 0;
-    const mapped = mapRenewStatus(item.health || "");
-    const mo = parseFloat(String(item.monthly || "0")) || 0;
-    const le = item.lastEdition || "";
-    if (le) {
-      const days = Math.floor((new Date(le).getTime() - Date.now()) / 86400000);
-      if (days <= 30 && days > -365) score += 50;
-      else if (days <= 60 && days > -365) score += 30;
-    }
-    if (mapped === "Declined") score += 40;
-    if (mapped === "Renewable" && mo > 500) score += 25;
-    else if (mapped === "Renewable" && mo > 300) score += 15;
-    if (clients.some(c => c.business_name.toLowerCase() === item.businessName.toLowerCase())) score += 20;
-    return score;
-  }
-
-  function priDotColor(score: number): string {
-    if (score > 70) return RED;
-    if (score >= 40) return AMBER;
-    return GRAY;
   }
 
   /* ─── Auth Guard ───────────────────────────────────────────────────────── */
@@ -413,77 +381,34 @@ export default function CampaignDashboardPage() {
 
   /* ─── Derived ───────────────────────────────────────────────────────────── */
 
-  const useCs = csIntelData.length > 0;
-
-  // Stats from cs_intel when available, otherwise from Close
-  const renewableCount = useCs
-    ? csIntelData.filter(c => mapRenewStatus(c.health || "") === "Renewable").length
-    : closeLeads.filter(l => l.renewStatus === "Renewable").length;
-  const declinedCount = useCs
-    ? csIntelData.filter(c => mapRenewStatus(c.health || "") === "Declined").length
-    : closeLeads.filter(l => l.renewStatus === "Declined").length;
-  const mergedCount = useCs
-    ? csIntelData.filter(c => mapRenewStatus(c.health || "") === "Merged").length
-    : 0;
-  const totalCount = useCs ? csIntelData.length : closeLeads.length;
-
-  // For backward compat — used in center stats and drawer
-  const activeCloseLeads = closeLeads.filter(l => l.renewStatus !== "Cancelled" && l.status !== "Cancelled" && l.renewStatus !== "Lost");
-  const totalMRV = useCs
-    ? csIntelData.reduce((s, c) => s + (parseFloat(String(c.monthly || "0")) || 0), 0)
-    : closeLeads.reduce((s, l) => s + (parseFloat(l.monthly) || 0), 0);
-  const avgMonthly = totalCount > 0 ? Math.round(totalMRV / totalCount) : 0;
-
-  type ListItem = { type: "campaign"; data: CampaignClient; score: number } | { type: "close"; data: CloseLead; score: number } | { type: "csIntel"; data: typeof csIntelData[number]; score: number };
-  const sl = search.toLowerCase();
-  const filteredList: ListItem[] = (() => {
-    const items: ListItem[] = [];
-
-    if (listFilter === "campaign") {
-      clients.filter(c => !sl || c.business_name.toLowerCase().includes(sl)).forEach(c => items.push({ type: "campaign", data: c, score: 20 }));
-      return items;
-    }
-
-    // Build full list from csIntel or Close
-    if (useCs) {
-      // Campaign clients
-      clients.filter(c => !sl || c.business_name.toLowerCase().includes(sl)).forEach(c => {
-        const csMatch = csIntelData.find(ci => ci.businessName.toLowerCase() === c.business_name.toLowerCase());
-        items.push({ type: "campaign", data: c, score: csMatch ? priorityScore(csMatch) + 20 : 20 });
-      });
-      // CS Intel clients (no campaign duplicate)
-      csIntelData.filter(c => {
-        if (sl && !c.businessName.toLowerCase().includes(sl)) return false;
-        if (clients.some(cc => cc.business_name.toLowerCase() === c.businessName.toLowerCase())) return false;
-        const mapped = mapRenewStatus(c.health || "");
-        if (listFilter === "renewable" && mapped !== "Renewable") return false;
-        if (listFilter === "declined" && mapped !== "Declined") return false;
-        return true;
-      }).forEach(c => items.push({ type: "csIntel", data: c, score: priorityScore(c) }));
-    } else {
-      clients.filter(c => !sl || c.business_name.toLowerCase().includes(sl)).forEach(c => items.push({ type: "campaign", data: c, score: 20 }));
-      const src = listFilter === "renewable" ? closeLeads.filter(l => l.renewStatus === "Renewable")
-        : listFilter === "declined" ? closeLeads.filter(l => l.renewStatus === "Declined")
-        : activeCloseLeads.filter(l => !clients.some(c => c.business_name.toLowerCase() === l.businessName.toLowerCase()));
-      src.filter(l => !sl || l.businessName.toLowerCase().includes(sl)).forEach(l => items.push({ type: "close", data: l, score: 0 }));
-    }
-
-    // Sort by priority score descending
-    items.sort((a, b) => b.score - a.score);
-
-    // Priority filter: top 25 only (unless searching or other filter)
-    if (listFilter === "priority" && !sl) return items.slice(0, 25);
-
-    return items;
-  })();
-
-  const sbr = selected ? (selected.sbr_data || {}) as Record<string, unknown> : {};
   const matchingLead = selected ? closeLeads.find(l => l.businessName.toLowerCase() === selected.business_name.toLowerCase()) : null;
   const repDisplay = demoMode ? "Demo User" : rep.username;
+  const sbr = selected ? (selected.sbr_data || {}) as Record<string, unknown> : {};
+  const csMatch = selected ? csIntelData.find(ci => ci.businessName.toLowerCase() === selected.business_name.toLowerCase()) : null;
+
+  // Search results
+  const sq = searchQuery.trim().toLowerCase();
+  const searchResults: Array<{ name: string; city: string; type: "cs" | "close" | "campaign"; renew?: string; monthly?: string; source: unknown }> = [];
+  if (sq) {
+    csIntelData.filter(c => c.businessName.toLowerCase().includes(sq)).forEach(c => searchResults.push({ name: c.businessName, city: String(c.market || c.region || ""), type: "cs", renew: mapRenewStatus(c.health || ""), monthly: String(c.monthly || ""), source: c }));
+    closeLeads.filter(l => l.businessName.toLowerCase().includes(sq) && !searchResults.some(r => r.name.toLowerCase() === l.businessName.toLowerCase())).forEach(l => searchResults.push({ name: l.businessName, city: l.publications || l.region, type: "close", renew: l.renewStatus, monthly: l.monthly, source: l }));
+    clients.filter(c => c.business_name.toLowerCase().includes(sq) && !searchResults.some(r => r.name.toLowerCase() === c.business_name.toLowerCase())).forEach(c => searchResults.push({ name: c.business_name, city: c.city, type: "campaign", source: c }));
+  }
+
+  // Activity items
+  const activityItems: Array<{ id: string; name: string; desc: string; time: string; color: string; client: CampaignClient }> = [];
+  const activityClients = selected ? clients.filter(c => c.id === selected.id) : clients;
+  activityClients.forEach(c => {
+    activityItems.push({ id: c.id + "-created", name: c.business_name, desc: `Campaign created - ${c.category}`, time: c.created_at, color: GREEN, client: c });
+    if (c.stage !== "intake") activityItems.push({ id: c.id + "-stage", name: c.business_name, desc: `Stage: ${STAGE_LABELS[c.stage]}`, time: c.approved_at || c.created_at, color: "#3b82f6", client: c });
+  });
+  activityItems.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+
+  const stageOrder = ["intake", "tearsheet", "approved", "production", "delivered"];
 
   /* ─── Render ───────────────────────────────────────────────────────────── */
   return (
-    <div style={{ height: "100vh", overflow: "hidden", fontFamily: "Inter, 'DM Sans', -apple-system, sans-serif", display: "grid", gridTemplateRows: "52px 1fr", gridTemplateColumns: "280px 1fr" }}>
+    <div style={{ height: "100vh", overflow: "hidden", fontFamily: "Inter, 'DM Sans', -apple-system, sans-serif", display: "grid", gridTemplateRows: "52px 1fr" }}>
 
       {/* Toast */}
       {toast && <div style={{ position: "fixed", top: 60, left: "50%", transform: "translateX(-50%)", background: GREEN, color: "#fff", padding: "6px 18px", borderRadius: 8, fontSize: 12, fontWeight: 600, zIndex: 999 }}>{toast}</div>}
@@ -491,338 +416,217 @@ export default function CampaignDashboardPage() {
       {/* Demo banner */}
       {demoMode && <div style={{ position: "fixed", top: 52, left: 0, right: 0, background: "#fef3c7", color: "#92400e", textAlign: "center", fontSize: 11, fontWeight: 700, padding: "4px 0", zIndex: 60 }}>DEMO MODE — sample data</div>}
 
-      {/* ── NAV (52px, spans both columns) ─────────────────────────────── */}
+      {/* ── TOP NAV (52px) ─────────────────────────────────────────────── */}
       <nav style={{ gridColumn: "1 / -1", height: 52, background: NAVY, display: "flex", alignItems: "center", padding: "0 16px", gap: 12, position: "relative", zIndex: 50 }}>
         <span style={{ fontSize: 13, fontWeight: 800, color: "#fff", letterSpacing: "0.12em" }}>CAMPAIGN PORTAL</span>
 
-        <div style={{ flex: 1 }} />
+        {/* Center search bar */}
+        <div style={{ flex: 1, maxWidth: 400, margin: "0 auto", position: "relative" }}>
+          <div style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, padding: "0 14px", display: "flex", alignItems: "center" }}>
+            <input
+              value={searchQuery}
+              onChange={e => { setSearchQuery(e.target.value); setSearchOpen(true); }}
+              onBlur={() => { setTimeout(() => setSearchOpen(false), 200); }}
+              onKeyDown={e => { if (e.key === "Escape") { setSearchQuery(""); setSearchOpen(false); } }}
+              placeholder="Search contacts..."
+              style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "#fff", fontSize: 13, padding: "8px 0" }}
+            />
+          </div>
+          {/* Search dropdown */}
+          {searchOpen && sq && (
+            <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: SURFACE, borderRadius: "0 0 8px 8px", boxShadow: "0 8px 24px rgba(0,0,0,0.15)", maxHeight: 320, overflowY: "auto", zIndex: 100 }}>
+              <div style={{ padding: "8px 14px", fontSize: 11, color: GRAY }}>{searchResults.length} results for &apos;{searchQuery.trim()}&apos;</div>
+              {searchResults.map((r, i) => (
+                <div key={i} onClick={() => {
+                  if (r.type === "close") selectCloseLead(r.source as CloseLead);
+                  else if (r.type === "campaign") selectContact(r.source as CampaignClient);
+                  else selectContact({ id: r.name, business_name: r.name, city: r.city, zip: "", category: "", services: "", ad_size: "", tagline: "", rep_id: rep.username, stage: "intake" as const, sbr_data: null, generated_directions: null, selected_direction: null, approved_at: null, revisions: null, created_at: "" } as unknown as CampaignClient);
+                  setSearchOpen(false); setSearchQuery("");
+                }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 14px", cursor: "pointer", borderBottom: `1px solid ${BORDER}` }}>
+                  <div style={{ width: 30, height: 30, borderRadius: "50%", background: avatarBg(r.type === "campaign" ? ((r.source as CampaignClient).category || "") : ""), color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800 }}>{initials(r.name)}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: TEXT, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.name}</div>
+                    <div style={{ fontSize: 11, color: GRAY }}>{r.city}</div>
+                  </div>
+                  {r.renew && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 4, color: renewColor(r.renew), background: `${renewColor(r.renew)}15` }}>{r.renew}</span>}
+                  {r.monthly && parseFloat(r.monthly) > 0 && <span style={{ fontSize: 10, fontWeight: 600, color: GOLD }}>${parseFloat(r.monthly).toFixed(0)}/mo</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Right controls */}
         <span style={{ fontSize: 11, color: "#fff" }}>{clock.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>
         <button onClick={() => setDemoMode(!demoMode)} style={{ background: demoMode ? "#fef3c7" : "rgba(255,255,255,0.1)", border: "none", borderRadius: 6, padding: "5px 10px", fontSize: 10, fontWeight: 600, color: demoMode ? "#92400e" : "rgba(255,255,255,0.7)", cursor: "pointer" }}>Demo</button>
-        <button onClick={() => setCsModalOpen(true)} style={{ background: "transparent", border: "none", fontSize: 14, color: "#fff", cursor: "pointer", padding: "4px 6px" }}>📊</button>
+        <button onClick={() => setCsModalOpen(true)} style={{ background: "transparent", border: "none", fontSize: 14, color: "#fff", cursor: "pointer", padding: "4px 6px" }}>📊 CS</button>
         <Link href="/campaign/intake" style={{ background: GOLD, color: NAVY, borderRadius: 6, padding: "6px 14px", fontSize: 12, fontWeight: 700, textDecoration: "none" }}>New Campaign →</Link>
         <div style={{ width: 28, height: 28, borderRadius: "50%", background: GOLD, color: NAVY, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800 }}>{initials(repDisplay)}</div>
         <span style={{ fontSize: 12, color: "#fff" }}>{repDisplay}</span>
         <button onClick={handleSignOut} style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 6, padding: "5px 10px", fontSize: 10, color: "#fff", cursor: "pointer" }}>Out</button>
       </nav>
 
-      {/* ── LEFT SIDEBAR (280px) ───────────────────────────────────────── */}
-      <div style={{ background: SURFACE, borderRight: `1px solid ${BORDER}`, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      {/* ── BODY (3-column grid) ───────────────────────────────────────── */}
+      <div style={{ display: "grid", gridTemplateColumns: "300px 1fr 420px", height: "calc(100vh - 52px)" }}>
 
-        {/* Header */}
-        <div style={{ padding: "10px 12px 4px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: TEXT }}>{listFilter === "priority" ? "Priority Queue" : listFilter === "all" ? "All Contacts" : listFilter.charAt(0).toUpperCase() + listFilter.slice(1)}</span>
-          <span style={{ fontSize: 10, color: GRAY }}>{sl ? `${filteredList.length} results` : listFilter === "priority" ? `Top 25 of ${totalCount}` : `${filteredList.length}`}</span>
-        </div>
+        {/* ── LEFT COLUMN (300px) ───────────────────────────────────────── */}
+        <div style={{ background: SURFACE, borderRight: `1px solid ${BORDER}`, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+          {!selected ? (
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 20 }}>
+              <div style={{ fontSize: 40, fontWeight: 800, color: GOLD, opacity: 0.15, marginBottom: 12 }}>BVM</div>
+              <div style={{ fontSize: 14, color: TEXT2, marginBottom: 6 }}>Search for a contact</div>
+              <div style={{ fontSize: 12, color: GRAY }}>Use the search bar to find any client</div>
+            </div>
+          ) : (
+            <div style={{ padding: 20, display: "flex", flexDirection: "column", flex: 1 }}>
+              {/* IDENTITY */}
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", marginBottom: 0 }}>
+                <div style={{ width: 56, height: 56, borderRadius: "50%", background: avatarBg(selected.category), color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 800 }}>{initials(selected.business_name)}</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: TEXT, marginTop: 12 }}>{selected.business_name}</div>
+                <div style={{ fontSize: 13, color: GRAY }}>{selected.city}{matchingLead?.publications ? ` · ${matchingLead.publications}` : ""}</div>
+                <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 10px", borderRadius: 6, background: `${STAGE_COLORS[selected.stage]}15`, color: STAGE_COLORS[selected.stage] }}>{STAGE_LABELS[selected.stage]}</span>
+                  {matchingLead?.renewStatus && <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 10px", borderRadius: 6, color: renewColor(matchingLead.renewStatus), background: `${renewColor(matchingLead.renewStatus)}15` }}>{mapRenewStatus(matchingLead.renewStatus)}</span>}
+                </div>
+                {csMatch?.health && <span style={{ fontSize: 10, fontWeight: 700, marginTop: 6, padding: "2px 10px", borderRadius: 6, color: csMatch.health === "CRITICAL" ? RED : csMatch.health === "HIGH" ? AMBER : GREEN, background: csMatch.health === "CRITICAL" ? `${RED}15` : csMatch.health === "HIGH" ? `${AMBER}15` : `${GREEN}15` }}>{String(csMatch.health)}</span>}
+              </div>
 
-        {/* Search */}
-        <div style={{ padding: "0 12px 8px" }}>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search all contacts..." style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, background: BG, fontSize: 12, outline: "none", boxSizing: "border-box", color: TEXT }} />
-        </div>
+              <div style={{ height: 1, background: BORDER, margin: "16px 0" }} />
 
-        {/* Filter tabs */}
-        <div style={{ display: "flex", borderBottom: `1px solid ${BORDER}` }}>
-          {(["priority", "renewable", "declined", "campaign", "all"] as const).map(f => (
-            <button key={f} onClick={() => setListFilter(f)} style={{ flex: 1, padding: "7px 0", fontSize: 10, fontWeight: 600, cursor: "pointer", border: "none", background: "transparent", color: listFilter === f ? NAVY : GRAY, borderBottom: listFilter === f ? `2px solid ${GOLD}` : "2px solid transparent", textTransform: "capitalize" }}>{f}</button>
-          ))}
-        </div>
+              {/* CONTACT */}
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: GOLD, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 10 }}>CONTACT</div>
+                {matchingLead?.phone && <div style={{ fontSize: 14, color: TEXT, marginBottom: 4 }}>📞 <a href={`tel:${matchingLead.phone}`} style={{ color: "#4A90D9", textDecoration: "none" }}>{matchingLead.phone}</a></div>}
+                {matchingLead?.email && <div style={{ fontSize: 14, color: TEXT, marginBottom: 4 }}>📧 <a href={`mailto:${matchingLead.email}`} style={{ color: "#4A90D9", textDecoration: "none" }}>{matchingLead.email}</a></div>}
+                {matchingLead?.agreementNumber && <div style={{ fontSize: 13, color: TEXT, marginBottom: 4 }}>📋 Agr: {matchingLead.agreementNumber}</div>}
+                {matchingLead?.saleDate && <div style={{ fontSize: 13, color: TEXT, marginBottom: 4 }}>📅 Sale: {matchingLead.saleDate}</div>}
+                {matchingLead?.firstEdition && <div style={{ fontSize: 13, color: TEXT, marginBottom: 4 }}>▶ First: {matchingLead.firstEdition}</div>}
+                {matchingLead?.lastEdition && <div style={{ fontSize: 13, color: (() => { const d = Math.floor((new Date(matchingLead.lastEdition).getTime() - Date.now()) / 86400000); return d <= 60 ? AMBER : TEXT; })(), marginBottom: 4 }}>⏹ Last: {matchingLead.lastEdition}</div>}
+                {matchingLead?.soldBy && <div style={{ fontSize: 13, color: TEXT, marginBottom: 4 }}>👤 Sold By: {matchingLead.soldBy}</div>}
+              </div>
 
-        {/* Client list */}
-        <div style={{ flex: 1, overflowY: "auto" }}>
-          {loading && !demoMode ? <div style={{ padding: 20, textAlign: "center", color: GRAY, fontSize: 12 }}>Loading...</div> : (
-            <>
-              {filteredList.slice(0, visibleLeadCount).map(item => {
-                if (item.type === "campaign") {
-                  const c = item.data;
-                  const isActive = selected?.id === c.id;
-                  return (
-                    <div key={c.id} onClick={() => selectContact(c)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer", borderBottom: `1px solid ${BORDER}`, borderLeft: isActive ? `3px solid ${GOLD}` : "3px solid transparent", background: isActive ? SURFACE : "transparent" }}>
-                      <div style={{ width: 34, height: 34, borderRadius: 8, background: avatarBg(c.category), color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{initials(c.business_name)}</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: TEXT, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.business_name}</div>
-                        <div style={{ fontSize: 10, color: GRAY }}>{c.city}</div>
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
-                        <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 4, background: `${STAGE_COLORS[c.stage]}15`, color: STAGE_COLORS[c.stage] }}>{STAGE_LABELS[c.stage]}</span>
-                      </div>
+              <div style={{ height: 1, background: BORDER, margin: "16px 0" }} />
+
+              {/* ACCOUNT */}
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: GOLD, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 10 }}>ACCOUNT</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: GOLD, marginBottom: 8 }}>{matchingLead?.monthly ? `$${matchingLead.monthly}/mo` : "---"}</div>
+                <div style={{ fontSize: 13, color: TEXT, marginBottom: 4 }}>Ad Type: {selected.ad_size || matchingLead?.adType || "---"}</div>
+                <div style={{ fontSize: 13, color: TEXT, marginBottom: 4 }}>Publication: {matchingLead?.publications || "---"}</div>
+                <div style={{ fontSize: 13, color: TEXT, marginBottom: 4 }}>Cadence: {matchingLead?.cadence || "---"}</div>
+                <div style={{ fontSize: 13, color: TEXT, marginBottom: 4 }}>Region/DVL: {matchingLead?.region || "---"} / {matchingLead?.dvl || "---"}</div>
+              </div>
+
+              {/* CAMPAIGN section */}
+              {getCampaignId(selected) && (
+                <>
+                  <div style={{ height: 1, background: BORDER, margin: "16px 0" }} />
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: GOLD, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 10 }}>CAMPAIGN</div>
+                    <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                      {stageOrder.map((s, i) => (
+                        <div key={s} style={{ width: 10, height: 10, borderRadius: "50%", background: i <= stageOrder.indexOf(selected.stage) ? STAGE_COLORS[selected.stage] : BORDER }} />
+                      ))}
                     </div>
-                  );
-                } else if (item.type === "csIntel") {
-                  const c = item.data;
-                  const mapped = mapRenewStatus(c.health || "");
-                  const isActive = selected?.business_name?.toLowerCase() === c.businessName.toLowerCase();
-                  const mo = parseFloat(String(c.monthly || "0")) || 0;
-                  return (
-                    <div key={c.businessName + String(c.contractNumber || "")} onClick={() => selectContact({ id: c.businessName, business_name: c.businessName, city: String(c.market || c.region || ""), zip: "", category: String(c.industry || ""), services: String(c.saleItems || ""), ad_size: String(c.saleItems || ""), tagline: "", rep_id: rep!.username, stage: "intake" as const, sbr_data: null, generated_directions: null, selected_direction: null, approved_at: null, revisions: null, created_at: "" } as unknown as CampaignClient)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer", borderBottom: `1px solid ${BORDER}`, borderLeft: isActive ? `3px solid ${GOLD}` : "3px solid transparent", background: isActive ? SURFACE : "transparent" }}>
-                      <div style={{ position: "relative" }}>
-                        <div style={{ width: 34, height: 34, borderRadius: 8, background: avatarBg(String(c.industry || "")), color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{initials(c.businessName)}</div>
-                        {item.score > 0 && <div style={{ position: "absolute", top: -2, right: -2, width: 8, height: 8, borderRadius: "50%", background: priDotColor(item.score), border: "1px solid " + SURFACE }} />}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: TEXT, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.businessName}</div>
-                        <div style={{ fontSize: 10, color: GRAY }}>{c.lastEdition ? `Last: ${c.lastEdition}` : String(c.market || c.industry || "")}</div>
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
-                        {mapped && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 4, color: renewColor(c.health || ""), background: `${renewColor(c.health || "")}15` }}>{mapped}</span>}
-                        {mo > 0 && <span style={{ fontSize: 10, fontWeight: 600, color: GOLD }}>${mo.toFixed(0)}/mo</span>}
-                      </div>
-                    </div>
-                  );
-                } else {
-                  const l = item.data as CloseLead;
-                  const isActive = selected?.business_name?.toLowerCase() === l.businessName.toLowerCase();
-                  return (
-                    <div key={l.id} onClick={() => selectCloseLead(l)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer", borderBottom: `1px solid ${BORDER}`, borderLeft: isActive ? `3px solid ${GOLD}` : "3px solid transparent", background: isActive ? SURFACE : "transparent" }}>
-                      <div style={{ width: 34, height: 34, borderRadius: 8, background: avatarBg(l.adType), color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{initials(l.businessName)}</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: TEXT, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l.businessName}</div>
-                        <div style={{ fontSize: 10, color: GRAY }}>{l.publications || l.region}</div>
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
-                        {l.renewStatus && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 4, color: l.renewStatus === "Renewable" ? GREEN : l.renewStatus === "Declined" ? RED : GRAY, background: l.renewStatus === "Renewable" ? `${GREEN}15` : l.renewStatus === "Declined" ? `${RED}15` : `${GRAY}15` }}>{l.renewStatus}</span>}
-                        {l.monthly && <span style={{ fontSize: 10, fontWeight: 600, color: GOLD }}>${l.monthly}/mo</span>}
-                      </div>
-                    </div>
-                  );
-                }
-              })}
-              {filteredList.length > visibleLeadCount && (
-                <button onClick={() => setVisibleLeadCount(p => p + 50)} style={{ width: "100%", padding: "10px 0", border: "none", background: "transparent", color: GOLD, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Load more</button>
+                    <Link href={`/campaign/client/${getCampaignId(selected)}`} style={{ color: GOLD, fontSize: 13, fontWeight: 700, textDecoration: "none" }}>View Campaign →</Link>
+                  </div>
+                </>
               )}
-            </>
+
+              {/* Bottom fixed action */}
+              <div style={{ marginTop: "auto", paddingTop: 16 }}>
+                {getCampaignId(selected) ? (
+                  <Link href={`/campaign/client/${getCampaignId(selected)}`} style={{ display: "block", width: "100%", background: GOLD, color: NAVY, borderRadius: 8, padding: "12px 0", fontSize: 14, fontWeight: 700, textDecoration: "none", textAlign: "center", boxSizing: "border-box" }}>Open Portal →</Link>
+                ) : (
+                  <Link href={`/campaign/intake?businessName=${encodeURIComponent(selected.business_name)}`} style={{ display: "block", width: "100%", background: GOLD, color: NAVY, borderRadius: 8, padding: "12px 0", fontSize: 14, fontWeight: 700, textDecoration: "none", textAlign: "center", boxSizing: "border-box" }}>Start Campaign →</Link>
+                )}
+              </div>
+            </div>
           )}
         </div>
-      </div>
 
-      {/* ── CENTER PANEL ───────────────────────────────────────────────── */}
-      <div style={{ background: BG, overflowY: "auto", padding: 20 }}>
-        {!selected ? (
-          <div>
-            {/* BOB Snapshot */}
-            {useCs && (
-              <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 20, marginBottom: 16 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
-                  <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: GOLD, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>Book of Business</div>
-                    <div style={{ fontSize: 20, fontWeight: 800, color: TEXT }}>{repDisplay}</div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 10, color: GRAY }}>Period:</span>
-                    <input type="date" value={reportingPeriod} onChange={e => { setReportingPeriod(e.target.value); if (e.target.value) loadCsForDate(e.target.value); }} style={{ padding: "4px 8px", borderRadius: 6, border: `1px solid ${BORDER}`, fontSize: 11, color: TEXT, background: BG }} />
-                    {(() => { const wk = csIntelData[0]?.week_of; return wk ? <span style={{ fontSize: 10, background: `${NAVY}12`, color: NAVY, padding: "2px 8px", borderRadius: 10, fontWeight: 600 }}>{String(wk).slice(0, 10)}</span> : null; })()}
-                  </div>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 14 }}>
-                  <div style={{ background: BG, borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
-                    <div style={{ fontSize: 32, fontWeight: 800, color: GOLD }}>${Math.round(totalMRV).toLocaleString()}</div>
-                    <div style={{ fontSize: 11, color: GRAY, fontWeight: 600, textTransform: "uppercase" as const }}>MRR</div>
-                  </div>
-                  <div style={{ background: BG, borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
-                    <div style={{ fontSize: 24, fontWeight: 800, color: TEXT }}>${(totalMRV * 12 / 1000000).toFixed(2)}M</div>
-                    <div style={{ fontSize: 11, color: GRAY, fontWeight: 600, textTransform: "uppercase" as const }}>ARR</div>
-                  </div>
-                  <div style={{ background: BG, borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
-                    <div style={{ fontSize: 24, fontWeight: 800, color: TEXT2 }}>${(totalMRV * 12 * 1.75 / 1000000).toFixed(2)}M</div>
-                    <div style={{ fontSize: 11, color: GRAY, fontWeight: 600, textTransform: "uppercase" as const }}>TCV (est.)</div>
-                  </div>
-                  <div style={{ background: BG, borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
-                    <div style={{ fontSize: 24, fontWeight: 800, color: NAVY }}>{totalCount}</div>
-                    <div style={{ fontSize: 11, color: GRAY, fontWeight: 600, textTransform: "uppercase" as const }}>Accounts</div>
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: GREEN, background: `${GREEN}12`, padding: "3px 10px", borderRadius: 10 }}><span style={{ fontSize: 16, fontWeight: 800 }}>{renewableCount}</span> <span style={{ fontSize: 11 }}>Renewable</span></span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: RED, background: `${RED}12`, padding: "3px 10px", borderRadius: 10 }}><span style={{ fontSize: 16, fontWeight: 800 }}>{declinedCount}</span> <span style={{ fontSize: 11 }}>Declined</span></span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: AMBER, background: `${AMBER}12`, padding: "3px 10px", borderRadius: 10 }}><span style={{ fontSize: 16, fontWeight: 800 }}>{mergedCount}</span> <span style={{ fontSize: 11 }}>Merged</span></span>
-                </div>
-              </div>
-            )}
-
-            {/* Tabs: Overview / Audit */}
-            {useCs && closeLeads.length > 0 && (
-              <div style={{ display: "flex", gap: 4, marginBottom: 14 }}>
-                {(["overview", "audit"] as const).map(t => (
-                  <button key={t} onClick={() => setEmptyTab(t)} style={{ padding: "6px 16px", borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: "pointer", border: "none", background: emptyTab === t ? NAVY : SURFACE, color: emptyTab === t ? "#fff" : TEXT2, textTransform: "capitalize" }}>{t === "audit" ? "CSOps × Close Audit" : t}</button>
-                ))}
-              </div>
-            )}
-
-            {emptyTab === "audit" && useCs && closeLeads.length > 0 ? (() => {
-              const csNames = csIntelData.map(c => ({ orig: c.businessName, norm: normName(c.businessName), data: c }));
-              const clNames = closeLeads.map(l => ({ orig: l.businessName, norm: normName(l.businessName), data: l }));
-              const matched = csNames.filter(c => clNames.some(l => l.norm === c.norm));
-              const csOnly = csNames.filter(c => !clNames.some(l => l.norm === c.norm));
-              const closeOnly = clNames.filter(l => !csNames.some(c => c.norm === l.norm));
-              return (
-                <div>
-                  <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 700, color: TEXT, marginBottom: 4 }}>CSOps × Close CRM Reconciliation</div>
-                    <div style={{ fontSize: 12, color: GRAY }}>CSOps report vs live Close CRM data</div>
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 16 }}>
-                    <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 14, textAlign: "center" }}>
-                      <div style={{ fontSize: 24, fontWeight: 800, color: GREEN }}>{matched.length}</div>
-                      <div style={{ fontSize: 10, color: GRAY, fontWeight: 600 }}>Matched</div>
-                    </div>
-                    <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 14, textAlign: "center" }}>
-                      <div style={{ fontSize: 24, fontWeight: 800, color: AMBER }}>{csOnly.length}</div>
-                      <div style={{ fontSize: 10, color: GRAY, fontWeight: 600 }}>CSOps Only</div>
-                    </div>
-                    <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 14, textAlign: "center" }}>
-                      <div style={{ fontSize: 24, fontWeight: 800, color: "#4A90D9" }}>{closeOnly.length}</div>
-                      <div style={{ fontSize: 10, color: GRAY, fontWeight: 600 }}>Close Only</div>
-                    </div>
-                    <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 14, textAlign: "center" }}>
-                      <div style={{ fontSize: 24, fontWeight: 800, color: TEXT2 }}>{Math.abs(csIntelData.length - closeLeads.length)}</div>
-                      <div style={{ fontSize: 10, color: GRAY, fontWeight: 600 }}>Discrepancy</div>
-                      <div style={{ fontSize: 9, color: GRAY, marginTop: 4, lineHeight: 1.4 }} title="Close CRM includes all leads including cancelled and lapsed accounts. CSOps renewal report includes only active accounts in the current reporting period. The difference represents cancelled, lapsed, or post-report accounts.">ⓘ hover for details</div>
-                    </div>
-                  </div>
-
-                  {/* Expandable tables */}
-                  {[
-                    { label: "Matched", color: GREEN, items: matched.map(m => m.orig), show: auditShowMatched, toggle: () => setAuditShowMatched(p => !p) },
-                    { label: "CSOps Only", color: AMBER, items: csOnly.map(c => `${c.orig} — $${parseFloat(String(c.data.monthly || "0")).toFixed(0)}/mo — ${mapRenewStatus(c.data.health || "")}`), show: auditShowCsOnly, toggle: () => setAuditShowCsOnly(p => !p) },
-                    { label: "Close Only", color: "#4A90D9", items: closeOnly.map(c => `${c.orig} — ${c.data.status} — $${c.data.monthly}/mo`), show: auditShowCloseOnly, toggle: () => setAuditShowCloseOnly(p => !p) },
-                  ].map(section => (
-                    <div key={section.label} style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 14, marginBottom: 10 }}>
-                      <button onClick={section.toggle} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, width: "100%", padding: 0 }}>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: section.color }}>{section.label} ({section.items.length})</span>
-                        <span style={{ fontSize: 10, color: GRAY }}>{section.show ? "▼" : "▶"}</span>
-                      </button>
-                      {section.show && (
-                        <div style={{ marginTop: 8, maxHeight: 200, overflowY: "auto" }}>
-                          {section.items.map((item, i) => (
-                            <div key={i} style={{ fontSize: 11, color: TEXT, padding: "3px 0", borderBottom: `1px solid ${BORDER}` }}>{item}</div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-
-                  {/* Bruno audit */}
-                  <button onClick={async () => {
-                    setAuditBrunoLoading(true);
-                    try {
-                      const summary = `CSOps has ${csIntelData.length} accounts. Close has ${closeLeads.length}. Matched: ${matched.length}. CSOps-only: ${csOnly.length}. Close-only: ${closeOnly.length}. Top CSOps-only names: ${csOnly.slice(0, 5).map(c => c.orig).join(", ")}. Top Close-only names: ${closeOnly.slice(0, 5).map(c => c.orig).join(", ")}.`;
-                      const res = await fetch("/api/campaign/bruno-va", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: [{ role: "user", content: `Analyze this CSOps vs Close CRM audit and give me actionable recommendations: ${summary}` }], pipeline: [] }) });
-                      const d = await res.json();
-                      setAuditBrunoResponse(d.response || "No response");
-                    } catch { setAuditBrunoResponse("Failed to analyze"); }
-                    setAuditBrunoLoading(false);
-                  }} disabled={auditBrunoLoading} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 8, padding: "10px 18px", fontSize: 12, fontWeight: 700, cursor: "pointer", marginBottom: 10, opacity: auditBrunoLoading ? 0.5 : 1 }}>
-                    {auditBrunoLoading ? "Analyzing..." : "🔍 Ask Bruno to Analyze"}
-                  </button>
-                  {auditBrunoResponse && (
-                    <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 14, fontSize: 12, color: TEXT, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{auditBrunoResponse}</div>
-                  )}
-                </div>
-              );
-            })() : (
-            <>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
-              {[
-                { l: "Total Active", v: totalCount, c: NAVY },
-                { l: "Renewable", v: renewableCount, c: GREEN },
-                { l: "Declined", v: declinedCount, c: RED },
-                { l: "Avg Monthly", v: `$${avgMonthly}`, c: GOLD },
-              ].map(s => (
-                <div key={s.l} style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 16, textAlign: "center" }}>
-                  <div style={{ fontSize: 24, fontWeight: 800, color: s.c }}>{s.v}</div>
-                  <div style={{ fontSize: 11, color: GRAY, fontWeight: 600, marginTop: 2 }}>{s.l}</div>
-                </div>
-              ))}
-            </div>
-            <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: NAVY, marginBottom: 12 }}>Recent Activity</div>
-              {clients.slice(0, 8).map(c => (
-                <div key={c.id} onClick={() => selectContact(c)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${BORDER}`, cursor: "pointer" }}>
-                  <div style={{ width: 26, height: 26, borderRadius: 6, background: avatarBg(c.category), color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800 }}>{initials(c.business_name)}</div>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: TEXT, flex: 1 }}>{c.business_name}</span>
-                  <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 4, background: `${STAGE_COLORS[c.stage]}15`, color: STAGE_COLORS[c.stage] }}>{STAGE_LABELS[c.stage]}</span>
-                  <span style={{ fontSize: 10, color: GRAY }}>{daysSince(c.created_at)}d</span>
-                </div>
-              ))}
-            </div>
-            </>
-            )}
+        {/* ── CENTER COLUMN ─────────────────────────────────────────────── */}
+        <div style={{ background: BG, display: "flex", flexDirection: "column" }}>
+          {/* Tab bar */}
+          <div style={{ height: 40, background: SURFACE, borderBottom: `1px solid ${BORDER}`, display: "flex" }}>
+            {(["activity", "campaign", "messages", "crm"] as const).map(t => (
+              <button key={t} onClick={() => setCenterTab(t)} style={{ flex: 1, padding: "10px 0", fontSize: 12, fontWeight: 600, cursor: "pointer", border: "none", background: "transparent", borderBottom: centerTab === t ? `2px solid ${GOLD}` : "2px solid transparent", color: centerTab === t ? NAVY : GRAY }}>{t === "crm" ? "Close CRM" : t === "activity" ? "Activity" : t === "campaign" ? "Campaign" : "Messages"}</button>
+            ))}
           </div>
-        ) : (
-          <div>
-            {/* Hero card */}
-            <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 20, marginBottom: 14 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
-                <div style={{ width: 48, height: 48, borderRadius: 10, background: avatarBg(selected.category), color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800 }}>{initials(selected.business_name)}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: TEXT }}>{selected.business_name}</div>
-                  <div style={{ fontSize: 13, color: GRAY }}>{selected.city}</div>
-                </div>
-                <span style={{ fontSize: 11, fontWeight: 700, padding: "4px 12px", borderRadius: 6, background: `${STAGE_COLORS[selected.stage]}15`, color: STAGE_COLORS[selected.stage] }}>{STAGE_LABELS[selected.stage]}</span>
-                {matchingLead?.renewStatus && <span style={{ fontSize: 11, fontWeight: 700, padding: "4px 12px", borderRadius: 6, color: matchingLead.renewStatus === "Renewable" ? GREEN : matchingLead.renewStatus === "Declined" ? RED : GRAY, background: matchingLead.renewStatus === "Renewable" ? `${GREEN}15` : matchingLead.renewStatus === "Declined" ? `${RED}15` : `${GRAY}15` }}>{matchingLead.renewStatus}</span>}
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
-                {[
-                  { l: "Monthly", v: matchingLead?.monthly ? `$${matchingLead.monthly}` : "---" },
-                  { l: "Ad Type", v: selected.ad_size || matchingLead?.adType || "---" },
-                  { l: "Last Edition", v: matchingLead?.lastEdition || "---" },
-                  { l: "Agreement #", v: matchingLead?.agreementNumber || "---" },
-                ].map(s => (
-                  <div key={s.l} style={{ background: BG, borderRadius: 8, padding: "8px 10px", textAlign: "center" }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: TEXT }}>{s.v}</div>
-                    <div style={{ fontSize: 9, color: GRAY }}>{s.l}</div>
+
+          {/* Content area */}
+          <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
+
+            {/* ACTIVITY TAB */}
+            {centerTab === "activity" && (
+              <div>
+                {activityItems.slice(0, 20).map(item => (
+                  <div key={item.id} onClick={() => selectContact(item.client)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: `1px solid ${BORDER}`, cursor: "pointer" }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: item.color, flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: TEXT }}>{item.name}</div>
+                      <div style={{ fontSize: 12, color: GRAY }}>{item.desc}</div>
+                    </div>
+                    <div style={{ fontSize: 11, color: GRAY, flexShrink: 0 }}>{timeAgo(item.time)}</div>
                   </div>
                 ))}
+                {activityItems.length === 0 && <div style={{ textAlign: "center", color: GRAY, fontSize: 13, padding: 40 }}>No recent activity</div>}
               </div>
-            </div>
+            )}
 
-            {/* Detail tabs (pill style) */}
-            <div style={{ display: "flex", gap: 4, marginBottom: 14 }}>
-              {(["overview", "messages", "crm"] as const).map(t => (
-                <button key={t} onClick={() => setDetailTab(t)} style={{ padding: "6px 14px", borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: "pointer", border: detailTab === t ? "none" : `1px solid ${BORDER}`, background: detailTab === t ? NAVY : SURFACE, color: detailTab === t ? "#fff" : TEXT2 }}>{t === "crm" ? "Close CRM" : t === "overview" ? "Overview" : "Messages"}</button>
-              ))}
-            </div>
+            {/* CAMPAIGN TAB */}
+            {centerTab === "campaign" && (
+              <div>
+                {!selected ? (
+                  <div style={{ textAlign: "center", color: GRAY, fontSize: 13, padding: 40 }}>Select a contact to view campaign</div>
+                ) : !getCampaignId(selected) ? (
+                  <div style={{ textAlign: "center", padding: 40 }}>
+                    <div style={{ fontSize: 13, color: GRAY, marginBottom: 8 }}>No campaign</div>
+                    <Link href={`/campaign/intake?businessName=${encodeURIComponent(selected.business_name)}`} style={{ color: GOLD, fontSize: 13, fontWeight: 700, textDecoration: "none" }}>Start Campaign →</Link>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: TEXT, marginBottom: 2 }}>{selected.business_name}</div>
+                    <div style={{ fontSize: 13, color: GRAY, marginBottom: 10 }}>{selected.city}</div>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 6, background: `${STAGE_COLORS[selected.stage]}15`, color: STAGE_COLORS[selected.stage] }}>{STAGE_LABELS[selected.stage]}</span>
 
-            {/* OVERVIEW TAB */}
-            {detailTab === "overview" && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 16 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: GRAY, textTransform: "uppercase", marginBottom: 8 }}>Contact</div>
-                  <div style={{ fontSize: 12, color: TEXT, lineHeight: 2 }}>
-                    <div>{matchingLead?.contactName || selected.business_name}</div>
-                    {matchingLead?.phone && <div><a href={`tel:${matchingLead.phone}`} style={{ color: "#4A90D9" }}>{matchingLead.phone}</a></div>}
-                    {matchingLead?.email && <div><a href={`mailto:${matchingLead.email}`} style={{ color: "#4A90D9" }}>{matchingLead.email}</a></div>}
-                    {matchingLead?.agreementNumber && <div>Agr: {matchingLead.agreementNumber}</div>}
-                    {matchingLead?.saleDate && <div>Sale Date: <strong>{matchingLead.saleDate}</strong></div>}
-                    {matchingLead?.firstEdition && <div>First Edition: <strong>{matchingLead.firstEdition}</strong></div>}
-                    {matchingLead?.lastEdition && <div>Last Edition: <strong style={{ color: (() => { const d = Math.floor((new Date(matchingLead.lastEdition).getTime() - Date.now()) / 86400000); return d <= 60 ? AMBER : TEXT; })() }}>{matchingLead.lastEdition}</strong></div>}
-                    {matchingLead?.soldBy && <div>Sold By: <strong>{matchingLead.soldBy}</strong></div>}
-                    {matchingLead?.cadence && <div>Cadence: {matchingLead.cadence}</div>}
-                  </div>
-                </div>
-                <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 16 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: GRAY, textTransform: "uppercase", marginBottom: 8 }}>Account</div>
-                  <div style={{ fontSize: 12, color: TEXT, lineHeight: 2 }}>
-                    <div>Ad: {selected.ad_size} {AD_DIMS[selected.ad_size] ? `(${AD_DIMS[selected.ad_size]})` : ""}</div>
-                    <div>Items: {matchingLead?.saleItems || selected.services || "---"}</div>
-                    <div>Pubs: {matchingLead?.publications || "---"}</div>
-                    <div>First: {matchingLead?.firstEdition || "---"}</div>
-                    <div>Last: {matchingLead?.lastEdition || "---"}</div>
-                    <div>DVL: {matchingLead?.dvl || "---"}</div>
-                    <div>Region: {matchingLead?.region || "---"}</div>
-                  </div>
-                </div>
-                {(sbr.opportunityScore as number) > 0 && (
-                  <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 16, gridColumn: "1 / -1" }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: GRAY, textTransform: "uppercase", marginBottom: 8 }}>Market Intel</div>
-                    <div style={{ marginBottom: 8 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 3 }}><span style={{ color: TEXT2 }}>Score</span><span style={{ fontWeight: 700 }}>{String(sbr.opportunityScore)}/100</span></div>
-                      <div style={{ height: 6, background: BG, borderRadius: 3, overflow: "hidden" }}><div style={{ height: "100%", width: `${sbr.opportunityScore as number}%`, background: GOLD, borderRadius: 3 }} /></div>
+                    {/* 4 stat pills */}
+                    <div style={{ display: "flex", gap: 8, marginTop: 16, marginBottom: 16 }}>
+                      {[
+                        { label: "Monthly", value: matchingLead?.monthly ? `$${matchingLead.monthly}` : "---" },
+                        { label: "Ad Size", value: selected.ad_size || "---" },
+                        { label: "Score", value: sbr.opportunityScore ? String(sbr.opportunityScore) : "---" },
+                        { label: "Renew", value: matchingLead?.renewStatus || "---" },
+                      ].map(s => (
+                        <div key={s.label} style={{ background: BG, borderRadius: 8, padding: "8px 12px", textAlign: "center", flex: 1 }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: TEXT }}>{s.value}</div>
+                          <div style={{ fontSize: 10, color: GRAY }}>{s.label}</div>
+                        </div>
+                      ))}
                     </div>
-                    <div style={{ fontSize: 12, color: TEXT, lineHeight: 2 }}>
-                      <div>Income: ${String(sbr.medianIncome || "---")}</div>
-                      <div>Households: {String(sbr.households || "---")}</div>
-                      {Array.isArray(sbr.topCategories) && <div>Top: {(sbr.topCategories as string[]).join(", ")}</div>}
+
+                    {/* Approved direction image */}
+                    {selected.generated_directions && selected.selected_direction && (() => {
+                      const dir = (selected.generated_directions as CampaignDirection[]).find(d => d.name === selected.selected_direction);
+                      if (dir?.imageUrl) return (
+                        <div style={{ marginBottom: 16 }}>
+                          <img src={dir.imageUrl} alt={dir.name} style={{ width: "100%", maxWidth: 500, borderRadius: 8 }} />
+                          {selected.tagline && <div style={{ fontSize: 15, fontStyle: "italic", color: GOLD, marginTop: 8 }}>{selected.tagline}</div>}
+                        </div>
+                      );
+                      return null;
+                    })()}
+
+                    {/* Status card */}
+                    <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 16 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: NAVY, marginBottom: 6 }}>Current Status</div>
+                      <div style={{ fontSize: 12, color: TEXT2, lineHeight: 1.6 }}>
+                        {selected.stage === "intake" && "Campaign is in intake — gathering information."}
+                        {selected.stage === "tearsheet" && "Tearsheet generated and awaiting client review."}
+                        {selected.stage === "approved" && "Direction approved by client — ready for production."}
+                        {selected.stage === "production" && "Ad is currently in production."}
+                        {selected.stage === "delivered" && "Campaign has been delivered."}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -830,280 +634,273 @@ export default function CampaignDashboardPage() {
             )}
 
             {/* MESSAGES TAB */}
-            {detailTab === "messages" && (
-              <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 16 }}>
-                {!getCampaignId(selected) ? (
-                  <div style={{ textAlign: "center", padding: 20, color: GRAY }}>
-                    <div style={{ fontSize: 13, marginBottom: 8 }}>No campaign started — messages unavailable</div>
-                    <Link href={`/campaign/intake?businessName=${encodeURIComponent(selected.business_name)}`} style={{ color: GOLD, fontSize: 12, fontWeight: 700 }}>Start Campaign →</Link>
+            {centerTab === "messages" && (
+              <div>
+                {!selected || !getCampaignId(selected) ? (
+                  <div style={{ textAlign: "center", padding: 40 }}>
+                    <div style={{ fontSize: 13, color: GRAY, marginBottom: 8 }}>Start a campaign to enable messaging</div>
+                    {selected && <Link href={`/campaign/intake?businessName=${encodeURIComponent(selected.business_name)}`} style={{ color: GOLD, fontSize: 13, fontWeight: 700, textDecoration: "none" }}>Start Campaign →</Link>}
                   </div>
                 ) : (
-                  <>
-                    <div style={{ maxHeight: 280, overflowY: "auto", marginBottom: 10 }}>
-                      {messages.length === 0 ? <p style={{ color: GRAY, fontSize: 12 }}>No messages.</p> : messages.map((m, i) => (
-                        <div key={i} style={{ marginBottom: 8 }}>
-                          <span style={{ fontSize: 9, fontWeight: 700, color: "#fff", padding: "1px 5px", borderRadius: 3, background: m.role === "rep" ? NAVY : GOLD, marginRight: 6 }}>{m.role === "rep" ? "REP" : "CLIENT"}</span>
+                  <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+                    <div style={{ flex: 1, overflowY: "auto", marginBottom: 12 }}>
+                      {messages.length === 0 ? <p style={{ color: GRAY, fontSize: 12 }}>No messages yet.</p> : messages.map((m, i) => (
+                        <div key={i} style={{ marginBottom: 10 }}>
+                          <span style={{ fontSize: 9, fontWeight: 700, color: "#fff", padding: "2px 6px", borderRadius: 3, background: m.role === "rep" ? NAVY : GOLD, marginRight: 6 }}>{m.role === "rep" ? "REP" : "CLIENT"}</span>
                           <span style={{ fontSize: 10, color: GRAY }}>{timeAgo(m.timestamp)}</span>
-                          <p style={{ fontSize: 12, color: TEXT, margin: "2px 0 0" }}>{m.content}</p>
+                          <p style={{ fontSize: 13, color: TEXT, margin: "3px 0 0" }}>{m.content}</p>
                         </div>
                       ))}
                       <div ref={msgEndRef} />
                     </div>
                     <div style={{ display: "flex", gap: 6 }}>
-                      <input value={msgInput} onChange={e => setMsgInput(e.target.value)} onKeyDown={e => e.key === "Enter" && sendMessage()} placeholder="Message..." style={{ flex: 1, padding: "7px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, background: BG, fontSize: 12, outline: "none", boxSizing: "border-box", color: TEXT }} />
-                      <button onClick={sendMessage} disabled={msgSending} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 6, padding: "7px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Send</button>
+                      <textarea value={msgInput} onChange={e => setMsgInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }} placeholder="Message..." rows={2} style={{ flex: 1, padding: "8px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, background: BG, fontSize: 14, outline: "none", boxSizing: "border-box", color: TEXT, resize: "none" }} />
+                      <button onClick={sendMessage} disabled={msgSending} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 6, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer", alignSelf: "flex-end" }}>Send →</button>
                     </div>
-                  </>
+                  </div>
                 )}
               </div>
             )}
 
             {/* CLOSE CRM TAB */}
-            {detailTab === "crm" && (
-              <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 16 }}>
+            {centerTab === "crm" && (
+              <div>
                 {matchingLead ? (
-                  <div style={{ fontSize: 12, color: TEXT, lineHeight: 2 }}>
-                    <div>Status: <strong>{matchingLead.status}</strong></div>
-                    <div>Agreement: <strong>{matchingLead.agreementNumber}</strong></div>
-                    <div>Ad Type: <strong>{matchingLead.adType}</strong></div>
-                    <div>Monthly: <strong>${matchingLead.monthly}/mo</strong></div>
-                    <div>Renew: <strong>{matchingLead.renewStatus}</strong></div>
-                    <div>Publication: <strong>{matchingLead.publications}</strong></div>
-                    {matchingLead.closeUrl && <a href={matchingLead.closeUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", marginTop: 8, background: GOLD, color: NAVY, padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 700, textDecoration: "none" }}>Open in Close →</a>}
+                  <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 16 }}>
+                    <div style={{ fontSize: 12, color: TEXT, lineHeight: 2.2 }}>
+                      <div>Status: <strong>{matchingLead.status}</strong></div>
+                      <div>Contact: <strong>{matchingLead.contactName}</strong></div>
+                      <div>Agreement: <strong>{matchingLead.agreementNumber}</strong></div>
+                      <div>Ad Type: <strong>{matchingLead.adType}</strong></div>
+                      <div>Monthly: <strong>${matchingLead.monthly}/mo</strong></div>
+                      <div>Cadence: <strong>{matchingLead.cadence}</strong></div>
+                      <div>Renew: <strong>{matchingLead.renewStatus}</strong></div>
+                      <div>Publication: <strong>{matchingLead.publications}</strong></div>
+                      <div>Region: <strong>{matchingLead.region}</strong></div>
+                      <div>DVL: <strong>{matchingLead.dvl}</strong></div>
+                      <div>First Edition: <strong>{matchingLead.firstEdition}</strong></div>
+                      <div>Last Edition: <strong>{matchingLead.lastEdition}</strong></div>
+                      <div>Sale Date: <strong>{matchingLead.saleDate}</strong></div>
+                      <div>Sold By: <strong>{matchingLead.soldBy}</strong></div>
+                      <div>Sale Items: <strong>{matchingLead.saleItems}</strong></div>
+                    </div>
+                    {matchingLead.closeUrl && <a href={matchingLead.closeUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", marginTop: 12, background: GOLD, color: NAVY, padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: "none" }}>Open in Close →</a>}
                   </div>
-                ) : <p style={{ color: GRAY, fontSize: 12 }}>No Close data.</p>}
+                ) : (
+                  <div style={{ textAlign: "center", color: GRAY, fontSize: 13, padding: 40 }}>No Close CRM data for this contact</div>
+                )}
               </div>
             )}
           </div>
-        )}
-      </div>
+        </div>
 
-      {/* ── DRAWER BACKDROP ────────────────────────────────────────────── */}
-      {drawerOpen && selected && <div onClick={() => setDrawerOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.2)", zIndex: 199 }} />}
+        {/* ── RIGHT COLUMN (420px) ─────────────────────────────────────── */}
+        <div style={{ background: SURFACE, borderLeft: `1px solid ${BORDER}`, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          {!selected ? (
+            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ textAlign: "center", color: GRAY, fontSize: 13 }}>Select a contact</div>
+            </div>
+          ) : (
+            <>
+              {/* TOP SECTION */}
+              <div style={{ padding: 16, borderBottom: `1px solid ${BORDER}` }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: TEXT }}>{selected.business_name}</div>
+                <div style={{ fontSize: 12, color: GRAY, marginBottom: 6 }}>{selected.city}</div>
+                <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 6, background: `${STAGE_COLORS[selected.stage]}15`, color: STAGE_COLORS[selected.stage] }}>{STAGE_LABELS[selected.stage]}</span>
 
-      {/* ── DRAWER (380px) ─────────────────────────────────────────────── */}
-      <div style={{ position: "fixed", right: 0, top: 52, height: "calc(100vh - 52px)", width: 380, background: SURFACE, borderLeft: `3px solid ${GOLD}`, boxShadow: "-8px 0 32px rgba(0,0,0,0.15)", zIndex: 200, transform: drawerOpen && selected ? "translateX(0)" : "translateX(380px)", transition: "transform 0.3s ease", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-
-        {selected && (
-          <>
-            {/* Drawer header */}
-            <div style={{ padding: "14px 16px", borderBottom: `1px solid ${BORDER}` }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                <button onClick={() => setDrawerOpen(false)} style={{ background: BG, border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", fontSize: 14, color: TEXT2 }}>✕</button>
-                {selected.id && !selected.id.startsWith("cl-") && !selected.id.startsWith("demo-") && <button onClick={() => { setDeleteCode(""); setDeleteError(""); setDeleteModalOpen(true); }} style={{ background: `${RED}15`, border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", fontSize: 13, color: RED }} title="Delete client">🗑</button>}
-                <div style={{ width: 44, height: 44, borderRadius: 10, background: avatarBg(selected.category), color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 800 }}>{initials(selected.business_name)}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: TEXT }}>{selected.business_name}</div>
-                  <div style={{ fontSize: 14, color: GRAY }}>{selected.city}</div>
+                {/* 5 action buttons */}
+                <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
+                  {[
+                    { icon: "📝", label: "Note", action: () => setShowNote(!showNote) },
+                    { icon: "📧", label: "Email", action: () => { setEmailTo(matchingLead?.email || ""); setEmailSubject(`Following up — ${selected.business_name}`); setEmailBody(""); setEmailModalOpen(true); } },
+                    { icon: "📞", label: "Call", action: () => { window.open("tel:" + (matchingLead?.phone || "")); fetch("/api/campaign/close-action", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ action:"log-call", leadId: selected.id, data:{ note:"Call from Campaign Portal" } }) }).catch(() => {}); showToast("Call logged"); } },
+                    { icon: "✅", label: "Task", action: () => showToast("Task created") },
+                    { icon: "🚨", label: "Escalate", action: () => { setRightTab("actions"); setEscalationNote(""); } },
+                  ].map(a => (
+                    <button key={a.label} onClick={a.action} style={{ flex: 1, height: 44, background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 8, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2 }}>
+                      <span style={{ fontSize: 16 }}>{a.icon}</span>
+                      <span style={{ fontSize: 9, color: GRAY }}>{a.label}</span>
+                    </button>
+                  ))}
                 </div>
-              </div>
-              <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: `${STAGE_COLORS[selected.stage]}15`, color: STAGE_COLORS[selected.stage] }}>{STAGE_LABELS[selected.stage]}</span>
-                {matchingLead?.renewStatus && <span style={{ fontSize: 12, fontWeight: 700, padding: "2px 8px", borderRadius: 4, color: matchingLead.renewStatus === "Renewable" ? GREEN : matchingLead.renewStatus === "Declined" ? RED : GRAY, background: matchingLead.renewStatus === "Renewable" ? `${GREEN}15` : matchingLead.renewStatus === "Declined" ? `${RED}15` : `${GRAY}15` }}>{matchingLead.renewStatus}</span>}
-              </div>
-              <div style={{ height: 1, background: BORDER }} />
 
-              {/* Action buttons row */}
-              <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-                {[
-                  { icon: "📝", label: "Note", action: async () => { setNoteOpen(!noteOpen); } },
-                  { icon: "✉️", label: "Email", action: () => { setEmailTo(matchingLead?.email || ""); setEmailSubject(`Following up — ${selected.business_name}`); setEmailBody(""); setEmailModalOpen(true); } },
-                  { icon: "📞", label: "Call", action: () => { window.open("tel:" + (matchingLead?.phone || "")); fetch("/api/campaign/close-action", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ action:"log-call", leadId: selected.id, data:{ note:"Call from Campaign Portal" } }) }).catch(() => {}); showToast("Call logged in Close ✓"); } },
-                  { icon: "📋", label: "Task", action: () => showToast("Task created") },
-                  { icon: "⚡", label: "Escalate", action: () => showToast("Escalated") },
-                ].map(a => (
-                  <button key={a.label} onClick={a.action} style={{ width: 44, background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 8, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "6px 0" }}>
-                    <span style={{ fontSize: 16 }}>{a.icon}</span>
-                    <span style={{ fontSize: 11, color: GRAY }}>{a.label}</span>
-                  </button>
+                {/* Inline note area */}
+                {showNote && (
+                  <div style={{ marginTop: 10 }}>
+                    <textarea value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Add a note..." rows={3} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, background: BG, fontSize: 13, resize: "vertical", outline: "none", boxSizing: "border-box", color: TEXT }} />
+                    <button onClick={async () => { if (!noteText.trim()) return; try { await fetch(`/api/campaign/message/${selected.id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: "rep", content: noteText }) }); fetch("/api/campaign/close-action", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ action:"log-note", leadId: selected.id, data:{ note: noteText } }) }).catch(() => {}); setNoteText(""); setShowNote(false); showToast("Note saved"); } catch { showToast("Failed"); } }} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 6, padding: "6px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer", marginTop: 4 }}>Save Note →</button>
+                  </div>
+                )}
+              </div>
+
+              {/* Tab bar */}
+              <div style={{ display: "flex", borderBottom: `1px solid ${BORDER}` }}>
+                {(["actions", "bruno", "territory", "csIntel"] as const).map(t => (
+                  <button key={t} onClick={() => setRightTab(t)} style={{ flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 600, cursor: "pointer", border: "none", background: "transparent", borderBottom: rightTab === t ? `2px solid ${GOLD}` : "2px solid transparent", color: rightTab === t ? NAVY : GRAY }}>{t === "csIntel" ? "CS Intel" : t === "actions" ? "Actions" : t === "bruno" ? "Bruno" : "Territory"}</button>
                 ))}
               </div>
 
-              {/* Inline note */}
-              {noteOpen && (
-                <div style={{ marginTop: 8 }}>
-                  <textarea value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Add a note..." rows={3} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, background: BG, fontSize: 14, resize: "vertical", outline: "none", boxSizing: "border-box", color: TEXT }} />
-                  <button onClick={async () => { if (!noteText.trim()) return; try { await fetch(`/api/campaign/message/${selected.id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: "rep", content: noteText }) }); fetch("/api/campaign/close-action", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ action:"log-note", leadId: selected.id, data:{ note: noteText } }) }).catch(() => {}); setNoteText(""); setNoteOpen(false); showToast("Note logged in Close ✓"); } catch { showToast("Failed"); } }} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 6, padding: "5px 12px", fontSize: 14, fontWeight: 700, cursor: "pointer", marginTop: 4 }}>Save</button>
-                </div>
-              )}
-            </div>
+              {/* Tab content */}
+              <div style={{ flex: 1, overflowY: "auto" }}>
 
-            {/* Drawer tabs */}
-            <div style={{ display: "flex", borderBottom: `1px solid ${BORDER}` }}>
-              {(["actions", "bruno", "territory", "csIntel", "card"] as const).map(t => (
-                <button key={t} onClick={() => setDrawerTab(t)} style={{ flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 600, cursor: "pointer", border: "none", background: "transparent", color: drawerTab === t ? NAVY : GRAY, borderBottom: drawerTab === t ? `2px solid ${GOLD}` : "2px solid transparent" }}>{t === "csIntel" ? "CS" : t === "actions" ? "Actions" : t === "bruno" ? "Bruno" : t === "territory" ? "Territory" : "Card"}</button>
-              ))}
-            </div>
+                {/* ACTIONS TAB */}
+                {rightTab === "actions" && (
+                  <div style={{ padding: 16 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: GOLD, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 10 }}>CAMPAIGN ACTIONS</div>
+                    <button onClick={sendCampaignLink} disabled={sendingLink} style={{ width: "100%", borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: 6, textAlign: "left", background: GOLD, color: NAVY, border: "none", opacity: sendingLink ? 0.5 : 1 }}>{sendingLink ? "Sending..." : "📤 Send Campaign Link"}</button>
+                    <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/campaign/tearsheet/${selected.id}`); showToast("Tearsheet link copied!"); }} style={{ width: "100%", borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: 6, textAlign: "left", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}` }}>🔗 Copy Tearsheet Link</button>
+                    <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/campaign/client/${selected.id}`); showToast("Portal link copied!"); }} style={{ width: "100%", borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: 6, textAlign: "left", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}` }}>🌐 Copy Portal Link</button>
+                    {selected.stage === "approved" && <button onClick={() => updateStage("production")} style={{ width: "100%", borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: 6, textAlign: "left", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}` }}>▶ Mark In Production</button>}
+                    {selected.stage === "production" && <button onClick={() => updateStage("delivered")} style={{ width: "100%", borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: 6, textAlign: "left", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}` }}>✅ Mark Delivered</button>}
+                    <button onClick={() => {
+                      const trimSize = AD_DIMS[selected.ad_size] || selected.ad_size;
+                      const bleedSize = AD_BLEED[selected.ad_size] || "";
+                      const w = window.open("", "_blank");
+                      if (!w) return;
+                      w.document.write(`<!DOCTYPE html><html><head><title>Delivery Pack — ${selected.business_name}</title><style>body{font-family:Georgia,serif;max-width:700px;margin:40px auto;color:#1C2B1D;line-height:1.8}h1{font-size:24px;border-bottom:2px solid #C8922A;padding-bottom:8px}h2{font-size:16px;color:#1B2A4A;margin-top:24px}table{width:100%;border-collapse:collapse;margin:8px 0}td{padding:6px 12px;border:1px solid #DDD5C0;font-size:13px}td:first-child{font-weight:700;width:200px;background:#F5F0E8}.gold{color:#C8922A;font-weight:700}</style></head><body>`);
+                      w.document.write(`<h1>BVM Campaign Delivery Pack</h1><p><strong>${selected.business_name}</strong> — ${selected.city} — ${new Date().toLocaleDateString()}</p>`);
+                      w.document.write(`<h2>Campaign Details</h2><table><tr><td>Business Name</td><td>${selected.business_name}</td></tr><tr><td>City / ZIP</td><td>${selected.city} ${selected.zip}</td></tr><tr><td>Category</td><td>${selected.category}</td></tr><tr><td>Ad Size</td><td>${selected.ad_size}</td></tr><tr><td>Tagline</td><td>${selected.tagline || "—"}</td></tr><tr><td>Services / Ad Copy</td><td>${selected.services}</td></tr><tr><td>Selected Direction</td><td>${selected.selected_direction || "—"}</td></tr></table>`);
+                      w.document.write(`<h2>Print Specifications</h2><table><tr><td>Trim Size</td><td class="gold">${trimSize}</td></tr><tr><td>Document with Bleed</td><td class="gold">${bleedSize}</td></tr><tr><td>Bleed</td><td>0.125" all sides</td></tr><tr><td>Safe Space</td><td>0.25" minimum from trim edge</td></tr><tr><td>Resolution</td><td>300dpi minimum</td></tr><tr><td>Color Mode</td><td>CMYK (convert from RGB before sending to printer)</td></tr><tr><td>Border</td><td>Visual border required around perimeter</td></tr><tr><td>File Formats</td><td>PDF, JPG, TIFF, EPS, PSD, AI, SVG</td></tr></table>`);
+                      w.document.write(`<p style="margin-top:32px;font-size:11px;color:#9B8E7A;border-top:1px solid #DDD5C0;padding-top:12px">Best Version Media | Campaign Portal | ${new Date().toLocaleDateString()}</p></body></html>`);
+                      w.document.close();
+                      w.print();
+                    }} style={{ width: "100%", borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: 6, textAlign: "left", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}` }}>📥 Delivery Pack</button>
 
-            {/* Drawer tab content */}
-            <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+                    <div style={{ height: 1, background: BORDER, margin: "14px 0" }} />
 
-              {/* ACTIONS TAB */}
-              {drawerTab === "actions" && (
-                <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-                  <button onClick={sendCampaignLink} disabled={sendingLink} style={{ width: "100%", background: GOLD, color: NAVY, border: "none", borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 700, cursor: "pointer", opacity: sendingLink ? 0.5 : 1, textAlign: "left" }}>{sendingLink ? "Sending..." : "📤 Send Campaign Link"}</button>
-                  <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/campaign/tearsheet/${selected.id}`); showToast("Tearsheet link copied!"); }} style={{ width: "100%", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>🔗 Copy Tearsheet</button>
-                  <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/campaign/client/${selected.id}`); showToast("Portal link copied!"); }} style={{ width: "100%", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>🌐 Copy Portal Link</button>
-                  {selected.stage === "approved" && <button onClick={() => updateStage("production")} style={{ width: "100%", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>▶ Mark In Production</button>}
-                  {selected.stage === "production" && <button onClick={() => updateStage("delivered")} style={{ width: "100%", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>✅ Mark Delivered</button>}
-                  <button onClick={() => {
-                    const trimSize = AD_DIMS[selected.ad_size] || selected.ad_size;
-                    const bleedSize = AD_BLEED[selected.ad_size] || "";
-                    const w = window.open("", "_blank");
-                    if (!w) return;
-                    w.document.write(`<!DOCTYPE html><html><head><title>Delivery Pack — ${selected.business_name}</title><style>body{font-family:Georgia,serif;max-width:700px;margin:40px auto;color:#1C2B1D;line-height:1.8}h1{font-size:24px;border-bottom:2px solid #C8922A;padding-bottom:8px}h2{font-size:16px;color:#1B2A4A;margin-top:24px}table{width:100%;border-collapse:collapse;margin:8px 0}td{padding:6px 12px;border:1px solid #DDD5C0;font-size:13px}td:first-child{font-weight:700;width:200px;background:#F5F0E8}.gold{color:#C8922A;font-weight:700}</style></head><body>`);
-                    w.document.write(`<h1>BVM Campaign Delivery Pack</h1><p><strong>${selected.business_name}</strong> — ${selected.city} — ${new Date().toLocaleDateString()}</p>`);
-                    w.document.write(`<h2>Campaign Details</h2><table><tr><td>Business Name</td><td>${selected.business_name}</td></tr><tr><td>City / ZIP</td><td>${selected.city} ${selected.zip}</td></tr><tr><td>Category</td><td>${selected.category}</td></tr><tr><td>Ad Size</td><td>${selected.ad_size}</td></tr><tr><td>Tagline</td><td>${selected.tagline || "—"}</td></tr><tr><td>Services / Ad Copy</td><td>${selected.services}</td></tr><tr><td>Selected Direction</td><td>${selected.selected_direction || "—"}</td></tr></table>`);
-                    w.document.write(`<h2>Print Specifications</h2><table><tr><td>Trim Size</td><td class="gold">${trimSize}</td></tr><tr><td>Document with Bleed</td><td class="gold">${bleedSize}</td></tr><tr><td>Bleed</td><td>0.125" all sides</td></tr><tr><td>Safe Space</td><td>0.25" minimum from trim edge</td></tr><tr><td>Resolution</td><td>300dpi minimum</td></tr><tr><td>Color Mode</td><td>CMYK (convert from RGB before sending to printer)</td></tr><tr><td>Border</td><td>Visual border required around perimeter</td></tr><tr><td>File Formats</td><td>PDF, JPG, TIFF, EPS, PSD, AI, SVG</td></tr></table>`);
-                    w.document.write(`<p style="margin-top:32px;font-size:11px;color:#9B8E7A;border-top:1px solid #DDD5C0;padding-top:12px">Best Version Media | Campaign Portal | ${new Date().toLocaleDateString()}</p></body></html>`);
-                    w.document.close();
-                    w.print();
-                  }} style={{ width: "100%", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>📥 Delivery Pack</button>
-
-                  <div style={{ height: 1, background: BORDER, margin: "12px 0" }} />
-
-                  <div style={{ fontSize: 14, fontWeight: 700, color: TEXT, marginBottom: 6 }}>⚠️ Escalation</div>
-                  <textarea value={escalationNote} onChange={e => setEscalationNote(e.target.value)} placeholder={"Describe the issue for " + selected.business_name + "..."} rows={3} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, fontSize: 14, resize: "vertical", outline: "none", boxSizing: "border-box" as const, color: TEXT, background: BG, marginBottom: 6 }} />
-                  <button onClick={async () => { try { await fetch("/api/campaign/escalate", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ type: "escalation", repName: rep!.username, clientName: selected.business_name, clientStatus: selected.stage || "", note: escalationNote }) }); showToast("Escalation sent ✓"); setEscalationNote(""); } catch { /* */ } }} disabled={!escalationNote.trim()} style={{ width: "100%", background: NAVY, color: "#fff", border: "none", borderRadius: 8, padding: "10px 14px", fontSize: 15, fontWeight: 700, cursor: "pointer", opacity: escalationNote.trim() ? 1 : 0.4 }}>🚨 Escalate to Ted →</button>
-
-                  <div style={{ height: 1, background: BORDER, margin: "12px 0" }} />
-                  <div style={{ fontSize: 14, fontWeight: 700, color: TEXT, marginBottom: 6 }}>✉️ Send Handwrytten Card</div>
-                  <textarea value={cardMsg} onChange={e => setCardMsg(e.target.value)} placeholder="Write your message..." rows={4} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, background: BG, fontSize: 14, resize: "vertical", outline: "none", boxSizing: "border-box" as const, marginBottom: 8, color: TEXT }} />
-                  {cardSent ? (
-                    <div style={{ fontSize: 14, color: GREEN, fontWeight: 600 }}>Card sent!</div>
-                  ) : (
-                    <button onClick={sendCard} disabled={sendingCard} style={{ width: "100%", background: GOLD, color: NAVY, border: "none", borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 700, cursor: "pointer", opacity: sendingCard ? 0.5 : 1 }}>{sendingCard ? "Sending..." : "Send Card"}</button>
-                  )}
-                </div>
-              )}
-
-              {/* BRUNO TAB */}
-              {drawerTab === "bruno" && (
-                <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-                  <div style={{ background: `linear-gradient(135deg, ${NAVY}, #2d3e50)`, padding: "12px 16px", display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: "50%", background: GOLD, color: NAVY, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 800 }}>B</div>
-                    <div><div style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>Bruno</div><div style={{ fontSize: 11, color: "#22c55e" }}>● Online</div></div>
-                  </div>
-                  <div style={{ display: "flex", gap: 4, padding: "8px 12px", flexWrap: "wrap" }}>
-                    {["Who needs follow up?", "At-risk clients", "Campaigns stuck?", "Top opportunities"].map(chip => (
-                      <button key={chip} onClick={() => setBrunoInput(chip)} style={{ background: BG, border: `1px solid ${BORDER}`, borderRadius: 14, padding: "4px 10px", fontSize: 12, color: TEXT2, cursor: "pointer", fontWeight: 500 }}>{chip}</button>
-                    ))}
-                  </div>
-                  <div style={{ flex: 1, overflowY: "auto", padding: "8px 14px", background: BG }}>
-                    {brunoMsgs.map((m, i) => (
-                      <div key={i} style={{ marginBottom: 10, display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
-                        <div style={{ maxWidth: "85%", padding: "8px 12px", borderRadius: 10, fontSize: 14, lineHeight: 1.5, background: m.role === "user" ? NAVY : SURFACE, color: m.role === "user" ? "#fff" : TEXT, border: m.role === "user" ? "none" : `1px solid ${BORDER}` }}>{m.content}</div>
-                      </div>
-                    ))}
-                    {brunoLoading && <div style={{ fontSize: 14, color: GRAY, padding: "4px 0" }}>Thinking...</div>}
-                    <div ref={brunoEndRef} />
-                  </div>
-                  <div style={{ padding: "10px 12px", borderTop: `1px solid ${BORDER}`, display: "flex", gap: 6 }}>
-                    <input value={brunoInput} onChange={e => setBrunoInput(e.target.value)} onKeyDown={e => e.key === "Enter" && askBruno()} placeholder="Ask Bruno..." style={{ flex: 1, padding: "7px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, background: BG, fontSize: 14, outline: "none", boxSizing: "border-box", color: TEXT }} />
-                    <button onClick={askBruno} disabled={brunoLoading} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 6, padding: "7px 12px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Send</button>
-                  </div>
-                </div>
-              )}
-
-              {/* TERRITORY TAB */}
-              {drawerTab === "territory" && (
-                <div style={{ padding: 16 }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: NAVY, marginBottom: 10 }}>Territory Scan</div>
-                  <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-                    <input value={scanZip || selected.zip} onChange={e => setScanZip(e.target.value)} onKeyDown={e => e.key === "Enter" && runTerritoryScan()} placeholder="ZIP code..." style={{ flex: 1, padding: "7px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, background: BG, fontSize: 14, outline: "none", boxSizing: "border-box", color: TEXT }} />
-                    <button onClick={() => { if (!scanZip && selected.zip) setScanZip(selected.zip); runTerritoryScan(); }} disabled={scanLoading} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 6, padding: "7px 14px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>{scanLoading ? "..." : "Scan"}</button>
-                  </div>
-                  {scanResult && (
-                    <div style={{ fontSize: 14, color: TEXT, lineHeight: 2 }}>
-                      <div>Score: <strong style={{ color: GREEN, fontSize: 20 }}>{String(scanResult.opportunityScore || "---")}</strong></div>
-                      <div>Income: {String(scanResult.medianIncome || "---")}</div>
-                      <div>Top: {Array.isArray(scanResult.topCategories) ? (scanResult.topCategories as string[]).slice(0, 3).join(", ") : "---"}</div>
-                      <div>Gap: {String(scanResult.competitorGap || "---")}</div>
-                      <Link href={`/campaign/intelligence/${selected.id}`} style={{ display: "inline-block", marginTop: 8, color: GOLD, fontSize: 14, fontWeight: 700 }}>Full Report →</Link>
+                    {/* SEND A CARD */}
+                    <div style={{ fontSize: 10, fontWeight: 700, color: GOLD, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 10 }}>SEND A CARD</div>
+                    <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+                      {(["welcome","thankyou","followup","congrats"] as const).map(t => (
+                        <button key={t} onClick={() => setCardTemplate(t)} style={{ flex: 1, padding: "6px 4px", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer", border: cardTemplate === t ? "none" : `1px solid ${BORDER}`, background: cardTemplate === t ? GOLD : SURFACE, color: cardTemplate === t ? NAVY : TEXT2 }}>{t === "thankyou" ? "Thanks" : t === "followup" ? "Follow Up" : t.charAt(0).toUpperCase() + t.slice(1)}</button>
+                      ))}
                     </div>
-                  )}
-                </div>
-              )}
 
-              {/* CS INTEL TAB */}
-              {drawerTab === "csIntel" && (
-                <div style={{ padding: 16 }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: NAVY, marginBottom: 10 }}>CS Intelligence</div>
-                  <div onClick={() => csFileRef.current?.click()} onDragOver={e => { e.preventDefault(); }} onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleCsUpload(f); }} style={{ border: `2px dashed ${BORDER}`, borderRadius: 10, padding: 28, textAlign: "center", cursor: "pointer", background: BG, marginBottom: 12 }}>
-                    <div style={{ fontSize: 24, marginBottom: 6 }}>📊</div>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: TEXT }}>Drop .xlsx/.csv</div>
-                    <div style={{ fontSize: 12, color: GRAY }}>or click to browse</div>
-                    <input ref={csFileRef} type="file" accept=".xlsx,.csv" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handleCsUpload(f); }} />
-                  </div>
-                  {csIntelData.length > 0 && (
-                    <div>
-                      <div style={{ fontSize: 13, color: TEXT2, marginBottom: 8 }}><strong>{csIntelData.length}</strong> matched · {csIntelData.filter(c => c.health === "CRITICAL").length} CRITICAL · {csIntelData.filter(c => c.health === "HIGH").length} HIGH</div>
-                      <div style={{ maxHeight: 200, overflowY: "auto" }}>
-                        {csIntelData.sort((a, b) => (a.health === "CRITICAL" ? 0 : 1) - (b.health === "CRITICAL" ? 0 : 1)).slice(0, 15).map((c, i) => (
-                          <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: `1px solid ${BORDER}`, fontSize: 13 }}>
-                            <span style={{ color: TEXT }}>{c.businessName}</span>
-                            {c.health && <span style={{ fontWeight: 700, color: c.health === "CRITICAL" ? RED : c.health === "HIGH" ? AMBER : GREEN }}>{c.health}</span>}
-                          </div>
-                        ))}
-                      </div>
+                    {/* Card preview */}
+                    <div style={{ transform: "scale(0.55)", transformOrigin: "top center", height: 160, marginBottom: -40 }}>
+                      <div dangerouslySetInnerHTML={{ __html: (() => {
+                        const msg = cardMsg || "Thank you for being part of the BVM family.";
+                        const name = rep.username;
+                        if (cardTemplate === "welcome") return `<div style="background:#1B2A4A;border-radius:12px;padding:32px;color:white;font-family:Georgia,serif;text-align:center"><div style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#F5C842;margin-bottom:16px">Best Version Media</div><div style="font-size:28px;font-weight:700;margin-bottom:8px">Welcome to the Family</div><div style="width:40px;height:2px;background:#F5C842;margin:0 auto 20px"></div><div style="font-size:14px;line-height:1.8;color:rgba(255,255,255,0.85);font-style:italic">${msg}</div><div style="margin-top:24px;font-size:12px;color:#F5C842">${name}</div></div>`;
+                        if (cardTemplate === "thankyou") return `<div style="background:#F5F0E8;border-radius:12px;padding:32px;font-family:Georgia,serif;text-align:center;border:2px solid #2C3E2D"><div style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#2C3E2D;margin-bottom:16px">Best Version Media</div><div style="font-size:28px;font-weight:700;color:#2C3E2D;margin-bottom:8px">Thank You</div><div style="width:40px;height:2px;background:#C8922A;margin:0 auto 20px"></div><div style="font-size:14px;line-height:1.8;color:#4a3728;font-style:italic">${msg}</div><div style="margin-top:24px;font-size:12px;color:#2C3E2D">${name}</div></div>`;
+                        if (cardTemplate === "followup") return `<div style="background:#ffffff;border-radius:12px;padding:32px;font-family:Georgia,serif;text-align:center;border:2px solid #3A5F7D"><div style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#3A5F7D;margin-bottom:16px">Best Version Media</div><div style="font-size:28px;font-weight:700;color:#1B2A4A;margin-bottom:8px">Just Checking In</div><div style="width:40px;height:2px;background:#3A5F7D;margin:0 auto 20px"></div><div style="font-size:14px;line-height:1.8;color:#475569;font-style:italic">${msg}</div><div style="margin-top:24px;font-size:12px;color:#3A5F7D">${name}</div></div>`;
+                        return `<div style="background:linear-gradient(135deg,#C8922A,#F5C842);border-radius:12px;padding:32px;font-family:Georgia,serif;text-align:center;color:white"><div style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.8);margin-bottom:16px">Best Version Media</div><div style="font-size:28px;font-weight:700;margin-bottom:8px">Congratulations!</div><div style="width:40px;height:2px;background:white;margin:0 auto 20px"></div><div style="font-size:14px;line-height:1.8;color:rgba(255,255,255,0.9);font-style:italic">${msg}</div><div style="margin-top:24px;font-size:12px;color:white">${name}</div></div>`;
+                      })() }} />
                     </div>
-                  )}
-                </div>
-              )}
 
-              {/* CARD TAB */}
-              {drawerTab === "card" && (
-                <div style={{ padding: 16 }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: TEXT, marginBottom: 12 }}>✉️ Send a Card</div>
+                    <textarea value={cardMsg} onChange={e => setCardMsg(e.target.value)} placeholder="Write your personal message..." rows={3} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${BORDER}`, fontSize: 14, resize: "vertical", outline: "none", boxSizing: "border-box", color: TEXT, background: BG, marginBottom: 8 }} />
 
-                  {/* Template selector */}
-                  <div style={{ display: "flex", gap: 4, marginBottom: 14 }}>
-                    {(["welcome","thankyou","followup","congrats"] as const).map(t => (
-                      <button key={t} onClick={() => setCardTemplate(t)} style={{ flex: 1, padding: "7px 4px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", border: "none", background: cardTemplate === t ? GOLD : SURFACE, color: cardTemplate === t ? NAVY : TEXT2, textTransform: "capitalize" }}>{t === "thankyou" ? "Thanks" : t === "followup" ? "Follow Up" : t}</button>
-                    ))}
+                    <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                      <button onClick={() => setCardDelivery("email")} style={{ flex: 1, padding: "8px 10px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", border: cardDelivery === "email" ? `2px solid ${GOLD}` : `1px solid ${BORDER}`, background: SURFACE, color: TEXT }}>📧 Email</button>
+                      <button onClick={() => setCardDelivery("snail")} style={{ flex: 1, padding: "8px 10px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", border: cardDelivery === "snail" ? `2px solid ${NAVY}` : `1px solid ${BORDER}`, background: SURFACE, color: TEXT }}>✉️ Snail Mail</button>
+                    </div>
+
+                    {cardDelivery === "email" && (
+                      <div style={{ marginBottom: 8 }}>
+                        <label style={{ fontSize: 11, color: GRAY, marginBottom: 4, display: "block" }}>To:</label>
+                        <input value={cardEmailTo} onChange={e => setCardEmailTo(e.target.value)} placeholder="Email address..." style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${BORDER}`, fontSize: 13, outline: "none", boxSizing: "border-box", color: TEXT, background: BG }} />
+                      </div>
+                    )}
+                    {cardDelivery === "snail" && (
+                      <div style={{ fontSize: 12, color: AMBER, background: `${AMBER}12`, borderRadius: 8, padding: "8px 12px", marginBottom: 8 }}>Ted will handle mailing</div>
+                    )}
+
+                    {cardSent ? (
+                      <div style={{ fontSize: 14, color: GREEN, fontWeight: 600, textAlign: "center", padding: "10px 0" }}>✓ Card sent!</div>
+                    ) : (
+                      <button onClick={sendCard} disabled={sendingCard} style={{ width: "100%", background: GOLD, color: NAVY, border: "none", borderRadius: 8, padding: "12px 16px", fontSize: 14, fontWeight: 700, cursor: "pointer", opacity: sendingCard ? 0.5 : 1 }}>{sendingCard ? "Sending..." : "Send Card →"}</button>
+                    )}
+
+                    <div style={{ height: 1, background: BORDER, margin: "14px 0" }} />
+
+                    {/* ESCALATION */}
+                    <div style={{ fontSize: 10, fontWeight: 700, color: GOLD, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 10 }}>ESCALATION</div>
+                    <textarea value={escalationNote} onChange={e => setEscalationNote(e.target.value)} placeholder="Describe the issue..." rows={3} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, fontSize: 13, resize: "vertical", outline: "none", boxSizing: "border-box", color: TEXT, background: BG, marginBottom: 6 }} />
+                    <button onClick={async () => { try { await fetch("/api/campaign/escalate", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ type: "escalation", repName: rep.username, clientName: selected.business_name, clientStatus: selected.stage || "", note: escalationNote }) }); showToast("Escalation sent"); setEscalationNote(""); } catch { /* */ } }} disabled={!escalationNote.trim()} style={{ width: "100%", background: NAVY, color: "#fff", border: "none", borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 700, cursor: "pointer", opacity: escalationNote.trim() ? 1 : 0.4 }}>🚨 Escalate to Ted →</button>
                   </div>
+                )}
 
-                  {/* Live preview */}
-                  <div style={{ transform: "scale(0.6)", transformOrigin: "top center", height: 180, marginBottom: -60 }}>
-                    <div dangerouslySetInnerHTML={{ __html: (() => {
-                      const msg = cardMsg || "Thank you for being part of the BVM family.";
-                      const name = rep!.username;
-                      if (cardTemplate === "welcome") return `<div style="background:#1B2A4A;border-radius:12px;padding:32px;color:white;font-family:Georgia,serif;text-align:center"><div style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#F5C842;margin-bottom:16px">Best Version Media</div><div style="font-size:28px;font-weight:700;margin-bottom:8px">Welcome to the Family</div><div style="width:40px;height:2px;background:#F5C842;margin:0 auto 20px"></div><div style="font-size:14px;line-height:1.8;color:rgba(255,255,255,0.85);font-style:italic">${msg}</div><div style="margin-top:24px;font-size:12px;color:#F5C842">${name}</div></div>`;
-                      if (cardTemplate === "thankyou") return `<div style="background:#F5F0E8;border-radius:12px;padding:32px;font-family:Georgia,serif;text-align:center;border:2px solid #2C3E2D"><div style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#2C3E2D;margin-bottom:16px">Best Version Media</div><div style="font-size:28px;font-weight:700;color:#2C3E2D;margin-bottom:8px">Thank You</div><div style="width:40px;height:2px;background:#C8922A;margin:0 auto 20px"></div><div style="font-size:14px;line-height:1.8;color:#4a3728;font-style:italic">${msg}</div><div style="margin-top:24px;font-size:12px;color:#2C3E2D">${name}</div></div>`;
-                      if (cardTemplate === "followup") return `<div style="background:#ffffff;border-radius:12px;padding:32px;font-family:Georgia,serif;text-align:center;border:2px solid #3A5F7D"><div style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#3A5F7D;margin-bottom:16px">Best Version Media</div><div style="font-size:28px;font-weight:700;color:#1B2A4A;margin-bottom:8px">Just Checking In</div><div style="width:40px;height:2px;background:#3A5F7D;margin:0 auto 20px"></div><div style="font-size:14px;line-height:1.8;color:#475569;font-style:italic">${msg}</div><div style="margin-top:24px;font-size:12px;color:#3A5F7D">${name}</div></div>`;
-                      return `<div style="background:linear-gradient(135deg,#C8922A,#F5C842);border-radius:12px;padding:32px;font-family:Georgia,serif;text-align:center;color:white"><div style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.8);margin-bottom:16px">Best Version Media</div><div style="font-size:28px;font-weight:700;margin-bottom:8px">Congratulations!</div><div style="width:40px;height:2px;background:white;margin:0 auto 20px"></div><div style="font-size:14px;line-height:1.8;color:rgba(255,255,255,0.9);font-style:italic">${msg}</div><div style="margin-top:24px;font-size:12px;color:white">${name}</div></div>`;
-                    })() }} />
+                {/* BRUNO TAB */}
+                {rightTab === "bruno" && (
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", height: "100%" }}>
+                    <div style={{ background: `linear-gradient(135deg, ${NAVY}, #2d3e50)`, padding: "10px 16px", display: "flex", alignItems: "center", gap: 10, height: 40 }}>
+                      <div style={{ width: 28, height: 28, borderRadius: "50%", background: GOLD, color: NAVY, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800 }}>B</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>Bruno</div>
+                      <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e" }} />
+                    </div>
+                    <div style={{ display: "flex", gap: 4, padding: "8px 12px", flexWrap: "wrap" }}>
+                      {["Who needs follow up?", "At-risk clients", "Campaigns stuck?", "Top opportunities"].map(chip => (
+                        <button key={chip} onClick={() => setBrunoInput(chip)} style={{ background: BG, border: `1px solid ${BORDER}`, borderRadius: 14, padding: "4px 10px", fontSize: 11, color: TEXT2, cursor: "pointer", fontWeight: 500 }}>{chip}</button>
+                      ))}
+                    </div>
+                    <div style={{ flex: 1, overflowY: "auto", padding: "8px 14px", background: BG }}>
+                      {brunoMsgs.map((m, i) => (
+                        <div key={i} style={{ marginBottom: 10, display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
+                          <div style={{ maxWidth: "85%", padding: "8px 12px", borderRadius: 10, fontSize: 14, lineHeight: 1.5, background: m.role === "user" ? NAVY : SURFACE, color: m.role === "user" ? "#fff" : TEXT, border: m.role === "user" ? "none" : `1px solid ${BORDER}` }}>{m.content}</div>
+                        </div>
+                      ))}
+                      {brunoLoading && <div style={{ fontSize: 14, color: GRAY, padding: "4px 0" }}>Thinking...</div>}
+                      <div ref={brunoEndRef} />
+                    </div>
+                    <div style={{ padding: "10px 14px", borderTop: `1px solid ${BORDER}`, display: "flex", gap: 6 }}>
+                      <input value={brunoInput} onChange={e => setBrunoInput(e.target.value)} onKeyDown={e => e.key === "Enter" && askBruno()} placeholder="Ask Bruno..." style={{ flex: 1, padding: "7px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, background: BG, fontSize: 14, outline: "none", boxSizing: "border-box", color: TEXT }} />
+                      <button onClick={askBruno} disabled={brunoLoading} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 6, padding: "7px 12px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Send</button>
+                    </div>
                   </div>
+                )}
 
-                  {/* Message input */}
-                  <textarea value={cardMsg} onChange={e => setCardMsg(e.target.value)} placeholder="Write your personal message..." rows={3} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${BORDER}`, fontSize: 14, resize: "vertical", outline: "none", boxSizing: "border-box", color: TEXT, background: BG, marginBottom: 10 }} />
-
-                  {/* Delivery selector */}
-                  <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-                    <button onClick={() => setCardDelivery("email")} style={{ flex: 1, padding: "8px 10px", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer", border: cardDelivery === "email" ? `2px solid ${GOLD}` : `1px solid ${BORDER}`, background: SURFACE, color: TEXT }}>📧 Email</button>
-                    <button onClick={() => setCardDelivery("snail")} style={{ flex: 1, padding: "8px 10px", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer", border: cardDelivery === "snail" ? `2px solid ${NAVY}` : `1px solid ${BORDER}`, background: SURFACE, color: TEXT }}>✉️ Snail Mail</button>
+                {/* TERRITORY TAB */}
+                {rightTab === "territory" && (
+                  <div style={{ padding: 16 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: GOLD, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 10 }}>TERRITORY QUICK SCAN</div>
+                    <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+                      <input value={scanZip || selected.zip} onChange={e => setScanZip(e.target.value)} onKeyDown={e => e.key === "Enter" && runTerritoryScan()} placeholder="ZIP code..." style={{ flex: 1, padding: "7px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, background: BG, fontSize: 13, outline: "none", boxSizing: "border-box", color: TEXT }} />
+                      <button onClick={() => { if (!scanZip && selected.zip) setScanZip(selected.zip); runTerritoryScan(); }} disabled={scanLoading} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 6, padding: "7px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{scanLoading ? "..." : "Scan →"}</button>
+                    </div>
+                    {scanResult && (
+                      <div style={{ fontSize: 13, color: TEXT, lineHeight: 2 }}>
+                        <div>Score: <strong style={{ color: GREEN, fontSize: 20 }}>{String(scanResult.opportunityScore || "---")}</strong></div>
+                        <div>Income: {String(scanResult.medianIncome || "---")}</div>
+                        <div>Top: {Array.isArray(scanResult.topCategories) ? (scanResult.topCategories as string[]).slice(0, 3).join(", ") : "---"}</div>
+                        <div>Gap: {String(scanResult.competitorGap || "---")}</div>
+                        {getCampaignId(selected) && <Link href={`/campaign/intelligence/${getCampaignId(selected)}`} style={{ display: "inline-block", marginTop: 8, color: GOLD, fontSize: 13, fontWeight: 700, textDecoration: "none" }}>Full Report →</Link>}
+                      </div>
+                    )}
                   </div>
+                )}
 
-                  {cardDelivery === "email" && (
-                    <input value={cardEmailTo} onChange={e => setCardEmailTo(e.target.value)} placeholder="To email..." style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${BORDER}`, fontSize: 14, outline: "none", boxSizing: "border-box", color: TEXT, background: BG, marginBottom: 10 }} />
-                  )}
-                  {cardDelivery === "snail" && (
-                    <div style={{ fontSize: 14, color: AMBER, background: `${AMBER}12`, borderRadius: 8, padding: "8px 12px", marginBottom: 10 }}>Ted will handle mailing — address on file in Close</div>
-                  )}
-
-                  {cardSent ? (
-                    <div style={{ fontSize: 14, color: GREEN, fontWeight: 600, textAlign: "center", padding: "10px 0" }}>{cardDelivery === "email" ? "✓ Card sent!" : "✓ Card request sent to Ted"}</div>
-                  ) : (
-                    <button onClick={sendCard} disabled={sendingCard} style={{ width: "100%", background: GOLD, color: NAVY, border: "none", borderRadius: 8, padding: "12px 16px", fontSize: 15, fontWeight: 700, cursor: "pointer", opacity: sendingCard ? 0.5 : 1 }}>{sendingCard ? "Sending..." : "Send Card →"}</button>
-                  )}
-                </div>
-              )}
-            </div>
-          </>
-        )}
+                {/* CS INTEL TAB */}
+                {rightTab === "csIntel" && (
+                  <div style={{ padding: 16 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: GOLD, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 10 }}>CS INTELLIGENCE</div>
+                    {csIntelData.length > 0 && (
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ fontSize: 12, color: TEXT2, marginBottom: 8 }}><strong>{csIntelData.length}</strong> matched · {csIntelData.filter(c => c.health === "CRITICAL").length} CRITICAL · {csIntelData.filter(c => c.health === "HIGH").length} HIGH</div>
+                        <div style={{ maxHeight: 240, overflowY: "auto" }}>
+                          {csIntelData.sort((a, b) => (a.health === "CRITICAL" ? 0 : 1) - (b.health === "CRITICAL" ? 0 : 1)).slice(0, 20).map((c, i) => (
+                            <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: `1px solid ${BORDER}`, fontSize: 12 }}>
+                              <span style={{ color: TEXT }}>{c.businessName}</span>
+                              {c.health && <span style={{ fontWeight: 700, color: c.health === "CRITICAL" ? RED : c.health === "HIGH" ? AMBER : GREEN }}>{c.health}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div onClick={() => csFileRef.current?.click()} onDragOver={e => { e.preventDefault(); }} onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleCsUpload(f); }} style={{ border: `2px dashed ${BORDER}`, borderRadius: 10, padding: 24, textAlign: "center", cursor: "pointer", background: BG }}>
+                      <div style={{ fontSize: 24, marginBottom: 6 }}>📊</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: TEXT }}>Drop .xlsx/.csv</div>
+                      <div style={{ fontSize: 11, color: GRAY }}>or click to browse</div>
+                      <input ref={csFileRef} type="file" accept=".xlsx,.csv" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handleCsUpload(f); }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Email Compose Modal */}
+      {/* ── EMAIL COMPOSE MODAL ────────────────────────────────────────── */}
       {emailModalOpen && selected && (
         <>
           <div onClick={() => setEmailModalOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 499 }} />
@@ -1122,15 +919,14 @@ export default function CampaignDashboardPage() {
               <textarea value={emailBody} onChange={e => setEmailBody(e.target.value)} rows={6} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${BORDER}`, fontSize: 14, resize: "vertical", outline: "none", boxSizing: "border-box", color: TEXT, background: BG }} />
             </div>
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-              <button onClick={async () => { setEmailSending(true); try { await fetch("/api/campaign/escalate", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ type:"email", to: emailTo, subject: emailSubject, body: emailBody }) }); await fetch("/api/campaign/close-action", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ action:"log-email", leadId: selected.id, data:{ subject: emailSubject, body: emailBody } }) }); showToast("Email sent + logged in Close ✓"); setEmailModalOpen(false); } catch { showToast("Send failed"); } setEmailSending(false); }} disabled={emailSending || !emailTo.trim()} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 15, fontWeight: 700, cursor: "pointer", opacity: emailSending ? 0.5 : 1 }}>{emailSending ? "Sending..." : "Send Email →"}</button>
+              <button onClick={async () => { setEmailSending(true); try { await fetch("/api/campaign/escalate", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ type:"email", to: emailTo, subject: emailSubject, body: emailBody }) }); await fetch("/api/campaign/close-action", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ action:"log-email", leadId: selected.id, data:{ subject: emailSubject, body: emailBody } }) }); showToast("Email sent + logged in Close"); setEmailModalOpen(false); } catch { showToast("Send failed"); } setEmailSending(false); }} disabled={emailSending || !emailTo.trim()} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 15, fontWeight: 700, cursor: "pointer", opacity: emailSending ? 0.5 : 1 }}>{emailSending ? "Sending..." : "Send Email →"}</button>
               <button onClick={() => setEmailModalOpen(false)} style={{ background: "none", border: "none", color: GRAY, fontSize: 14, cursor: "pointer" }}>Cancel</button>
             </div>
           </div>
         </>
       )}
 
-      {/* ── CS Intel Modal ─────────────────────────────────────────────── */}
-      {/* Delete Confirmation Modal */}
+      {/* ── DELETE MODAL ───────────────────────────────────────────────── */}
       {deleteModalOpen && selected && (
         <>
           <div onClick={() => setDeleteModalOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 599 }} />
@@ -1149,40 +945,7 @@ export default function CampaignDashboardPage() {
         </>
       )}
 
-      {/* Floating Bruno Bot */}
-      {!brunoBotOpen && (
-        <button onClick={() => setBrunoBotOpen(true)} style={{ position: "fixed", bottom: 24, right: 24, zIndex: 300, width: 56, height: 56, borderRadius: "50%", background: GOLD, color: "#fff", border: "none", fontSize: 22, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 16px rgba(0,0,0,0.2)", animation: "pulse 2s ease infinite" }}>B</button>
-      )}
-      {brunoBotOpen && (
-        <div style={{ position: "fixed", bottom: 90, right: 24, width: 360, height: 480, background: SURFACE, borderRadius: 16, boxShadow: "0 8px 32px rgba(0,0,0,0.2)", zIndex: 300, display: "flex", flexDirection: "column", overflow: "hidden", border: `1px solid ${BORDER}` }}>
-          <div style={{ background: `linear-gradient(135deg, ${NAVY}, #2d3e50)`, padding: "12px 16px", display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: "50%", background: GOLD, color: NAVY, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800 }}>B</div>
-            <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>Bruno</div><div style={{ fontSize: 9, color: GOLD }}>Powered by Close CRM</div></div>
-            <button onClick={() => setBrunoBotOpen(false)} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", width: 24, height: 24, borderRadius: "50%", cursor: "pointer", fontSize: 12 }}>✕</button>
-          </div>
-          <div style={{ display: "flex", gap: 4, padding: "8px 12px", flexWrap: "wrap" }}>
-            {["Who needs follow up?", "Top renewals", "Declined this month", "Upsell opportunities"].map(chip => (
-              <button key={chip} onClick={() => setBrunoInput(chip)} style={{ background: BG, border: `1px solid ${BORDER}`, borderRadius: 14, padding: "4px 10px", fontSize: 9, color: TEXT2, cursor: "pointer" }}>{chip}</button>
-            ))}
-          </div>
-          <div style={{ flex: 1, overflowY: "auto", padding: "8px 14px", background: BG }}>
-            {brunoMsgs.map((m, i) => (
-              <div key={i} style={{ marginBottom: 10, display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
-                <div style={{ maxWidth: "85%", padding: "8px 12px", borderRadius: 10, fontSize: 12, lineHeight: 1.5, background: m.role === "user" ? NAVY : SURFACE, color: m.role === "user" ? "#fff" : TEXT, border: m.role === "user" ? "none" : `1px solid ${BORDER}` }}>{m.content}</div>
-              </div>
-            ))}
-            {brunoLoading && <div style={{ fontSize: 11, color: GRAY }}>Thinking...</div>}
-            <div ref={brunoEndRef} />
-          </div>
-          <div style={{ padding: "10px 12px", borderTop: `1px solid ${BORDER}`, display: "flex", gap: 6 }}>
-            <input value={brunoInput} onChange={e => setBrunoInput(e.target.value)} onKeyDown={e => e.key === "Enter" && askBruno()} placeholder="Ask Bruno..." style={{ flex: 1, padding: "7px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, fontSize: 12, outline: "none", boxSizing: "border-box" as const, color: TEXT, background: BG }} />
-            <button onClick={askBruno} disabled={brunoLoading} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 6, padding: "7px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Send</button>
-          </div>
-        </div>
-      )}
-
-      <style>{`@keyframes pulse { 0%,100% { box-shadow: 0 4px 16px rgba(200,146,42,0.3); } 50% { box-shadow: 0 4px 24px rgba(200,146,42,0.6); } }`}</style>
-
+      {/* ── CS MODAL ───────────────────────────────────────────────────── */}
       {csModalOpen && (
         <>
           <div onClick={() => setCsModalOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 600 }} />
