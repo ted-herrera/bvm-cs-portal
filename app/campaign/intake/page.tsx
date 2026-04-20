@@ -333,12 +333,13 @@ ${sbr?.localAdvantage ? `Local advantage: ${sbr.localAdvantage}` : ""}`,
       console.error("Image gen error:", e);
     }
 
-    // Save to Supabase
+    // Save to Supabase — use only columns guaranteed to exist
     const clientId = crypto.randomUUID();
     try {
       const sb = await import("@/lib/supabase").then((m) => m.getSupabase());
       if (sb) {
-        await sb.from("campaign_clients").insert({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const insertData: any = {
           id: clientId,
           business_name: finalFields.businessName,
           category: finalFields.category,
@@ -346,13 +347,15 @@ ${sbr?.localAdvantage ? `Local advantage: ${sbr.localAdvantage}` : ""}`,
           zip: finalFields.zip,
           services: finalFields.services,
           ad_size: finalFields.adSize,
-          rep_id: getRepIdFromCookie(),
           tagline: finalFields.tagline,
+          rep_id: getRepIdFromCookie() || "unassigned",
           stage: "tearsheet",
           sbr_data: sbr,
           generated_directions: directions,
           revisions: [],
-        });
+        };
+        const { error } = await sb.from("campaign_clients").insert(insertData);
+        if (error) console.error("Supabase insert error:", error.message);
       }
     } catch (e) {
       console.error("Supabase save error:", e);
