@@ -430,10 +430,12 @@ ${sbr?.localAdvantage ? `Local advantage: ${sbr.localAdvantage}` : ""}`,
 
     // Save to Supabase
     const clientId = crypto.randomUUID();
+    let saveSuccess = false;
     try {
       const sb = await import("@/lib/supabase").then((m) => m.getSupabase());
       if (sb) {
-        await sb.from("campaign_clients").insert({
+        // Core fields only — no optional columns that may not exist yet
+        const record: Record<string, unknown> = {
           id: clientId,
           business_name: finalFields.businessName,
           category: finalFields.category,
@@ -443,22 +445,43 @@ ${sbr?.localAdvantage ? `Local advantage: ${sbr.localAdvantage}` : ""}`,
           ad_size: finalFields.adSize,
           rep_id: getRepIdFromCookie(),
           tagline: finalFields.tagline,
-          qr_url: finalFields.qrUrl || null,
-          contact_phone: finalFields.contactPhone || null,
-          contact_email: finalFields.contactEmail || null,
-          contact_address: finalFields.contactAddress || null,
           stage: "tearsheet",
           sbr_data: sbr,
           generated_directions: directions,
           revisions: [],
-        });
+        };
+        // Add optional columns — these may not exist in Supabase yet
+        if (finalFields.qrUrl) record.qr_url = finalFields.qrUrl;
+        if (finalFields.contactPhone) record.contact_phone = finalFields.contactPhone;
+        if (finalFields.contactEmail) record.contact_email = finalFields.contactEmail;
+        if (finalFields.contactAddress) record.contact_address = finalFields.contactAddress;
+
+        const { error } = await sb.from("campaign_clients").insert(record);
+        if (error) {
+          console.error("Supabase insert error:", error.message);
+          // Retry without optional columns
+          const { error: retryError } = await sb.from("campaign_clients").insert({
+            id: clientId, business_name: finalFields.businessName, category: finalFields.category,
+            city: finalFields.city, zip: finalFields.zip, services: finalFields.services,
+            ad_size: finalFields.adSize, rep_id: getRepIdFromCookie(), tagline: finalFields.tagline,
+            stage: "tearsheet", sbr_data: sbr, generated_directions: directions, revisions: [],
+          });
+          if (retryError) { console.error("Supabase retry error:", retryError.message); }
+          else { saveSuccess = true; }
+        } else {
+          saveSuccess = true;
+        }
       }
     } catch (e) {
       console.error("Supabase save error:", e);
     }
 
+    if (!saveSuccess) {
+      console.error("Failed to save campaign — redirecting anyway with generated ID");
+    }
+
     // Hydrate contact info from Close CRM (fire and forget)
-    if (finalFields.businessName) {
+    if (finalFields.businessName && saveSuccess) {
       fetch("/api/campaign/crm-search", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query: finalFields.businessName }) })
         .then(r => r.json())
         .then(data => {
