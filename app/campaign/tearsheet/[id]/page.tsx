@@ -28,16 +28,21 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
     }
   }, [(client as unknown as Record<string, unknown>)?.qr_url]);
 
-  async function loadClient() {
+  async function loadClient(retries = 3) {
     try {
       const { getSupabase } = await import("@/lib/supabase");
       const sb = getSupabase();
       if (sb) {
         const { data } = await sb.from("campaign_clients").select("*").eq("id", id).single();
-        if (data) setClient(data as CampaignClient);
+        if (data) { setClient(data as CampaignClient); setLoading(false); return; }
       }
     } catch (e) {
       console.error("Load error:", e);
+    }
+    // Retry — record may not have saved yet from intake
+    if (retries > 0) {
+      await new Promise(r => setTimeout(r, 1500));
+      return loadClient(retries - 1);
     }
     setLoading(false);
   }
