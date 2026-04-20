@@ -12,14 +12,17 @@ export default function CampaignLoginPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    await doLogin(username, password);
+  }
+
+  async function doLogin(u: string, p: string) {
     setError("");
     setLoading(true);
-
     try {
       const res = await fetch("/api/campaign/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username: u, password: p }),
       });
 
       const data = await res.json();
@@ -28,7 +31,9 @@ export default function CampaignLoginPage() {
           "campaign_user",
           JSON.stringify({ username: data.username, role: data.role }),
         );
-        if (data.role === "admin") {
+        if (data.role === "designer" || data.username?.toLowerCase().includes("dev")) {
+          window.location.href = "/campaign/build-queue";
+        } else if (data.role === "admin") {
           window.location.href = "/campaign/admin";
         } else {
           window.location.href = "/campaign/dashboard";
@@ -41,6 +46,12 @@ export default function CampaignLoginPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function demoLogin() {
+    setUsername("Ted Herrera");
+    setPassword("password");
+    doLogin("Ted Herrera", "password");
   }
 
   return (
@@ -222,6 +233,26 @@ export default function CampaignLoginPage() {
               {loading ? "Signing in..." : "Sign In \u2192"}
             </button>
           </form>
+
+          <button
+            type="button"
+            onClick={demoLogin}
+            disabled={loading}
+            style={{
+              width: "100%",
+              background: "transparent",
+              color: "#C8922A",
+              border: "1px solid #C8922A",
+              padding: 12,
+              borderRadius: 10,
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: loading ? "not-allowed" : "pointer",
+              marginTop: 12,
+            }}
+          >
+            Demo Login (auto-fill)
+          </button>
 
           <div style={{ textAlign: "center", marginTop: 32 }}>
             <Link

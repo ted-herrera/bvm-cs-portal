@@ -1,7 +1,14 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { getCampaignUser } from "@/lib/campaign";
+import {
+  renderPrintAd,
+  getSizeSpec,
+  normalizeSize,
+  SIZE_LABELS,
+  type PrintAdData,
+} from "@/lib/print-engine";
 
 interface Msg {
   role: "bruno" | "user";
@@ -686,6 +693,22 @@ export default function CampaignIntakePage() {
               marginBottom: 8,
             }}
           >
+            Live Print Preview
+          </p>
+
+          <LiveAdPreview fields={fields} />
+          <div style={{ height: 24 }} />
+
+          <p
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.12em",
+              color: "#C8922A",
+              marginBottom: 8,
+            }}
+          >
             Campaign Brief
           </p>
 
@@ -781,4 +804,86 @@ export default function CampaignIntakePage() {
       <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}`}</style>
     </div>
   );
+}
+
+function LiveAdPreview({ fields }: { fields: IntakeFields }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const ad = useMemo<PrintAdData>(() => {
+    const services = (fields.services || "")
+      .split(/[,;·•]/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 4);
+    return {
+      businessName: fields.businessName || "Your Business",
+      tagline: fields.tagline || "",
+      city: fields.city || "",
+      services: services.length ? services : [],
+      cta: "Visit Us Today",
+      phone: fields.contactPhone || "",
+      photoUrl: defaultPhoto(fields.category),
+      brandColors: { primary: "#0C2340", secondary: "#475569", accent: "#C8922A" },
+      size: normalizeSize(fields.adSize),
+      variation: "bold_modern",
+      subVariation: 0,
+    };
+  }, [fields]);
+
+  const spec = getSizeSpec(ad.size);
+  const targetW = 320;
+  const scale = targetW / spec.trimPx150.w;
+  const filled = !!fields.businessName;
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const inner = containerRef.current.querySelector("[data-live-inner]") as HTMLDivElement | null;
+    if (inner) inner.style.transform = `scale(${scale})`;
+  }, [scale, ad]);
+
+  return (
+    <div>
+      <div
+        ref={containerRef}
+        style={{
+          width: targetW,
+          height: spec.trimPx150.h * scale,
+          background: filled ? "#fff" : "transparent",
+          border: filled ? "1px solid #334155" : "2px dashed #334155",
+          borderRadius: 8,
+          overflow: "hidden",
+          position: "relative",
+          margin: "0 auto",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        {filled ? (
+          <div
+            data-live-inner
+            style={{ width: spec.trimPx150.w, height: spec.trimPx150.h, transformOrigin: "top left" }}
+            dangerouslySetInnerHTML={{ __html: renderPrintAd(ad, { dpi: 150 }) }}
+          />
+        ) : (
+          <div style={{ color: "#64748b", fontSize: 12, textAlign: "center", padding: 12 }}>
+            Your print ad will build itself here as Bruno gathers your story.
+          </div>
+        )}
+      </div>
+      <div style={{ textAlign: "center", marginTop: 8, fontSize: 11, color: "#64748b" }}>
+        {SIZE_LABELS[ad.size]} · {spec.trimInches.w}&rdquo; × {spec.trimInches.h}&rdquo;
+      </div>
+    </div>
+  );
+}
+
+function defaultPhoto(cat: string): string {
+  const k = (cat || "").toLowerCase();
+  if (k.includes("restaurant") || k.includes("food")) return "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=1200";
+  if (k.includes("dent") || k.includes("health") || k.includes("medical")) return "https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=1200";
+  if (k.includes("legal") || k.includes("law")) return "https://images.unsplash.com/photo-1505664194779-8beaceb93744?w=1200";
+  if (k.includes("roof") || k.includes("home") || k.includes("construction")) return "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1200";
+  if (k.includes("fitness") || k.includes("yoga") || k.includes("gym")) return "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=1200";
+  if (k.includes("auto")) return "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=1200";
+  return "https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=1200";
 }

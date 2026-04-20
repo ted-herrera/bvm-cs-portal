@@ -5,6 +5,8 @@ import Link from "next/link";
 import type { CampaignClient } from "@/lib/campaign";
 import { createClient } from "@supabase/supabase-js";
 import confetti from "canvas-confetti";
+import PrintAdPreview, { clientToAdData } from "@/components/PrintAdPreview";
+import { getSizeSpec, normalizeSize, SIZE_LABELS } from "@/lib/print-engine";
 
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -164,15 +166,8 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
   }
 
   // POST-APPROVAL
-  const directions = client.generated_directions || [];
-  const approvedDir = directions.find((d) => d.name === client.selected_direction) || directions[0];
   const messages = client.messages || [];
   const stageIndex = STAGES.indexOf(client.stage as (typeof STAGES)[number]);
-
-  const contactPhone = (client as unknown as Record<string, unknown>).contact_phone as string | undefined;
-  const contactEmail = (client as unknown as Record<string, unknown>).contact_email as string | undefined;
-  const contactAddress = (client as unknown as Record<string, unknown>).contact_address as string | undefined;
-  const contactLine = [contactPhone, contactEmail, contactAddress].filter(Boolean).join(" \u00B7 ");
 
   async function sendMessage() {
     if (!msgInput.trim()) return;
@@ -228,16 +223,32 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
     } catch { /* silent */ }
   }
 
+  function downloadPrintAd(c: CampaignClient, mode: "bleed" | "trim") {
+    // Client-side approach: open print-ready rendered page and let browser "Save as PNG"
+    const ad = clientToAdData(c);
+    const qs = new URLSearchParams({
+      id: c.id,
+      mode,
+      variation: ad.variation,
+      sub: String(ad.subVariation ?? 0),
+    });
+    window.open(`/campaign/print-preview?${qs.toString()}`, "_blank");
+  }
+
+  async function logUpsellInterest(product: string) {
+    try {
+      await fetch(`/api/campaign/upsell/interest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: id, product }),
+      });
+    } catch { /* silent */ }
+  }
+
   const scrollToSection = (section: string) => {
     setActiveNav(section);
     document.getElementById(`section-${section}`)?.scrollIntoView({ behavior: "smooth" });
   };
-
-  const suiteCards = [
-    { label: "Print Ad", status: "active", color: GOLD },
-    { label: "Web Landing Page", status: "available", color: "#667" },
-    { label: "Digital Campaign", status: "available", color: "#667" },
-  ];
 
   const onboardingSteps = [
     { title: "Welcome to Your Campaign", desc: "Learn how we build your brand presence." },
@@ -362,27 +373,35 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
           {/* YOUR CAMPAIGN */}
           <section id="section-campaign" style={{ marginBottom: 48 }}>
             <Eyebrow>Your Campaign</Eyebrow>
-            {/* Approved Ad with Overlay */}
-            {approvedDir && (
-              <div style={{ position: "relative", borderRadius: 16, overflow: "hidden", maxWidth: 480, marginBottom: 16 }}>
-                {approvedDir.imageUrl ? (
-                  <img src={approvedDir.imageUrl} alt="Approved direction" style={{ width: "100%", aspectRatio: "1/1", objectFit: "cover", display: "block" }} />
-                ) : (
-                  <div style={{ width: "100%", aspectRatio: "1/1", background: `linear-gradient(135deg, ${NAVY} 0%, ${GOLD} 100%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 700 }}>
-                    {approvedDir.name}
-                  </div>
-                )}
-                <div style={{
-                  position: "absolute", bottom: 0, left: 0, right: 0,
-                  background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)",
-                  padding: "48px 16px 16px",
-                }}>
-                  <div style={{ color: "#fff", fontSize: 18, fontWeight: 700, fontFamily: "Georgia, serif" }}>{client.business_name}</div>
-                  {client.tagline && <div style={{ color: "#fff", fontSize: 13, fontStyle: "italic", marginTop: 4 }}>{client.tagline}</div>}
-                  {contactLine && <div style={{ color: "#fff", fontSize: 11, marginTop: 6 }}>{contactLine}</div>}
-                </div>
+            {/* Approved Print Ad */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ background: "#fff", padding: 16, borderRadius: 16, display: "inline-block", boxShadow: "0 12px 30px -18px rgba(0,0,0,0.5)" }}>
+                <PrintAdPreview client={client} maxWidth={440} rounded={6} />
               </div>
-            )}
+              {(() => {
+                const sz = normalizeSize(client.ad_size);
+                const spec = getSizeSpec(sz);
+                return (
+                  <div style={{ marginTop: 10, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                    <div style={{ fontSize: 12, color: "#ffffffcc" }}>
+                      {SIZE_LABELS[sz]} · {spec.trimInches.w}&rdquo; × {spec.trimInches.h}&rdquo;
+                    </div>
+                    <button
+                      onClick={() => downloadPrintAd(client, "bleed")}
+                      style={{ background: "#223556", color: "#fff", border: "1px solid #ffffff22", borderRadius: 6, padding: "6px 12px", fontSize: 12, cursor: "pointer" }}
+                    >
+                      Download Print-Ready (with bleed)
+                    </button>
+                    <button
+                      onClick={() => downloadPrintAd(client, "trim")}
+                      style={{ background: "#223556", color: "#fff", border: "1px solid #ffffff22", borderRadius: 6, padding: "6px 12px", fontSize: 12, cursor: "pointer" }}
+                    >
+                      Download Display Size (trim)
+                    </button>
+                  </div>
+                );
+              })()}
+            </div>
 
             {/* Tagline Edit */}
             <div style={{ marginBottom: 16 }}>
@@ -445,25 +464,23 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
             </div>
           </section>
 
-          {/* CAMPAIGN SUITE */}
+          {/* WEB + PRINT UPSELL */}
+          <WebPrintUpsell client={client} onInterest={() => logUpsellInterest("web_campaign")} />
+
+          {/* CAMPAIGN SUITE / GROWTH LADDER */}
           <section id="section-suite" style={{ marginBottom: 48 }}>
-            <Eyebrow>Campaign Suite</Eyebrow>
-            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
-              {suiteCards.map((card) => (
-                <div key={card.label} style={{
-                  flex: "1 1 200px", background: "#ffffff08", borderRadius: 12, padding: 20,
-                  border: card.status === "active" ? `2px solid ${GOLD}` : "2px solid transparent",
-                }}>
-                  <div style={{ fontSize: 16, fontWeight: 600, color: card.status === "active" ? GOLD : "#ffffffaa" }}>{card.label}</div>
-                  <div style={{ fontSize: 12, color: card.status === "active" ? GOLD : "#ffffff55", marginTop: 4, textTransform: "uppercase" }}>{card.status}</div>
-                </div>
+            <Eyebrow>Grow Your Campaign</Eyebrow>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
+              {[
+                { key: "website", icon: "🌐", title: "Website", desc: "Custom website matching your print brand" },
+                { key: "digital_ads", icon: "📱", title: "Digital Advertising", desc: "Meta, Google, and programmatic ads" },
+                { key: "social_media", icon: "💬", title: "Social Media", desc: "Managed posting + community engagement" },
+                { key: "reputation", icon: "⭐", title: "Reputation Management", desc: "Reviews, replies, and visibility" },
+                { key: "email", icon: "📧", title: "Email Marketing", desc: "Drip campaigns and newsletters" },
+                { key: "size_upgrade", icon: "📐", title: "Ad Size Upgrade", desc: "Bigger presence, bigger impact" },
+              ].map((c) => (
+                <UpsellCard key={c.key} product={c.key} icon={c.icon} title={c.title} desc={c.desc} onInterest={logUpsellInterest} />
               ))}
-            </div>
-            <div style={{ background: "#ffffff08", borderRadius: 12, padding: 20, textAlign: "center" }}>
-              <div style={{ fontSize: 14, color: "#ffffffaa", marginBottom: 8 }}>Expand your campaign reach with digital and web placements</div>
-              <button style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 6, padding: "10px 24px", fontWeight: 700, cursor: "pointer" }}>
-                Upgrade Your Suite
-              </button>
             </div>
           </section>
 
@@ -503,31 +520,30 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
             </div>
           </section>
 
-          {/* BUSINESS PROFILE */}
-          <section style={{ marginBottom: 48 }}>
-            <Eyebrow>Business Profile</Eyebrow>
-            <div style={{ background: "#ffffff08", borderRadius: 12, padding: 24, textAlign: "center" }}>
-              <div style={{ fontSize: 14, color: "#ffffffaa", marginBottom: 12 }}>Update your business profile to enhance your campaign</div>
-              <button
-                onClick={() => requestRevision("business_profile")}
-                style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 6, padding: "10px 24px", fontWeight: 700, cursor: "pointer" }}
-              >
-                Update Business Profile
-              </button>
-            </div>
-          </section>
+          {/* BUSINESS PROFILE HIGHLIGHT */}
+          <BusinessProfileSection clientId={id} />
 
-          {/* EXPERT CONTRIBUTOR */}
+          {/* EXPERT CONTRIBUTOR ARTICLE */}
+          <ExpertContributorSection clientId={id} />
+
+          {/* CONTACT */}
           <section style={{ marginBottom: 48 }}>
-            <Eyebrow>Expert Contributor</Eyebrow>
-            <div style={{ background: "#ffffff08", borderRadius: 12, padding: 24, textAlign: "center" }}>
-              <div style={{ fontSize: 14, color: "#ffffffaa", marginBottom: 12 }}>Become a featured expert contributor in your edition</div>
-              <button
-                onClick={() => requestRevision("expert_contributor")}
-                style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 6, padding: "10px 24px", fontWeight: 700, cursor: "pointer" }}
+            <Eyebrow>Contact Your Rep</Eyebrow>
+            <div style={{ background: "#ffffff08", borderRadius: 12, padding: 20, display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: "50%", background: GOLD, color: NAVY,
+                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 800,
+              }}>{repInitials}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 15, fontWeight: 600, color: "#fff" }}>{repName}</div>
+                <div style={{ fontSize: 12, color: "#ffffffaa" }}>Your BVM Rep · Always here to help</div>
+              </div>
+              <a
+                href={`mailto:rep@bvm.example?subject=Campaign%20question%20from%20${encodeURIComponent(client.business_name)}`}
+                style={{ background: GOLD, color: NAVY, borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 700, textDecoration: "none" }}
               >
-                Become a Contributor
-              </button>
+                Contact Rep →
+              </a>
             </div>
           </section>
 
@@ -567,18 +583,10 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
 
         {/* Right Sidebar */}
         <aside style={{ width: 260, background: DARK_BG, padding: 20, position: "sticky", top: 72, height: "calc(100vh - 72px)", overflowY: "auto", flexShrink: 0 }}>
-          {/* Approved Ad Image */}
-          {approvedDir && (
-            <div style={{ borderRadius: 12, overflow: "hidden", marginBottom: 16 }}>
-              {approvedDir.imageUrl ? (
-                <img src={approvedDir.imageUrl} alt="Ad preview" style={{ width: "100%", aspectRatio: "1/1", objectFit: "cover", display: "block" }} />
-              ) : (
-                <div style={{ width: "100%", aspectRatio: "1/1", background: `linear-gradient(135deg, ${NAVY}, ${GOLD})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700 }}>
-                  {approvedDir.name}
-                </div>
-              )}
-            </div>
-          )}
+          {/* Approved Ad Preview */}
+          <div style={{ borderRadius: 12, overflow: "hidden", marginBottom: 16, background: "#fff", padding: 8 }}>
+            <PrintAdPreview client={client} maxWidth={220} rounded={4} />
+          </div>
 
           {/* Stage Card */}
           <div style={{
@@ -649,5 +657,241 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
         </div>
       )}
     </div>
+  );
+}
+
+/* ── Web + Print Upsell Panel ────────────────────────────────────────── */
+function WebPrintUpsell({ client, onInterest }: { client: CampaignClient; onInterest: () => void }) {
+  const [notified, setNotified] = useState(false);
+  const handleClick = () => {
+    setNotified(true);
+    onInterest();
+  };
+  return (
+    <section style={{ marginBottom: 48 }}>
+      <Eyebrow>Web + Print Campaign</Eyebrow>
+      <div style={{
+        display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 20,
+        background: "linear-gradient(135deg, #0C2340 0%, #1a2f50 100%)",
+        border: `2px solid ${GOLD}`, borderRadius: 16, padding: 20, position: "relative", overflow: "hidden",
+      }}>
+        <div style={{ background: "#ffffff12", borderRadius: 10, padding: 12 }}>
+          <div style={{ background: "#fff", borderRadius: 6, overflow: "hidden", aspectRatio: "16/9" }}>
+            <div style={{ height: 26, background: "#0C2340", display: "flex", alignItems: "center", padding: "0 10px", gap: 6 }}>
+              <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#ef4444" }} />
+              <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#fbbf24" }} />
+              <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#22c55e" }} />
+              <span style={{ color: "#fff", fontSize: 11, marginLeft: 8, fontWeight: 600 }}>{client.business_name}</span>
+            </div>
+            <div style={{ height: "50%", background: "linear-gradient(135deg, #D4A843, #185FA5)", position: "relative" }}>
+              <div style={{ position: "absolute", bottom: 10, left: 14, color: "#fff" }}>
+                <div style={{ fontSize: 18, fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 700 }}>{client.business_name}</div>
+                <div style={{ fontSize: 11, opacity: 0.9 }}>{client.tagline || "Professional services"}</div>
+              </div>
+            </div>
+            <div style={{ padding: 12, color: "#0C2340" }}>
+              <div style={{ display: "inline-block", background: "#D4A843", color: "#0C2340", padding: "4px 10px", borderRadius: 4, fontSize: 11, fontWeight: 700 }}>
+                Get Started →
+              </div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, color: "#fff", margin: "4px 0 10px" }}>
+            Your campaign across every touchpoint
+          </h3>
+          <p style={{ color: "#ffffffcc", fontSize: 13, lineHeight: 1.5, margin: "0 0 14px" }}>
+            The same brand story, now on a website customers can find 24/7. Print + Web is how local businesses win.
+          </p>
+          <button
+            onClick={handleClick}
+            disabled={notified}
+            style={{
+              background: notified ? "#16a34a" : GOLD,
+              color: notified ? "#fff" : NAVY,
+              border: "none", borderRadius: 10, padding: "12px 18px", fontSize: 14, fontWeight: 700,
+              cursor: notified ? "default" : "pointer", width: "100%",
+            }}
+          >
+            {notified ? "✓ Your rep has been notified" : "Add Digital to Your Campaign →"}
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── Upsell Card ─────────────────────────────────────────────────────── */
+function UpsellCard({ product, icon, title, desc, onInterest }: {
+  product: string; icon: string; title: string; desc: string;
+  onInterest: (p: string) => void | Promise<void>;
+}) {
+  const [notified, setNotified] = useState(false);
+  const click = () => {
+    setNotified(true);
+    onInterest(product);
+  };
+  return (
+    <div style={{ background: "#ffffff08", borderRadius: 12, padding: 16, display: "flex", flexDirection: "column" }}>
+      <div style={{ fontSize: 28, marginBottom: 8 }}>{icon}</div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", marginBottom: 4 }}>{title}</div>
+      <div style={{ fontSize: 12, color: "#ffffffaa", marginBottom: 14, flex: 1 }}>{desc}</div>
+      <button
+        onClick={click}
+        disabled={notified}
+        style={{
+          background: notified ? "#16a34a" : GOLD,
+          color: notified ? "#fff" : NAVY,
+          border: "none", borderRadius: 6, padding: "8px 0", fontWeight: 700, fontSize: 12,
+          cursor: notified ? "default" : "pointer",
+        }}
+      >
+        {notified ? "✓ Rep notified" : "I'm Interested →"}
+      </button>
+    </div>
+  );
+}
+
+/* ── Business Profile Section ────────────────────────────────────────── */
+function BusinessProfileSection({ clientId }: { clientId: string }) {
+  const [loading, setLoading] = useState(false);
+  const [profile, setProfile] = useState<string | null>(null);
+  const [status, setStatus] = useState<"idle" | "in_production" | "ready" | "published">("idle");
+
+  const generate = async () => {
+    setLoading(true);
+    setStatus("in_production");
+    try {
+      const res = await fetch(`/api/campaign/content/profile/${clientId}`, { method: "POST" });
+      const data = await res.json();
+      if (data.profile) {
+        setProfile(data.profile);
+        setStatus("ready");
+      }
+    } catch { /* silent */ }
+    setLoading(false);
+  };
+
+  return (
+    <section style={{ marginBottom: 48 }}>
+      <Eyebrow>Business Profile Highlight</Eyebrow>
+      <div style={{ background: "#ffffff08", borderRadius: 12, padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>Your story, told by BVM</div>
+            <div style={{ fontSize: 12, color: "#ffffffaa" }}>150-word editorial piece that runs alongside your ad</div>
+          </div>
+          <span style={{
+            fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em",
+            background: status === "ready" ? "#16a34a33" : status === "in_production" ? "#d9770633" : "#ffffff12",
+            color: status === "ready" ? "#22c55e" : status === "in_production" ? "#fbbf24" : "#ffffffaa",
+            padding: "4px 10px", borderRadius: 999,
+          }}>
+            {status === "ready" ? "Ready for Review" : status === "in_production" ? "In Production" : "Not Started"}
+          </span>
+        </div>
+        {profile && (
+          <div style={{ background: "#ffffff05", borderRadius: 8, padding: 16, marginBottom: 12, fontSize: 13, color: "#ffffffdd", whiteSpace: "pre-wrap", lineHeight: 1.55 }}>
+            {profile}
+          </div>
+        )}
+        <button
+          onClick={generate}
+          disabled={loading}
+          style={{
+            background: GOLD, color: NAVY, border: "none", borderRadius: 6,
+            padding: "8px 18px", fontWeight: 700, fontSize: 13, cursor: loading ? "wait" : "pointer",
+          }}
+        >
+          {loading ? "Generating..." : profile ? "Regenerate" : "Generate My Profile"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+/* ── Expert Contributor Section ──────────────────────────────────────── */
+function ExpertContributorSection({ clientId }: { clientId: string }) {
+  const [topics, setTopics] = useState<Array<{ title: string; hook: string; angle?: string }> | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [custom, setCustom] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const fetchTopics = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/campaign/content/topics/${clientId}`, { method: "POST" });
+      const data = await res.json();
+      if (Array.isArray(data.topics)) setTopics(data.topics);
+    } catch { /* silent */ }
+    setLoading(false);
+  };
+
+  const submitCustom = async () => {
+    if (!custom.trim()) return;
+    setSubmitting(true);
+    try {
+      await fetch(`/api/campaign/revision/${clientId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "expert_topic_suggestion", note: custom.trim() }),
+      });
+      setCustom("");
+    } catch { /* silent */ }
+    setSubmitting(false);
+  };
+
+  return (
+    <section style={{ marginBottom: 48 }}>
+      <Eyebrow>Expert Contributor Article</Eyebrow>
+      <div style={{ background: "#ffffff08", borderRadius: 12, padding: 20 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", marginBottom: 6 }}>Share your expertise</div>
+        <div style={{ fontSize: 13, color: "#ffffffaa", marginBottom: 14 }}>
+          Write an expert article for your community magazine. Your rep will help you polish it for publication.
+        </div>
+        {topics && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10, marginBottom: 14 }}>
+            {topics.map((t, i) => (
+              <div key={i} style={{ background: "#ffffff05", borderRadius: 8, padding: 12, border: `1px solid ${GOLD}44` }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 4 }}>{t.title}</div>
+                <div style={{ fontSize: 12, color: "#ffffffaa", lineHeight: 1.45 }}>{t.hook}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+          <button
+            onClick={fetchTopics}
+            disabled={loading}
+            style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 6, padding: "8px 16px", fontWeight: 700, fontSize: 13, cursor: loading ? "wait" : "pointer" }}
+          >
+            {loading ? "Generating..." : topics ? "Get New Ideas" : "Let Bruno Suggest Topics"}
+          </button>
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 11, color: "#ffffffaa", marginBottom: 6 }}>Or suggest your own topic:</div>
+          <textarea
+            value={custom}
+            onChange={(e) => setCustom(e.target.value)}
+            placeholder="What's a topic you want to write about?"
+            style={{
+              width: "100%", background: "#223556", border: "1px solid #ffffff22", borderRadius: 8, padding: 12,
+              color: "#fff", fontSize: 13, minHeight: 64, resize: "vertical", boxSizing: "border-box", fontFamily: "inherit",
+            }}
+          />
+          <button
+            onClick={submitCustom}
+            disabled={submitting || !custom.trim()}
+            style={{
+              marginTop: 8, background: GOLD, color: NAVY, border: "none", borderRadius: 6,
+              padding: "8px 16px", fontWeight: 700, fontSize: 13,
+              cursor: custom.trim() ? "pointer" : "not-allowed", opacity: custom.trim() ? 1 : 0.5,
+            }}
+          >
+            {submitting ? "Submitting..." : "Suggest a Topic →"}
+          </button>
+        </div>
+      </div>
+    </section>
   );
 }
