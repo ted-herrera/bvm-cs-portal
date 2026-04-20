@@ -21,32 +21,29 @@ function getRepFromStorage(): string {
   return "unassigned";
 }
 
-const SYSTEM_PROMPT = `You are Bruno, BVM's campaign intake assistant. You help local businesses set up their print advertising campaign.
-
-Collect these fields ONE AT A TIME in natural conversation. Never list multiple questions. Be warm and brief.
+const SYSTEM_PROMPT = `You are Bruno, BVM's campaign intake assistant. Collect these fields ONE AT A TIME. Never list multiple questions. Be warm and brief.
 
 COLLECTION ORDER:
-1. Business name and what city they are in
-2. Business category (restaurant, dental, legal, fitness, home services, etc)
+1. Business name and city
+2. Business category (restaurant, dental, legal, fitness, home services, retail, etc)
 3. ZIP code
-4. Primary service or offer for the ad (what should the ad promote)
-5. Ad size — present these options as a simple list:
+4. Primary service or offer for the ad
+5. Ad size — present these options:
    - 1/8 Page (3.65" x 2.5")
    - 1/4 Page (3.65" x 5") — most popular
    - 1/3 Page Vertical (2.5" x 10")
    - 1/2 Page (7.5" x 5")
    - Full Page (7.5" x 10")
-6. Tagline — offer 3 options based on their business and city, let them pick one or skip
+6. Tagline — generate 3 options based on business and city, let them pick or skip
 7. Website URL for QR code — ask "What's your website URL? We'll add a QR code to your ad." Skip option available.
 8. Contact phone number for the ad
 9. Contact email for the ad
-10. Full business address — IMPORTANT: You MUST explicitly ask "What's your full business address? Street, city, state, zip — this will appear on your ad. (or type skip to leave it off)" Do NOT skip this step. Do NOT combine it with any other question. Wait for the user's response before proceeding.
+10. Full business address — ask "What's your full business address? Street, city, state, zip — this will appear on your ad." Skip option available.
 
-When ALL 10 fields have been collected (or skipped where allowed), confirm everything and say exactly: "BRIEF_COMPLETE" followed by a JSON block like:
-BRIEF_COMPLETE
+When ALL fields are collected output exactly: BRIEF_COMPLETE followed by JSON on next line:
 {"businessName":"...","category":"...","city":"...","zip":"...","services":"...","adSize":"...","tagline":"...","qrUrl":"...","contactPhone":"...","contactEmail":"...","contactAddress":"..."}
 
-Use null for any skipped optional fields (tagline, qrUrl, contactAddress).`;
+Use null for skipped optional fields.`;
 
 export default function CampaignIntake() {
   const router = useRouter();
@@ -58,7 +55,7 @@ export default function CampaignIntake() {
   const [brief, setBrief] = useState<Partial<Brief>>({});
   const [phase, setPhase] = useState<"intake" | "generating" | "done">("intake");
   const bottomRef = useRef<HTMLDivElement>(null);
-  const repId = useRef<string>("unassigned");
+  const repId = useRef("unassigned");
 
   useEffect(() => { repId.current = getRepFromStorage(); }, []);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
@@ -106,71 +103,43 @@ export default function CampaignIntake() {
   async function generateCampaign(b: Brief) {
     const clientId = crypto.randomUUID();
 
-    // Save to Supabase
     try {
       const { getSupabase } = await import("@/lib/supabase");
       const sb = getSupabase();
       if (sb) {
         const { error } = await sb.from("campaign_clients").insert({
-          id: clientId,
-          business_name: b.businessName,
-          category: b.category,
-          city: b.city,
-          zip: b.zip,
-          services: b.services,
-          ad_size: b.adSize,
-          tagline: b.tagline,
-          rep_id: repId.current,
-          stage: "intake",
-          revisions: [],
+          id: clientId, business_name: b.businessName, category: b.category,
+          city: b.city, zip: b.zip, services: b.services, ad_size: b.adSize,
+          tagline: b.tagline, rep_id: repId.current, stage: "intake", revisions: [],
         });
-        if (error) {
-          console.error("Supabase insert error:", error.message);
-        }
+        if (error) console.error("Supabase insert error:", error.message);
       }
-    } catch (e) {
-      console.error("Supabase error:", e);
-    }
+    } catch (e) { console.error("Supabase error:", e); }
 
-    // Fire SBR
     let sbrData = null;
     try {
       const sbrRes = await fetch("/api/campaign/sbr", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ businessName: b.businessName, city: b.city, zip: b.zip, category: b.category }),
       });
       sbrData = await sbrRes.json();
       const { getSupabase } = await import("@/lib/supabase");
       const sb = getSupabase();
-      if (sb) {
-        await sb.from("campaign_clients").update({ sbr_data: sbrData, stage: "tearsheet" }).eq("id", clientId);
-      }
-    } catch (e) {
-      console.error("SBR error:", e);
-    }
+      if (sb) await sb.from("campaign_clients").update({ sbr_data: sbrData, stage: "tearsheet" }).eq("id", clientId);
+    } catch (e) { console.error("SBR error:", e); }
 
-    // Generate images
     try {
       const imgRes = await fetch("/api/campaign/generate-image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          businessName: b.businessName, category: b.category, city: b.city,
-          services: b.services, adSize: b.adSize, tagline: b.tagline, sbrData,
-        }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessName: b.businessName, category: b.category, city: b.city, services: b.services, adSize: b.adSize, tagline: b.tagline, sbrData }),
       });
       const imgData = await imgRes.json();
       if (imgData.directions) {
         const { getSupabase } = await import("@/lib/supabase");
         const sb = getSupabase();
-        if (sb) {
-          await sb.from("campaign_clients").update({ generated_directions: imgData.directions }).eq("id", clientId);
-        }
+        if (sb) await sb.from("campaign_clients").update({ generated_directions: imgData.directions }).eq("id", clientId);
       }
-    } catch (e) {
-      console.error("Image generation error:", e);
-    }
+    } catch (e) { console.error("Image generation error:", e); }
 
     setPhase("done");
     router.push("/campaign/tearsheet/" + clientId);
@@ -178,7 +147,6 @@ export default function CampaignIntake() {
 
   return (
     <div style={{ display: "flex", height: "100vh", background: "#F5F0E8", fontFamily: "Inter, 'DM Sans', sans-serif" }}>
-      {/* LEFT — Bruno Chat */}
       <div style={{ width: "50%", display: "flex", flexDirection: "column", background: "#FDFAF4", borderRight: "1px solid #DDD5C0" }}>
         <div style={{ padding: "16px 20px", background: "#1B2A4A", display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#C8922A", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: "#1B2A4A", fontSize: 14 }}>B</div>
@@ -187,79 +155,35 @@ export default function CampaignIntake() {
           <div style={{ flex: 1 }} />
           <button onClick={() => {
             const demo: Brief = { businessName: "Ted's Burger Shack", category: "Restaurant", city: "Tulsa", zip: "74103", services: "Premium burgers, craft shakes, local ingredients", adSize: "1/4 Page", tagline: "Tulsa's favorite burger.", qrUrl: "https://tedsburgershack.com", contactPhone: "(918) 555-0123", contactEmail: "hello@tedsburgershack.com", contactAddress: "123 Main St, Tulsa, OK 74103" };
-            setBrief(demo);
-            setMessages([...messages, { role: "assistant", content: "Running demo intake for Ted's Burger Shack..." }]);
-            setPhase("generating");
-            repId.current = "Karen Guirguis";
-            generateCampaign(demo);
-          }} style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 6, padding: "5px 12px", fontSize: 11, color: "rgba(255,255,255,0.6)", cursor: "pointer", fontWeight: 600 }}>
-            Demo Run →
-          </button>
+            setBrief(demo); setMessages([...messages, { role: "assistant", content: "Running demo intake for Ted's Burger Shack..." }]); setPhase("generating"); repId.current = "Karen Guirguis"; generateCampaign(demo);
+          }} style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 6, padding: "5px 12px", fontSize: 11, color: "rgba(255,255,255,0.6)", cursor: "pointer", fontWeight: 600 }}>Demo Run →</button>
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
           {messages.map((m, i) => (
             <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
-              <div style={{
-                maxWidth: "80%", padding: "10px 14px",
-                borderRadius: m.role === "user" ? "16px 4px 16px 16px" : "4px 16px 16px 16px",
-                background: m.role === "user" ? "#1B2A4A" : "white",
-                color: m.role === "user" ? "white" : "#1C2B1D",
-                fontSize: 14, lineHeight: 1.5,
-                border: m.role === "assistant" ? "1px solid #DDD5C0" : "none",
-              }}>
+              <div style={{ maxWidth: "80%", padding: "10px 14px", borderRadius: m.role === "user" ? "16px 4px 16px 16px" : "4px 16px 16px 16px", background: m.role === "user" ? "#1B2A4A" : "white", color: m.role === "user" ? "white" : "#1C2B1D", fontSize: 14, lineHeight: 1.5, border: m.role === "assistant" ? "1px solid #DDD5C0" : "none" }}>
                 {m.content.includes("BRIEF_COMPLETE") ? "Perfect — generating your campaign..." : m.content}
               </div>
             </div>
           ))}
-          {loading && (
-            <div style={{ display: "flex", gap: 4, padding: "10px 14px", background: "white", borderRadius: "4px 16px 16px 16px", width: "fit-content", border: "1px solid #DDD5C0" }}>
-              {[0, 1, 2].map(i => <span key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: "#9B8E7A", animation: "bounce 1.2s infinite", animationDelay: i * 0.2 + "s", display: "inline-block" }} />)}
-            </div>
-          )}
-          {phase === "generating" && (
-            <div style={{ textAlign: "center", padding: 20, color: "#6B5E45", fontSize: 14 }}>
-              <div style={{ fontSize: 24, marginBottom: 8 }}>✨</div>
-              Generating your campaign directions...
-            </div>
-          )}
+          {loading && <div style={{ display: "flex", gap: 4, padding: "10px 14px", background: "white", borderRadius: "4px 16px 16px 16px", width: "fit-content", border: "1px solid #DDD5C0" }}>{[0,1,2].map(i => <span key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: "#9B8E7A", animation: "bounce 1.2s infinite", animationDelay: i*0.2+"s", display: "inline-block" }} />)}</div>}
+          {phase === "generating" && <div style={{ textAlign: "center", padding: 20, color: "#6B5E45", fontSize: 14 }}><div style={{ fontSize: 24, marginBottom: 8 }}>✨</div>Generating your campaign directions...</div>}
           <div ref={bottomRef} />
         </div>
         {phase === "intake" && (
           <div style={{ padding: 16, borderTop: "1px solid #DDD5C0", display: "flex", gap: 8 }}>
-            <input
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && send()}
-              placeholder="Type your answer..."
-              style={{ flex: 1, padding: "10px 14px", border: "1px solid #DDD5C0", borderRadius: 8, fontSize: 14, outline: "none", background: "#FDFAF4" }}
-            />
-            <button onClick={send} disabled={loading} style={{ padding: "10px 20px", background: "#C8922A", color: "white", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
-              Send
-            </button>
+            <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && send()} placeholder="Type your answer..." style={{ flex: 1, padding: "10px 14px", border: "1px solid #DDD5C0", borderRadius: 8, fontSize: 14, outline: "none", background: "#FDFAF4" }} />
+            <button onClick={send} disabled={loading} style={{ padding: "10px 20px", background: "#C8922A", color: "white", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Send</button>
           </div>
         )}
       </div>
-
-      {/* RIGHT — Brief Panel */}
       <div style={{ width: "50%", overflowY: "auto", padding: 32 }}>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1B2A4A", marginBottom: 24, fontFamily: "Georgia, serif" }}>Campaign Brief</h2>
         {Object.keys(brief).length === 0 ? (
           <div style={{ color: "#9B8E7A", fontSize: 14 }}>Your brief will appear here as Bruno collects information...</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {([
-              ["Business", (brief as Brief).businessName],
-              ["Category", (brief as Brief).category],
-              ["City", (brief as Brief).city],
-              ["ZIP", (brief as Brief).zip],
-              ["Services", (brief as Brief).services],
-              ["Ad Size", (brief as Brief).adSize],
-              ["Tagline", (brief as Brief).tagline],
-              ["QR URL", (brief as Brief).qrUrl],
-              ["Phone", (brief as Brief).contactPhone],
-              ["Email", (brief as Brief).contactEmail],
-              ["Address", (brief as Brief).contactAddress],
-            ] as [string, string | null][]).filter(([, v]) => v).map(([label, value]) => (
+            {([["Business", (brief as Brief).businessName], ["Category", (brief as Brief).category], ["City", (brief as Brief).city], ["ZIP", (brief as Brief).zip], ["Services", (brief as Brief).services], ["Ad Size", (brief as Brief).adSize], ["Tagline", (brief as Brief).tagline], ["QR URL", (brief as Brief).qrUrl], ["Phone", (brief as Brief).contactPhone], ["Email", (brief as Brief).contactEmail], ["Address", (brief as Brief).contactAddress]] as [string, string | null][]).filter(([, v]) => v).map(([label, value]) => (
               <div key={label} style={{ background: "white", padding: "12px 16px", borderRadius: 8, border: "1px solid #DDD5C0" }}>
                 <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9B8E7A", marginBottom: 4 }}>{label}</div>
                 <div style={{ fontSize: 14, color: "#1C2B1D", fontWeight: 500 }}>{value}</div>
@@ -268,7 +192,6 @@ export default function CampaignIntake() {
           </div>
         )}
       </div>
-
       <style>{`@keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-5px)} }`}</style>
     </div>
   );

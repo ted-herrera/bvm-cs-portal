@@ -122,13 +122,6 @@ export default function CampaignClientPage({ params }: { params: Promise<{ id: s
   const [revisionNote, setRevisionNote] = useState("");
   const [revisionSending, setRevisionSending] = useState(false);
   const [revisionSent, setRevisionSent] = useState(false);
-
-  // Asset upload
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [assetUploading, setAssetUploading] = useState(false);
-  const [assetProgress, setAssetProgress] = useState(0);
-  const [assetSent, setAssetSent] = useState(false);
   const [editingTagline, setEditingTagline] = useState(false);
   const [taglineInput, setTaglineInput] = useState("");
   const [taglineSaving, setTaglineSaving] = useState(false);
@@ -157,11 +150,6 @@ export default function CampaignClientPage({ params }: { params: Promise<{ id: s
   const [expertContribSent, setExpertContribSent] = useState(false);
   const [expertContribSending, setExpertContribSending] = useState(false);
 
-  // QR Code
-  const [qrDataUrl, setQrDataUrl] = useState("");
-  const [qrEditMode, setQrEditMode] = useState(false);
-  const [qrEditValue, setQrEditValue] = useState("");
-
   // Active nav section
   const [activeSection, setActiveSection] = useState("section-market");
   const centerRef = useRef<HTMLDivElement>(null);
@@ -170,11 +158,6 @@ export default function CampaignClientPage({ params }: { params: Promise<{ id: s
     loadClient();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
-
-  useEffect(() => {
-    const qrUrl = (client as unknown as Record<string,unknown>)?.qr_url as string | undefined;
-    if (qrUrl) { import("@/lib/qr").then(({ generateQRCode }) => generateQRCode(qrUrl).then(setQrDataUrl)); }
-  }, [(client as unknown as Record<string,unknown>)?.qr_url]);
 
   // Check onboarding
   useEffect(() => {
@@ -616,9 +599,9 @@ export default function CampaignClientPage({ params }: { params: Promise<{ id: s
                 width: 44, height: 44, borderRadius: "50%", background: "#F5C842",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontWeight: 800, color: "#1B2A4A", fontSize: 15, flexShrink: 0,
-              }}>{(client.rep_id || "Rep").split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()}</div>
+              }}>TH</div>
               <div>
-                <div style={{ fontSize: 13, color: "#fff", fontWeight: 700 }}>{client.rep_id || "Your Rep"}</div>
+                <div style={{ fontSize: 13, color: "#fff", fontWeight: 700 }}>Ted Herrera</div>
                 <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>Your BVM AE</div>
               </div>
             </div>
@@ -790,126 +773,6 @@ export default function CampaignClientPage({ params }: { params: Promise<{ id: s
                 </p>
               </div>
 
-              {/* QR Code */}
-              <div style={{ background: "#243454", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: 20, marginBottom: 20 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#F5C842", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 12 }}>Your QR Code</div>
-                {(client as unknown as Record<string,unknown>).qr_url ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-                    {qrDataUrl && <img src={qrDataUrl} alt="QR" style={{ width: 150, height: 150, borderRadius: 8 }} />}
-                    <div>
-                      <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 6 }}>Links to:</div>
-                      <div style={{ fontSize: 13, color: "#F5C842", wordBreak: "break-all", marginBottom: 12 }}>{String((client as unknown as Record<string,unknown>).qr_url)}</div>
-                      <button onClick={() => { if (!qrDataUrl) return; const a = document.createElement("a"); a.href = qrDataUrl; a.download = `${client.business_name}-qr.png`; a.click(); }} style={{ background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer", marginRight: 8 }}>Download QR Code</button>
-                      {qrEditMode ? (
-                        <span>
-                          <input value={qrEditValue} onChange={e => setQrEditValue(e.target.value)} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.04)", color: "#fff", fontSize: 12, outline: "none", width: 180 }} />
-                          <button onClick={async () => { const url = qrEditValue.startsWith("http") ? qrEditValue : "https://" + qrEditValue; await fetch("/api/campaign/update-contact", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ id, qr_url: url }) }); setQrEditMode(false); loadClient(); }} style={{ background: "rgba(255,255,255,0.1)", color: "#fff", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 600, cursor: "pointer", marginLeft: 4 }}>Save</button>
-                        </span>
-                      ) : (
-                        <button onClick={() => { setQrEditValue(String((client as unknown as Record<string,unknown>).qr_url)); setQrEditMode(true); }} style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.4)", fontSize: 12, cursor: "pointer" }}>Change destination &rarr;</button>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", marginBottom: 10 }}>Add a QR code to your ad &mdash; link to your website, booking page, or menu.</div>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <input value={qrEditValue} onChange={e => setQrEditValue(e.target.value)} placeholder="https://yourwebsite.com" style={{ flex: 1, padding: "8px 12px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.04)", color: "#fff", fontSize: 13, outline: "none" }} />
-                      <button onClick={async () => { if (!qrEditValue.trim()) return; const url = qrEditValue.startsWith("http") ? qrEditValue : "https://" + qrEditValue; await fetch("/api/campaign/update-contact", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ id, qr_url: url }) }); setQrEditValue(""); loadClient(); }} style={{ background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Save &amp; Generate &rarr;</button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Upload Your Assets */}
-              <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 24, marginBottom: 24 }}>
-                <h3 style={{ fontSize: 16, color: "#fff", margin: "0 0 4px", fontWeight: 700 }}>Have Your Own Assets?</h3>
-                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", margin: "0 0 16px" }}>Upload your logo, photos, or existing artwork and we&apos;ll incorporate them into your campaign.</p>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-                  {/* Logo zone */}
-                  <label style={{ border: "2px dashed rgba(245,200,66,0.4)", borderRadius: 8, padding: 20, textAlign: "center", cursor: "pointer", background: "rgba(255,255,255,0.02)" }}>
-                    <div style={{ fontSize: 28, marginBottom: 6 }}>🎨</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 4 }}>Logo & Brand Files</div>
-                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 10 }}>EPS, AI, PDF, PNG (preferred)</div>
-                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", lineHeight: 1.8, textAlign: "left" }}>
-                      <div style={{ color: "#22c55e" }}>✓ Vector files preferred (EPS, AI, PDF)</div>
-                      <div style={{ color: "#22c55e" }}>✓ PNG with transparent background</div>
-                      <div style={{ color: "#ef4444" }}>✗ No Word documents</div>
-                      <div style={{ color: "#ef4444" }}>✗ No low-resolution web images</div>
-                    </div>
-                    <input type="file" accept=".eps,.ai,.pdf,.png,.svg" style={{ display: "none" }} onChange={(e) => { if (e.target.files?.[0]) setLogoFile(e.target.files[0]); }} />
-                    {logoFile && <div style={{ marginTop: 8, fontSize: 11, color: "#22c55e", fontWeight: 600 }}>✓ {logoFile.name} ({(logoFile.size / 1024).toFixed(0)} KB)</div>}
-                  </label>
-
-                  {/* Photo zone */}
-                  <label style={{ border: "2px dashed rgba(245,200,66,0.4)", borderRadius: 8, padding: 20, textAlign: "center", cursor: "pointer", background: "rgba(255,255,255,0.02)" }}>
-                    <div style={{ fontSize: 28, marginBottom: 6 }}>📸</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 4 }}>Photos & Images</div>
-                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 10 }}>JPG, TIFF, PNG — 300dpi minimum</div>
-                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", lineHeight: 1.8, textAlign: "left" }}>
-                      <div style={{ color: "#22c55e" }}>✓ Minimum 300dpi at 100% size</div>
-                      <div style={{ color: "#22c55e" }}>✓ Original photos only</div>
-                      <div style={{ color: "#ef4444" }}>✗ Internet/web images (72dpi)</div>
-                      <div style={{ color: "#ef4444" }}>✗ No screenshots</div>
-                    </div>
-                    <input type="file" accept=".jpg,.jpeg,.tiff,.tif,.png" style={{ display: "none" }} onChange={(e) => { if (e.target.files?.[0]) setPhotoFile(e.target.files[0]); }} />
-                    {photoFile && <div style={{ marginTop: 8, fontSize: 11, color: "#22c55e", fontWeight: 600 }}>✓ {photoFile.name} ({(photoFile.size / 1024).toFixed(0)} KB)</div>}
-                  </label>
-                </div>
-
-                {/* Requirements callout */}
-                <div style={{ background: "rgba(200,118,26,0.1)", border: "1px solid rgba(200,118,26,0.3)", borderRadius: 8, padding: 14, marginBottom: 14 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#f59e0b", marginBottom: 4 }}>⚠️ Print Resolution Requirements</div>
-                  <p style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", margin: 0, lineHeight: 1.6 }}>Print ads require a minimum of 300dpi at 100% size. Internet and web images are typically 72dpi and cannot be converted to print quality. When in doubt, send the original file — our content team will advise.</p>
-                </div>
-
-                {/* Submit */}
-                {assetSent ? (
-                  <div style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", borderRadius: 8, padding: 14 }}>
-                    <p style={{ fontSize: 13, color: "#22c55e", fontWeight: 600, margin: 0 }}>✅ Assets received! Your rep has been notified and will incorporate your files into the campaign.</p>
-                  </div>
-                ) : (
-                  <div>
-                    {assetUploading && (
-                      <div style={{ marginBottom: 8 }}>
-                        <div style={{ height: 6, background: "rgba(255,255,255,0.1)", borderRadius: 3, overflow: "hidden" }}>
-                          <div style={{ height: "100%", width: `${assetProgress}%`, background: "#F5C842", borderRadius: 3, transition: "width 0.3s ease" }} />
-                        </div>
-                        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", margin: "4px 0 0" }}>Uploading... {assetProgress}%</p>
-                      </div>
-                    )}
-                    <button
-                      onClick={async () => {
-                        if (!logoFile && !photoFile) { return; }
-                        setAssetUploading(true); setAssetProgress(0);
-                        const interval = setInterval(() => { setAssetProgress((p) => { if (p >= 100) { clearInterval(interval); return 100; } return p + 5; }); }, 100);
-                        setTimeout(async () => {
-                          clearInterval(interval); setAssetProgress(100);
-                          try {
-                            const filenames = [logoFile?.name, photoFile?.name].filter(Boolean);
-                            await fetch(`/api/campaign/revision/${id}`, {
-                              method: "POST", headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ type: "asset-upload", value: filenames.join(", "), note: "Client uploaded brand assets: " + filenames.join(", ") }),
-                            });
-                          } catch { /* */ }
-                          setAssetUploading(false); setAssetSent(true);
-                        }, 2000);
-                      }}
-                      disabled={assetUploading || (!logoFile && !photoFile)}
-                      style={{
-                        width: "100%", background: (logoFile || photoFile) ? "#F5C842" : "rgba(255,255,255,0.08)",
-                        color: (logoFile || photoFile) ? "#1B2A4A" : "rgba(255,255,255,0.3)",
-                        border: "none", borderRadius: 8, padding: "12px 24px", fontSize: 14, fontWeight: 700,
-                        cursor: (logoFile || photoFile) ? "pointer" : "not-allowed",
-                      }}
-                    >
-                      {assetUploading ? "Uploading..." : "Send Assets to Your Rep →"}
-                    </button>
-                  </div>
-                )}
-              </div>
-
               {/* Request a change */}
               <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 24 }}>
                 <h3 style={{ fontSize: 16, color: "#fff", margin: "0 0 12px", fontWeight: 700 }}>Request a Change</h3>
@@ -1069,6 +932,82 @@ export default function CampaignClientPage({ params }: { params: Promise<{ id: s
             </div>
           </div>
 
+          {/* ── SECTION 5: LEARNING CENTER ──────────────────────────────── */}
+          <div id="section-learning" style={{ marginBottom: 32 }}>
+            <Eyebrow text="LEARNING CENTER" />
+            <div style={{
+              background: "#243454", border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: 16, padding: 32,
+            }}>
+              <div style={{ display: "flex", gap: 32, flexWrap: "wrap" }}>
+                {/* Left sub: Onboarding */}
+                <div style={{ flex: 1, minWidth: 260 }}>
+                  {showOnboarding ? (
+                    <div>
+                      <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, color: "#fff", margin: "0 0 16px" }}>Getting Started</h3>
+                      <div style={{ borderLeft: "3px solid #F5C842", paddingLeft: 20 }}>
+                        {[
+                          { num: 1, title: "We're building your ad", desc: "Our design team is producing your campaign based on the direction you approved." },
+                          { num: 2, title: "You'll review and confirm", desc: "We'll notify you when your ad is ready for final review." },
+                          { num: 3, title: "Your campaign goes live", desc: "Your ad runs in the next available edition in your market." },
+                        ].map((step) => (
+                          <div key={step.num} style={{ display: "flex", gap: 14, marginBottom: 18 }}>
+                            <div style={{
+                              width: 28, height: 28, borderRadius: "50%", background: "#F5C842",
+                              color: "#1B2A4A", display: "flex", alignItems: "center", justifyContent: "center",
+                              fontSize: 13, fontWeight: 800, flexShrink: 0,
+                            }}>{step.num}</div>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 2 }}>{step.title}</div>
+                              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", lineHeight: 1.5 }}>{step.desc}</div>
+                            </div>
+                          </div>
+                        ))}
+                        <button onClick={dismissOnboarding} style={{
+                          background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 8,
+                          padding: "10px 24px", fontSize: 13, fontWeight: 800, cursor: "pointer",
+                        }}>Got it &rarr;</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                        <span style={{ fontSize: 16, color: "#22c55e" }}>{"\u2713"}</span>
+                        <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: "rgba(255,255,255,0.5)", margin: 0 }}>Getting Started</h3>
+                      </div>
+                      <p style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", margin: 0 }}>Onboarding complete</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Right sub: LMS Modules */}
+                <div style={{ flex: 1, minWidth: 260 }}>
+                  <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, color: "#fff", margin: "0 0 16px" }}>Campaign Success Guide</h3>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {LMS_MODULES.map((mod) => (
+                      <div key={mod.num} style={{
+                        background: "#1B2A4A", borderRadius: 12, padding: "16px 18px",
+                        border: "1px solid rgba(255,255,255,0.08)", position: "relative",
+                      }}>
+                        <span style={{
+                          position: "absolute", top: 10, left: 12,
+                          background: "rgba(245,200,66,0.15)", color: "#F5C842",
+                          fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 6,
+                        }}>Module {mod.num}</span>
+                        <h4 style={{ fontSize: 14, fontWeight: 700, color: "#fff", margin: "22px 0 6px" }}>{mod.title}</h4>
+                        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", lineHeight: 1.5, margin: "0 0 12px" }}>{mod.desc}</p>
+                        <button onClick={() => setLmsModal(mod.title)} style={{
+                          background: "transparent", border: "none", color: "#F5C842",
+                          fontSize: 12, fontWeight: 700, cursor: "pointer", padding: 0,
+                        }}>Start &rarr;</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* ── BUSINESS PROFILE (locked) ───────────────────────────────── */}
           <div style={{ marginBottom: 32 }}>
             <Eyebrow text="PREMIUM" />
@@ -1174,59 +1113,6 @@ export default function CampaignClientPage({ params }: { params: Promise<{ id: s
                       opacity: expertContribSending ? 0.6 : 1,
                     }}>{expertContribSending ? "Sending..." : "Become an Expert Contributor \u2192"}</button>
                   )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* ── LEARNING CENTER (bottom) ───────────────────────────────── */}
-          <div id="section-learning" style={{ marginBottom: 32 }}>
-            <Eyebrow text="LEARNING CENTER" />
-            <div style={{ background: "#243454", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: 32 }}>
-              <div style={{ display: "flex", gap: 32, flexWrap: "wrap" }}>
-                <div style={{ flex: 1, minWidth: 260 }}>
-                  {showOnboarding ? (
-                    <div>
-                      <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, color: "#fff", margin: "0 0 16px" }}>Getting Started</h3>
-                      <div style={{ borderLeft: "3px solid #F5C842", paddingLeft: 20 }}>
-                        {[
-                          { num: 1, title: "We're building your ad", desc: "Our design team is producing your campaign based on the direction you approved." },
-                          { num: 2, title: "You'll review and confirm", desc: "We'll notify you when your ad is ready for final review." },
-                          { num: 3, title: "Your campaign goes live", desc: "Your ad runs in the next available edition in your market." },
-                        ].map((step) => (
-                          <div key={step.num} style={{ display: "flex", gap: 14, marginBottom: 18 }}>
-                            <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#F5C842", color: "#1B2A4A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, flexShrink: 0 }}>{step.num}</div>
-                            <div>
-                              <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 2 }}>{step.title}</div>
-                              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", lineHeight: 1.5 }}>{step.desc}</div>
-                            </div>
-                          </div>
-                        ))}
-                        <button onClick={dismissOnboarding} style={{ background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>Got it &rarr;</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                        <span style={{ fontSize: 16, color: "#22c55e" }}>{"\u2713"}</span>
-                        <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: "rgba(255,255,255,0.5)", margin: 0 }}>Getting Started</h3>
-                      </div>
-                      <p style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", margin: 0 }}>Onboarding complete</p>
-                    </div>
-                  )}
-                </div>
-                <div style={{ flex: 1, minWidth: 260 }}>
-                  <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, color: "#fff", margin: "0 0 16px" }}>Campaign Success Guide</h3>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    {LMS_MODULES.map((mod) => (
-                      <div key={mod.num} style={{ background: "#1B2A4A", borderRadius: 12, padding: "16px 18px", border: "1px solid rgba(255,255,255,0.08)", position: "relative" }}>
-                        <span style={{ position: "absolute", top: 10, left: 12, background: "rgba(245,200,66,0.15)", color: "#F5C842", fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 6 }}>Module {mod.num}</span>
-                        <h4 style={{ fontSize: 14, fontWeight: 700, color: "#fff", margin: "22px 0 6px" }}>{mod.title}</h4>
-                        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", lineHeight: 1.5, margin: "0 0 12px" }}>{mod.desc}</p>
-                        <button onClick={() => setLmsModal(mod.title)} style={{ background: "transparent", border: "none", color: "#F5C842", fontSize: 12, fontWeight: 700, cursor: "pointer", padding: 0 }}>Start &rarr;</button>
-                      </div>
-                    ))}
-                  </div>
                 </div>
               </div>
             </div>

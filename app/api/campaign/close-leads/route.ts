@@ -111,8 +111,6 @@ export async function POST(request: Request) {
       region: (lead.custom?.["Region"] as string) || "",
       dvl: (lead.custom?.["DVL"] as string) || "",
       saleItems: (lead.custom?.["Sale Items"] as string) || "",
-      saleDate: (lead.custom?.["Sale Date"] as string) || "",
-      soldBy: (lead.custom?.["Sold By"] as string) || "",
       closeUrl: lead.html_url || "",
       dealValue: lead.opportunities?.[0]?.value || 0,
       dealStatus: lead.opportunities?.[0]?.status_label || "",
