@@ -1,198 +1,661 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useRef, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { CAMPAIGN_BRUNO_PROMPT } from "@/lib/campaign";
 
-interface Message { role: "user" | "assistant"; content: string }
-interface Brief {
-  businessName: string; category: string; city: string; zip: string;
-  services: string; adSize: string; tagline: string | null;
-  qrUrl: string | null; contactPhone: string; contactEmail: string; contactAddress: string;
+interface CollectedFields {
+  businessName: string | null;
+  category: string | null;
+  city: string | null;
+  zip: string | null;
+  services: string | null;
+  adSize: string | null;
+  tagline: string | null;
 }
 
-function getRepFromStorage(): string {
+interface Message {
+  role: "user" | "assistant";
+  text: string;
+  pills?: string[];
+}
+
+const EMPTY_FIELDS: CollectedFields = {
+  businessName: null,
+  category: null,
+  city: null,
+  zip: null,
+  services: null,
+  adSize: null,
+  tagline: null,
+};
+
+function coreFieldCount(f: CollectedFields): number {
+  // Count only the 6 core fields (not tagline — handled separately)
+  return [f.businessName, f.category, f.city, f.zip, f.services, f.adSize].filter(
+    (v) => v !== null && v !== ""
+  ).length;
+}
+
+function allFieldCount(f: CollectedFields): number {
+  return Object.values(f).filter((v) => v !== null && v !== "").length;
+}
+
+function getRepIdFromCookie(): string {
   try {
-    const raw = localStorage.getItem("campaign_user") || (() => {
-      const c = document.cookie.split(";").find(x => x.trim().startsWith("campaign_user="));
-      return c ? decodeURIComponent(c.split("=").slice(1).join("=")) : null;
-    })();
-    if (raw) return JSON.parse(raw).username || "unassigned";
+    const cookies = document.cookie.split(";");
+    for (const cookie of cookies) {
+      const parts = cookie.trim().split("=");
+      const key = parts[0];
+      const value = parts.slice(1).join("=");
+      if (key === "campaign_user") {
+        const parsed = JSON.parse(decodeURIComponent(value));
+        return parsed.username || "unassigned";
+      }
+    }
+    // fallback to dc_session
+    for (const cookie of cookies) {
+      const parts = cookie.trim().split("=");
+      if (parts[0] === "dc_session") {
+        const parsed = JSON.parse(atob(decodeURIComponent(parts.slice(1).join("="))));
+        return parsed.username || "unassigned";
+      }
+    }
   } catch { /* */ }
   return "unassigned";
 }
 
-const SYSTEM_PROMPT = `You are Bruno, BVM's campaign intake assistant. Collect these fields ONE AT A TIME. Never list multiple questions. Be warm and brief.
+function getRepNameFromCookie(): string {
+  try {
+    const match = document.cookie.match(/dc_session=([^;]+)/);
+    if (!match) return "Rep";
+    const [encoded] = match[1].split(".");
+    const payload = JSON.parse(atob(encoded.replace(/-/g, "+").replace(/_/g, "/")));
+    return payload.name || "Rep";
+  } catch {
+    return "Rep";
+  }
+}
 
-COLLECTION ORDER:
-1. Business name and city
-2. Business category (restaurant, dental, legal, fitness, home services, retail, etc)
-3. ZIP code
-4. Primary service or offer for the ad
-5. Ad size — present these options:
-   - 1/8 Page (3.65" x 2.5")
-   - 1/4 Page (3.65" x 5") — most popular
-   - 1/3 Page Vertical (2.5" x 10")
-   - 1/2 Page (7.5" x 5")
-   - Full Page (7.5" x 10")
-6. Tagline — generate 3 options based on business and city, let them pick or skip
-7. Website URL for QR code — ask "What's your website URL? We'll add a QR code to your ad." Skip option available.
-8. Contact phone number for the ad
-9. Contact email for the ad
-10. Full business address — ask "What's your full business address? Street, city, state, zip — this will appear on your ad." Skip option available.
-
-When ALL fields are collected output exactly: BRIEF_COMPLETE followed by JSON on next line:
-{"businessName":"...","category":"...","city":"...","zip":"...","services":"...","adSize":"...","tagline":"...","qrUrl":"...","contactPhone":"...","contactEmail":"...","contactAddress":"..."}
-
-Use null for skipped optional fields.`;
-
-export default function CampaignIntake() {
+function CampaignIntakeInner() {
   const router = useRouter();
-  const [messages, setMessages] = useState<Message[]>([
-    { role: "assistant", content: "Hi! I'm Bruno — let's set up your print campaign. What's your business name and what city are you in?" },
-  ]);
+  const searchParams = useSearchParams();
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [brief, setBrief] = useState<Partial<Brief>>({});
-  const [phase, setPhase] = useState<"intake" | "generating" | "done">("intake");
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const repId = useRef("unassigned");
+  const [fields, setFields] = useState<CollectedFields>(EMPTY_FIELDS);
+  const [phase, setPhase] = useState<"chat" | "tagline" | "scanning" | "generating">("chat");
+  const [taglineOptions, setTaglineOptions] = useState<string[]>([]);
+  const [selectedTagline, setSelectedTagline] = useState<string | null>(null);
+  const [sbrData, setSbrData] = useState<Record<string, unknown> | null>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { repId.current = getRepFromStorage(); }, []);
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+  // Auto-scroll chat
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
 
-  async function send() {
-    if (!input.trim() || loading || phase !== "intake") return;
-    const userMsg: Message = { role: "user", content: input.trim() };
-    const updated = [...messages, userMsg];
-    setMessages(updated);
-    setInput("");
+  // Pre-fill from URL params (e.g. from Close CRM "Start Campaign" button)
+  const prefilled = useRef(false);
+  useEffect(() => {
+    if (prefilled.current) return;
+    const bn = searchParams.get("businessName");
+    if (bn) {
+      prefilled.current = true;
+      const adType = searchParams.get("adType") || null;
+      setFields((prev) => ({ ...prev, businessName: bn, adSize: adType }));
+      // Send Bruno an opening message with context
+      const msg = `I'm starting a campaign for ${bn}. They're an existing BVM client${adType ? ` with a ${adType} agreement` : ""}.`;
+      sendToBruno(msg);
+      return;
+    }
+    // Normal init
+    sendToBruno("", true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  async function sendToBruno(userMsg: string, isInit = false) {
+    if (!isInit && !userMsg.trim()) return;
+
+    const newMessages = isInit
+      ? messages
+      : [...messages, { role: "user" as const, text: userMsg }];
+    if (!isInit) setMessages(newMessages);
     setLoading(true);
+
+    const apiMessages = isInit
+      ? [{ role: "user", content: "Hi, I'd like to set up a print ad campaign." }]
+      : newMessages.map((m) => ({ role: m.role, content: m.text }));
 
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: updated, system: SYSTEM_PROMPT }),
+        body: JSON.stringify({
+          system: CAMPAIGN_BRUNO_PROMPT,
+          messages: apiMessages,
+          collectedFields: fields,
+          temperature: 0.7,
+        }),
       });
-      const data = await res.json();
-      const reply = data.response || data.content?.[0]?.text || "Something went wrong.";
-      setLoading(false);
 
-      if (reply.includes("BRIEF_COMPLETE")) {
-        const jsonMatch = reply.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          try {
-            const parsedBrief = JSON.parse(jsonMatch[0]) as Brief;
-            setBrief(parsedBrief);
-            setMessages([...updated, { role: "assistant", content: "Perfect — generating your campaign directions now..." }]);
-            setPhase("generating");
-            await generateCampaign(parsedBrief);
-          } catch {
-            setMessages([...updated, { role: "assistant", content: "I had trouble parsing that. Could you try again?" }]);
+      const data = await res.json();
+      if (data.response) {
+        let parsed: {
+          brunoMessage?: string;
+          collectedFields?: CollectedFields;
+          pills?: string[];
+          complete?: boolean;
+          action?: string;
+        } | null = null;
+
+        try {
+          const cleaned = data.response.replace(/```json\n?|```\n?/g, "").trim();
+          parsed = JSON.parse(cleaned);
+        } catch {
+          // If not JSON, treat as plain text
+          parsed = { brunoMessage: data.response };
+        }
+
+        if (parsed) {
+          const brunoText = parsed.brunoMessage || data.response;
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", text: brunoText, pills: parsed!.pills || undefined },
+          ]);
+
+          if (parsed.collectedFields) {
+            setFields((prev) => {
+              const merged = { ...prev };
+              for (const [k, v] of Object.entries(parsed!.collectedFields!)) {
+                if (v !== null && v !== "") {
+                  merged[k as keyof CollectedFields] = v as string;
+                }
+              }
+              return merged;
+            });
+          }
+
+          if (parsed.complete || parsed.action === "complete") {
+            const finalFields = {
+              ...fields,
+              ...(parsed.collectedFields || {}),
+            };
+            // If tagline already collected by Bruno, go straight to generation
+            if (finalFields.tagline) {
+              setTimeout(() => startGeneration(finalFields as CollectedFields), 800);
+            } else {
+              // Enter tagline selection phase
+              setTimeout(() => startTaglinePhase(finalFields as CollectedFields), 800);
+            }
           }
         }
-      } else {
-        setMessages([...updated, { role: "assistant", content: reply }]);
       }
-    } catch {
-      setLoading(false);
-      setMessages([...updated, { role: "assistant", content: "Something went wrong — try again." }]);
+    } catch (e) {
+      console.error("Bruno error:", e);
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", text: "Sorry, I hit a snag. Could you try that again?" },
+      ]);
+    }
+
+    setLoading(false);
+    inputRef.current?.focus();
+  }
+
+  async function startTaglinePhase(finalFields: CollectedFields) {
+    setFields(finalFields);
+    setPhase("tagline");
+
+    // Add Bruno message about taglines
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "assistant",
+        text: "Last thing — here are 3 tagline options for your campaign. Pick one you like, or skip and we can update it later.",
+      },
+    ]);
+
+    // Fire SBR to get market data for generating smart taglines
+    let sbr = null;
+    try {
+      const sbrRes = await fetch("/api/campaign/sbr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessName: finalFields.businessName,
+          city: finalFields.city,
+          zip: finalFields.zip,
+          category: finalFields.category,
+        }),
+      });
+      sbr = await sbrRes.json();
+      setSbrData(sbr);
+    } catch (e) {
+      console.error("SBR error for taglines:", e);
+    }
+
+    // Generate taglines via Claude
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          system: `You generate punchy, local, specific taglines for local business print ad campaigns. Return ONLY a JSON array of exactly 3 strings. No preamble, no markdown. Each tagline should be:
+- Under 10 words
+- Specific to the business category and city
+- Punchy and memorable — not generic
+- Feel local and authentic
+
+${sbr?.marketBrief ? `Market insight: ${sbr.marketBrief}` : ""}
+${sbr?.localAdvantage ? `Local advantage: ${sbr.localAdvantage}` : ""}`,
+          messages: [
+            {
+              role: "user",
+              content: `Generate 3 taglines for "${finalFields.businessName}" — a ${finalFields.category} business in ${finalFields.city}. Their main offer: ${finalFields.services}.`,
+            },
+          ],
+          temperature: 0.9,
+        }),
+      });
+      const data = await res.json();
+      if (data.response) {
+        const cleaned = data.response.replace(/```json\n?|```\n?/g, "").trim();
+        const parsed = JSON.parse(cleaned);
+        if (Array.isArray(parsed) && parsed.length >= 3) {
+          setTaglineOptions(parsed.slice(0, 3));
+        }
+      }
+    } catch (e) {
+      console.error("Tagline generation error:", e);
+      // Fallback taglines
+      setTaglineOptions([
+        `${finalFields.city}'s best-kept secret.`,
+        `Where ${finalFields.city} comes first.`,
+        `Built for this neighborhood.`,
+      ]);
     }
   }
 
-  async function generateCampaign(b: Brief) {
-    const clientId = crypto.randomUUID();
-
-    try {
-      const { getSupabase } = await import("@/lib/supabase");
-      const sb = getSupabase();
-      if (sb) {
-        const { error } = await sb.from("campaign_clients").insert({
-          id: clientId, business_name: b.businessName, category: b.category,
-          city: b.city, zip: b.zip, services: b.services, ad_size: b.adSize,
-          tagline: b.tagline, rep_id: repId.current, stage: "intake", revisions: [],
-        });
-        if (error) console.error("Supabase insert error:", error.message);
-      }
-    } catch (e) { console.error("Supabase error:", e); }
-
-    let sbrData = null;
-    try {
-      const sbrRes = await fetch("/api/campaign/sbr", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ businessName: b.businessName, city: b.city, zip: b.zip, category: b.category }),
-      });
-      sbrData = await sbrRes.json();
-      const { getSupabase } = await import("@/lib/supabase");
-      const sb = getSupabase();
-      if (sb) await sb.from("campaign_clients").update({ sbr_data: sbrData, stage: "tearsheet" }).eq("id", clientId);
-    } catch (e) { console.error("SBR error:", e); }
-
-    try {
-      const imgRes = await fetch("/api/campaign/generate-image", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ businessName: b.businessName, category: b.category, city: b.city, services: b.services, adSize: b.adSize, tagline: b.tagline, sbrData }),
-      });
-      const imgData = await imgRes.json();
-      if (imgData.directions) {
-        const { getSupabase } = await import("@/lib/supabase");
-        const sb = getSupabase();
-        if (sb) await sb.from("campaign_clients").update({ generated_directions: imgData.directions }).eq("id", clientId);
-      }
-    } catch (e) { console.error("Image generation error:", e); }
-
-    setPhase("done");
-    router.push("/campaign/tearsheet/" + clientId);
+  function selectTagline(tagline: string) {
+    setSelectedTagline(tagline);
+    setFields((prev) => ({ ...prev, tagline }));
   }
 
-  return (
-    <div style={{ display: "flex", height: "100vh", background: "#F5F0E8", fontFamily: "Inter, 'DM Sans', sans-serif" }}>
-      <div style={{ width: "50%", display: "flex", flexDirection: "column", background: "#FDFAF4", borderRight: "1px solid #DDD5C0" }}>
-        <div style={{ padding: "16px 20px", background: "#1B2A4A", display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#C8922A", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: "#1B2A4A", fontSize: 14 }}>B</div>
-          <span style={{ color: "white", fontWeight: 600, fontSize: 14 }}>Bruno</span>
-          <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 12 }}>Campaign Intake</span>
-          <div style={{ flex: 1 }} />
-          <button onClick={() => {
-            const demo: Brief = { businessName: "Ted's Burger Shack", category: "Restaurant", city: "Tulsa", zip: "74103", services: "Premium burgers, craft shakes, local ingredients", adSize: "1/4 Page", tagline: "Tulsa's favorite burger.", qrUrl: "https://tedsburgershack.com", contactPhone: "(918) 555-0123", contactEmail: "hello@tedsburgershack.com", contactAddress: "123 Main St, Tulsa, OK 74103" };
-            setBrief(demo); setMessages([...messages, { role: "assistant", content: "Running demo intake for Ted's Burger Shack..." }]); setPhase("generating"); repId.current = "Karen Guirguis"; generateCampaign(demo);
-          }} style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 6, padding: "5px 12px", fontSize: 11, color: "rgba(255,255,255,0.6)", cursor: "pointer", fontWeight: 600 }}>Demo Run →</button>
-        </div>
-        <div style={{ flex: 1, overflowY: "auto", padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
-          {messages.map((m, i) => (
-            <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
-              <div style={{ maxWidth: "80%", padding: "10px 14px", borderRadius: m.role === "user" ? "16px 4px 16px 16px" : "4px 16px 16px 16px", background: m.role === "user" ? "#1B2A4A" : "white", color: m.role === "user" ? "white" : "#1C2B1D", fontSize: 14, lineHeight: 1.5, border: m.role === "assistant" ? "1px solid #DDD5C0" : "none" }}>
-                {m.content.includes("BRIEF_COMPLETE") ? "Perfect — generating your campaign..." : m.content}
-              </div>
-            </div>
-          ))}
-          {loading && <div style={{ display: "flex", gap: 4, padding: "10px 14px", background: "white", borderRadius: "4px 16px 16px 16px", width: "fit-content", border: "1px solid #DDD5C0" }}>{[0,1,2].map(i => <span key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: "#9B8E7A", animation: "bounce 1.2s infinite", animationDelay: i*0.2+"s", display: "inline-block" }} />)}</div>}
-          {phase === "generating" && <div style={{ textAlign: "center", padding: 20, color: "#6B5E45", fontSize: 14 }}><div style={{ fontSize: 24, marginBottom: 8 }}>✨</div>Generating your campaign directions...</div>}
-          <div ref={bottomRef} />
-        </div>
-        {phase === "intake" && (
-          <div style={{ padding: 16, borderTop: "1px solid #DDD5C0", display: "flex", gap: 8 }}>
-            <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && send()} placeholder="Type your answer..." style={{ flex: 1, padding: "10px 14px", border: "1px solid #DDD5C0", borderRadius: 8, fontSize: 14, outline: "none", background: "#FDFAF4" }} />
-            <button onClick={send} disabled={loading} style={{ padding: "10px 20px", background: "#C8922A", color: "white", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Send</button>
-          </div>
-        )}
+  function confirmTagline() {
+    const finalFields = { ...fields, tagline: selectedTagline };
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", text: selectedTagline || "Skip tagline" },
+      { role: "assistant", text: selectedTagline ? "Great choice — let's build your campaign." : "No problem — your rep can add a tagline later. Let's build your campaign." },
+    ]);
+    setTimeout(() => startGeneration(finalFields as CollectedFields), 600);
+  }
+
+  function skipTagline() {
+    const finalFields = { ...fields, tagline: null };
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", text: "Skip for now" },
+      { role: "assistant", text: "No problem — your rep can add a tagline later. Let's build your campaign." },
+    ]);
+    setTimeout(() => startGeneration(finalFields as CollectedFields), 600);
+  }
+
+  async function startGeneration(finalFields: CollectedFields) {
+    setPhase("scanning");
+
+    // Fire SBR scan (if we don't already have it from tagline phase)
+    let sbr = sbrData;
+    if (!sbr) {
+      try {
+        const sbrRes = await fetch("/api/campaign/sbr", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            businessName: finalFields.businessName,
+            city: finalFields.city,
+            zip: finalFields.zip,
+            category: finalFields.category,
+          }),
+        });
+        sbr = await sbrRes.json();
+      } catch (e) {
+        console.error("SBR error:", e);
+      }
+    }
+
+    setPhase("generating");
+
+    // Fire image generation
+    let directions = null;
+    try {
+      const imgRes = await fetch("/api/campaign/generate-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessName: finalFields.businessName,
+          category: finalFields.category,
+          city: finalFields.city,
+          services: finalFields.services,
+          adSize: finalFields.adSize,
+          tagline: finalFields.tagline,
+          sbrData: sbr,
+        }),
+      });
+      const imgData = await imgRes.json();
+      directions = imgData.directions;
+    } catch (e) {
+      console.error("Image gen error:", e);
+    }
+
+    // Save to Supabase
+    const clientId = crypto.randomUUID();
+    try {
+      const sb = await import("@/lib/supabase").then((m) => m.getSupabase());
+      if (sb) {
+        await sb.from("campaign_clients").insert({
+          id: clientId,
+          business_name: finalFields.businessName,
+          category: finalFields.category,
+          city: finalFields.city,
+          zip: finalFields.zip,
+          services: finalFields.services,
+          ad_size: finalFields.adSize,
+          rep_id: getRepIdFromCookie(),
+          tagline: finalFields.tagline,
+          stage: "tearsheet",
+          sbr_data: sbr,
+          generated_directions: directions,
+          revisions: [],
+        });
+      }
+    } catch (e) {
+      console.error("Supabase save error:", e);
+    }
+
+    router.push(`/campaign/tearsheet/${clientId}`);
+  }
+
+  function handlePillClick(pill: string) {
+    setInput("");
+    sendToBruno(pill);
+  }
+
+  // Loading / generation phase overlay
+  if (phase === "scanning" || phase === "generating") {
+    return (
+      <div style={{ minHeight: "100vh", background: "#1B2A4A", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 24 }}>
+        <div style={{ width: 48, height: 48, border: "3px solid #F5C842", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+        <p style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, color: "#fff", margin: 0 }}>
+          {phase === "scanning" ? "Bruno is scanning your market..." : "Generating your campaign directions..."}
+        </p>
+        <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", margin: 0 }}>
+          {phase === "scanning" ? "Analyzing demographics, competitors, and opportunities" : "Creating 3 unique ad directions with AI"}
+        </p>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
-      <div style={{ width: "50%", overflowY: "auto", padding: 32 }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1B2A4A", marginBottom: 24, fontFamily: "Georgia, serif" }}>Campaign Brief</h2>
-        {Object.keys(brief).length === 0 ? (
-          <div style={{ color: "#9B8E7A", fontSize: 14 }}>Your brief will appear here as Bruno collects information...</div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {([["Business", (brief as Brief).businessName], ["Category", (brief as Brief).category], ["City", (brief as Brief).city], ["ZIP", (brief as Brief).zip], ["Services", (brief as Brief).services], ["Ad Size", (brief as Brief).adSize], ["Tagline", (brief as Brief).tagline], ["QR URL", (brief as Brief).qrUrl], ["Phone", (brief as Brief).contactPhone], ["Email", (brief as Brief).contactEmail], ["Address", (brief as Brief).contactAddress]] as [string, string | null][]).filter(([, v]) => v).map(([label, value]) => (
-              <div key={label} style={{ background: "white", padding: "12px 16px", borderRadius: 8, border: "1px solid #DDD5C0" }}>
-                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9B8E7A", marginBottom: 4 }}>{label}</div>
-                <div style={{ fontSize: 14, color: "#1C2B1D", fontWeight: 500 }}>{value}</div>
+    );
+  }
+
+  const progress = coreFieldCount(fields);
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#1B2A4A", display: "flex", flexDirection: "column" }}>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } } @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+
+      {/* Top bar */}
+      <div style={{ height: 56, background: "#2d3e50", display: "flex", alignItems: "center", padding: "0 24px", gap: 16, flexShrink: 0, boxShadow: "0 1px 4px rgba(0,0,0,0.25)" }}>
+        <img src="/bvm_logo.png" alt="BVM" style={{ height: 28, filter: "brightness(0) invert(1)" }} />
+        <div style={{ borderLeft: "1px solid rgba(255,255,255,0.2)", paddingLeft: 16 }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "#F5C842", fontFamily: "'Playfair Display', serif" }}>Print Campaign Intake</span>
+        </div>
+      </div>
+
+      {/* Two column layout */}
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+
+        {/* LEFT — Bruno Chat */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", borderRight: "1px solid rgba(255,255,255,0.08)" }}>
+          {/* Chat messages */}
+          <div style={{ flex: 1, overflowY: "auto", padding: "24px 24px 12px" }}>
+            {messages.map((m, i) => (
+              <div key={i} style={{ display: "flex", gap: 10, marginBottom: 16, justifyContent: m.role === "user" ? "flex-end" : "flex-start", animation: "fadeIn 0.3s ease" }}>
+                {m.role === "assistant" && (
+                  <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#F5C842", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, color: "#1B2A4A", fontSize: 11, flexShrink: 0 }}>B</div>
+                )}
+                <div style={{ maxWidth: "75%" }}>
+                  <div style={{
+                    background: m.role === "user" ? "#F5C842" : "rgba(255,255,255,0.08)",
+                    color: m.role === "user" ? "#1B2A4A" : "#fff",
+                    padding: "10px 16px",
+                    borderRadius: m.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
+                    fontSize: 14,
+                    lineHeight: 1.6,
+                  }}>
+                    {m.text}
+                  </div>
+                  {m.pills && m.pills.length > 0 && (
+                    <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                      {m.pills.map((pill, pi) => (
+                        <button
+                          key={pi}
+                          onClick={() => handlePillClick(pill)}
+                          style={{
+                            background: "rgba(245,200,66,0.15)",
+                            border: "1px solid rgba(245,200,66,0.4)",
+                            color: "#F5C842",
+                            borderRadius: 20,
+                            padding: "6px 16px",
+                            fontSize: 13,
+                            cursor: "pointer",
+                            fontWeight: 600,
+                          }}
+                        >
+                          {pill}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
+            {loading && (
+              <div style={{ display: "flex", gap: 10, marginBottom: 16, animation: "fadeIn 0.3s ease" }}>
+                <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#F5C842", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, color: "#1B2A4A", fontSize: 11, flexShrink: 0 }}>B</div>
+                <div style={{ background: "rgba(255,255,255,0.08)", padding: "10px 16px", borderRadius: "16px 16px 16px 4px" }}>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#F5C842", animation: "pulse 1s ease infinite" }} />
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#F5C842", animation: "pulse 1s ease infinite 0.2s" }} />
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#F5C842", animation: "pulse 1s ease infinite 0.4s" }} />
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
           </div>
-        )}
+
+          {/* Input — hidden during tagline phase */}
+          {phase === "chat" && (
+            <div style={{ padding: "12px 24px 24px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !loading) { sendToBruno(input); setInput(""); } }}
+                  placeholder="Type your answer..."
+                  style={{
+                    flex: 1,
+                    background: "rgba(255,255,255,0.06)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    borderRadius: 8,
+                    padding: "12px 16px",
+                    fontSize: 14,
+                    color: "#fff",
+                    outline: "none",
+                  }}
+                />
+                <button
+                  onClick={() => { if (!loading) { sendToBruno(input); setInput(""); } }}
+                  disabled={loading || !input.trim()}
+                  style={{
+                    background: "#F5C842",
+                    color: "#1B2A4A",
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "12px 20px",
+                    fontWeight: 700,
+                    fontSize: 14,
+                    cursor: loading ? "not-allowed" : "pointer",
+                    opacity: loading || !input.trim() ? 0.5 : 1,
+                  }}
+                >
+                  Send
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT — Brief Preview */}
+        <div style={{ width: 420, background: "rgba(255,255,255,0.03)", padding: 32, overflowY: "auto" }}>
+          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, color: "#F5C842", margin: "0 0 8px" }}>
+            Campaign Brief
+          </h2>
+          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", margin: "0 0 24px" }}>
+            Building as we talk — {progress} of 6 fields collected
+          </p>
+
+          {/* Progress bar */}
+          <div style={{ height: 4, background: "rgba(255,255,255,0.1)", borderRadius: 2, marginBottom: 32 }}>
+            <div style={{ height: "100%", width: `${(progress / 6) * 100}%`, background: "#F5C842", borderRadius: 2, transition: "width 0.5s ease" }} />
+          </div>
+
+          {/* Brief fields */}
+          {[
+            { label: "Business Name", value: fields.businessName },
+            { label: "Category", value: fields.category },
+            { label: "Location", value: fields.city && fields.zip ? `${fields.city}, ${fields.zip}` : fields.city || fields.zip },
+            { label: "Primary Offer", value: fields.services },
+            { label: "Ad Size", value: fields.adSize },
+          ].map((f, i) => (
+            <div key={i} style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
+                {f.label}
+              </div>
+              {f.value ? (
+                <div style={{ fontSize: 15, color: "#fff", fontWeight: 600 }}>{f.value}</div>
+              ) : (
+                <div style={{ height: 20, background: "rgba(255,255,255,0.06)", borderRadius: 4, width: "70%" }} />
+              )}
+            </div>
+          ))}
+
+          {/* Tagline section — shows cards during tagline phase */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
+              Tagline
+            </div>
+            {phase === "tagline" ? (
+              <div style={{ marginTop: 8 }}>
+                {taglineOptions.length === 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} style={{ height: 56, background: "rgba(255,255,255,0.06)", borderRadius: 10, animation: "pulse 1.5s ease infinite" }} />
+                    ))}
+                  </div>
+                ) : (
+                  <>
+                    {taglineOptions.map((t, i) => (
+                      <button
+                        key={i}
+                        onClick={() => selectTagline(t)}
+                        style={{
+                          display: "block",
+                          width: "100%",
+                          textAlign: "left",
+                          background: selectedTagline === t ? "rgba(245,200,66,0.12)" : "rgba(255,255,255,0.04)",
+                          border: selectedTagline === t ? "2px solid #F5C842" : "1px solid rgba(255,255,255,0.1)",
+                          borderRadius: 10,
+                          padding: "14px 16px",
+                          marginBottom: 8,
+                          cursor: "pointer",
+                          transition: "all 0.15s",
+                          animation: `fadeIn 0.4s ease ${i * 0.1}s both`,
+                        }}
+                      >
+                        <div style={{ fontSize: 14, color: selectedTagline === t ? "#F5C842" : "#fff", fontWeight: 600, fontStyle: "italic" }}>
+                          &ldquo;{t}&rdquo;
+                        </div>
+                      </button>
+                    ))}
+
+                    {/* Confirm button */}
+                    {selectedTagline && (
+                      <button
+                        onClick={confirmTagline}
+                        style={{
+                          width: "100%",
+                          background: "#F5C842",
+                          color: "#1B2A4A",
+                          border: "none",
+                          borderRadius: 8,
+                          padding: "12px 16px",
+                          fontSize: 14,
+                          fontWeight: 800,
+                          cursor: "pointer",
+                          marginTop: 4,
+                          animation: "fadeIn 0.3s ease",
+                        }}
+                      >
+                        Use This Tagline →
+                      </button>
+                    )}
+
+                    {/* Skip button */}
+                    <button
+                      onClick={skipTagline}
+                      style={{
+                        width: "100%",
+                        background: "transparent",
+                        border: "none",
+                        color: "rgba(255,255,255,0.35)",
+                        fontSize: 13,
+                        cursor: "pointer",
+                        marginTop: 8,
+                        padding: "8px 0",
+                        fontWeight: 600,
+                      }}
+                    >
+                      Skip for now →
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : fields.tagline ? (
+              <div style={{ fontSize: 15, color: "#fff", fontWeight: 600, fontStyle: "italic" }}>&ldquo;{fields.tagline}&rdquo;</div>
+            ) : (
+              <div style={{ height: 20, background: "rgba(255,255,255,0.06)", borderRadius: 4, width: "70%" }} />
+            )}
+          </div>
+        </div>
       </div>
-      <style>{`@keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-5px)} }`}</style>
     </div>
+  );
+}
+
+export default function CampaignIntakePage() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: "100vh", background: "#1B2A4A", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: 48, height: 48, border: "3px solid #F5C842", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    }>
+      <CampaignIntakeInner />
+    </Suspense>
   );
 }

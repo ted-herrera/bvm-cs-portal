@@ -31,6 +31,7 @@ const RED = "#8B3A2A";
 const STAGE_COLORS: Record<string, string> = { intake: "#64748b", tearsheet: "#f59e0b", approved: "#22c55e", production: "#3b82f6", delivered: "#8b5cf6" };
 const STAGE_LABELS: Record<string, string> = { intake: "Intake", tearsheet: "Tearsheet", approved: "Approved", production: "Production", delivered: "Delivered" };
 const AD_DIMS: Record<string, string> = { "1/8 page": '3.65"x2.5"', "1/4 page": '3.65"x5"', "1/2 page": '7.5"x5"', "full page": '7.5"x10"', "front cover": '7.5"x10"' };
+const AD_BLEED: Record<string, string> = { "1/8 page": '3.9"x2.75"', "1/4 page": '3.9"x5.25"', "1/2 page": '7.75"x5.25"', "full page": '7.75"x10.25"', "front cover": '7.75"x10.25"' };
 
 const MOCK_CLIENTS: CampaignClient[] = [
   { id: "demo-1", created_at: "2026-04-10", business_name: "Tulsa Family Dental", category: "Dental", city: "Tulsa", zip: "74103", services: "Cleanings, implants, cosmetic", ad_size: "1/4 page", tagline: "Smiles start here.", rep_id: "demo", stage: "approved", sbr_data: { opportunityScore: 88, medianIncome: "82000", households: "41000", topCategories: ["Dental", "Health"] }, generated_directions: [{ name: "Bold", imageUrl: "", description: "Bold direct", prompt: "" }], selected_direction: "Bold", approved_at: "2026-04-12", revisions: null } as unknown as CampaignClient,
@@ -61,6 +62,34 @@ function avatarBg(category: string): string {
   if (c.includes("fitness")) return GREEN;
   if (c.includes("legal")) return NAVY;
   return GRAY;
+}
+
+function mapRenewStatus(status: string): string {
+  const s = (status || "").toLowerCase().trim();
+  if (s === "renewable" || s === "yes") return "Renewable";
+  if (s === "declined" || s === "no") return "Declined";
+  if (s === "merged") return "Merged";
+  return status || "";
+}
+
+function renewColor(status: string): string {
+  const mapped = mapRenewStatus(status);
+  if (mapped === "Renewable") return GREEN;
+  if (mapped === "Declined") return RED;
+  if (mapped === "Merged") return AMBER;
+  return GRAY;
+}
+
+function excelDateToString(serial: unknown): string {
+  if (!serial) return "";
+  const num = Number(serial);
+  if (isNaN(num) || num < 1000) return String(serial);
+  const date = new Date((num - 25569) * 86400 * 1000);
+  return date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+}
+
+function normName(n: string): string {
+  return n.toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\b(llc|inc|corp|co|ltd|the)\b/g, "").trim().replace(/\s+/g, " ");
 }
 
 /* ─── Component ──────────────────────────────────────────────────────────── */
@@ -122,8 +151,15 @@ export default function CampaignDashboardPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerTab, setDrawerTab] = useState<"actions" | "bruno" | "territory" | "csIntel" | "card">("actions");
   const [detailTab, setDetailTab] = useState<"overview" | "messages" | "crm">("overview");
+  const [emptyTab, setEmptyTab] = useState<"overview" | "audit">("overview");
   const [listFilter, setListFilter] = useState<"all" | "renewable" | "declined" | "campaign">("all");
   const [visibleLeadCount, setVisibleLeadCount] = useState(50);
+  const [reportingPeriod, setReportingPeriod] = useState("");
+  const [auditBrunoResponse, setAuditBrunoResponse] = useState("");
+  const [auditBrunoLoading, setAuditBrunoLoading] = useState(false);
+  const [auditShowMatched, setAuditShowMatched] = useState(false);
+  const [auditShowCsOnly, setAuditShowCsOnly] = useState(false);
+  const [auditShowCloseOnly, setAuditShowCloseOnly] = useState(false);
 
   /* Inline note for drawer */
   const [noteOpen, setNoteOpen] = useState(false);
@@ -134,8 +170,7 @@ export default function CampaignDashboardPage() {
   useEffect(() => {
     if (!rep) return;
     if (demoMode) { setClients(MOCK_CLIENTS); setCloseLeads(MOCK_LEADS); setLoading(false); setCloseLoading(false); return; }
-    loadCampaigns(); loadCloseData();
-    try { const cs = localStorage.getItem(`cs_intel_${rep.username}`); if (cs) setCsIntelData(JSON.parse(cs)); } catch { /* */ }
+    loadCampaigns(); loadCloseData(); loadCsIntel();
     const c1 = setInterval(() => setClock(new Date()), 1000);
     const c2 = setInterval(loadCampaigns, 30000);
     return () => { clearInterval(c1); clearInterval(c2); };
@@ -152,6 +187,35 @@ export default function CampaignDashboardPage() {
     if (!rep) return;
     try { const res = await fetch("/api/campaign/close-leads", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ repName: rep.username }) }); const data = await res.json(); setCloseLeads(data.leads || []); } catch { /* */ }
     setCloseLoading(false);
+  }
+
+  async function loadCsIntel() {
+    if (!rep) return;
+    try {
+      const { getSupabase } = await import("@/lib/supabase");
+      const sb = getSupabase();
+      if (sb) {
+        const { data } = await sb.from("cs_intel").select("*").eq("rep_name", rep.username);
+        if (data && data.length > 0) {
+          setCsIntelData(data.map((r: Record<string, unknown>) => ({
+            businessName: String(r.business_name || ""),
+            health: mapRenewStatus(String(r.renew_status || "")),
+            monthly: r.monthly,
+            saleItems: String(r.sale_items || ""),
+            contractNumber: String(r.contract_number || ""),
+            lastEdition: excelDateToString(r.last_edition),
+            market: String(r.market || ""),
+            industry: String(r.industry || ""),
+            region: String(r.region || ""),
+            attritionCause: String(r.attrition_cause || ""),
+            ...r,
+          })));
+          return;
+        }
+      }
+    } catch { /* */ }
+    // Fallback to localStorage
+    try { const cs = localStorage.getItem(`cs_intel_${rep.username}`); if (cs) setCsIntelData(JSON.parse(cs)); } catch { /* */ }
   }
 
   useEffect(() => { if (!selected) return; loadMessages(); const i = setInterval(loadMessages, 30000); return () => clearInterval(i); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [selected?.id]);
@@ -204,6 +268,26 @@ export default function CampaignDashboardPage() {
     setCsIntelData(parsed); localStorage.setItem(`cs_intel_${rep!.username}`, JSON.stringify(parsed)); setCsModalOpen(false); showToast(`CS Intel: ${parsed.length} matched`);
   }
 
+  async function loadCsForDate(dateStr: string) {
+    if (!rep) return;
+    try {
+      const { getSupabase } = await import("@/lib/supabase");
+      const sb = getSupabase();
+      if (sb) {
+        const { data } = await sb.from("cs_intel").select("*").eq("rep_name", rep.username).eq("week_of", dateStr);
+        if (data && data.length > 0) {
+          setCsIntelData(data.map((r: Record<string, unknown>) => ({
+            businessName: String(r.business_name || ""), health: mapRenewStatus(String(r.renew_status || "")),
+            monthly: r.monthly, saleItems: String(r.sale_items || ""), contractNumber: String(r.contract_number || ""),
+            lastEdition: excelDateToString(r.last_edition), market: String(r.market || ""),
+            industry: String(r.industry || ""), region: String(r.region || ""), attritionCause: String(r.attrition_cause || ""), ...r,
+          })));
+          showToast(`Loaded ${data.length} records for ${dateStr}`);
+        } else { showToast("No records for that date"); }
+      }
+    } catch { /* */ }
+  }
+
   function handleSignOut() { document.cookie = "campaign_user=; path=/; max-age=0"; localStorage.removeItem("campaign_user"); window.location.href = "/campaign/login"; }
 
   /* ─── Auth Guard ───────────────────────────────────────────────────────── */
@@ -213,31 +297,65 @@ export default function CampaignDashboardPage() {
 
   /* ─── Derived ───────────────────────────────────────────────────────────── */
 
-  const activeCloseLeads = closeLeads.filter(l => l.renewStatus !== "Cancelled" && l.status !== "Cancelled" && l.renewStatus !== "Lost");
-  const renewableLeads = closeLeads.filter(l => l.renewStatus === "Renewable");
-  const declinedLeads = closeLeads.filter(l => l.renewStatus === "Declined");
-  const cancelledCount = closeLeads.filter(l => l.renewStatus === "Cancelled" || l.status === "Cancelled").length;
+  const useCs = csIntelData.length > 0;
 
+  // Stats from cs_intel when available, otherwise from Close
+  const renewableCount = useCs
+    ? csIntelData.filter(c => mapRenewStatus(c.health || "") === "Renewable").length
+    : closeLeads.filter(l => l.renewStatus === "Renewable").length;
+  const declinedCount = useCs
+    ? csIntelData.filter(c => mapRenewStatus(c.health || "") === "Declined").length
+    : closeLeads.filter(l => l.renewStatus === "Declined").length;
+  const mergedCount = useCs
+    ? csIntelData.filter(c => mapRenewStatus(c.health || "") === "Merged").length
+    : 0;
+  const totalCount = useCs ? csIntelData.length : closeLeads.length;
+
+  // For backward compat — used in center stats and drawer
+  const activeCloseLeads = closeLeads.filter(l => l.renewStatus !== "Cancelled" && l.status !== "Cancelled" && l.renewStatus !== "Lost");
+  const totalMRV = useCs
+    ? csIntelData.reduce((s, c) => s + (parseFloat(String(c.monthly || "0")) || 0), 0)
+    : closeLeads.reduce((s, l) => s + (parseFloat(l.monthly) || 0), 0);
+  const avgMonthly = totalCount > 0 ? Math.round(totalMRV / totalCount) : 0;
+
+  type ListItem = { type: "campaign"; data: CampaignClient } | { type: "close"; data: CloseLead } | { type: "csIntel"; data: typeof csIntelData[number] };
   const sl = search.toLowerCase();
-  const filteredList: Array<{ type: "campaign"; data: CampaignClient } | { type: "close"; data: CloseLead }> = (() => {
-    const items: Array<{ type: "campaign"; data: CampaignClient } | { type: "close"; data: CloseLead }> = [];
+  const filteredList: ListItem[] = (() => {
+    const items: ListItem[] = [];
+    if (listFilter === "campaign") {
+      clients.filter(c => !sl || c.business_name.toLowerCase().includes(sl)).forEach(c => items.push({ type: "campaign", data: c }));
+      return items;
+    }
+    // Campaign clients always shown in "all"
     if (listFilter === "all") {
       clients.filter(c => !sl || c.business_name.toLowerCase().includes(sl)).forEach(c => items.push({ type: "campaign", data: c }));
-      activeCloseLeads.filter(l => !clients.some(c => c.business_name.toLowerCase() === l.businessName.toLowerCase()) && (!sl || l.businessName.toLowerCase().includes(sl))).forEach(l => items.push({ type: "close", data: l }));
-    } else if (listFilter === "renewable") {
-      renewableLeads.filter(l => !sl || l.businessName.toLowerCase().includes(sl)).forEach(l => items.push({ type: "close", data: l }));
-    } else if (listFilter === "declined") {
-      declinedLeads.filter(l => !sl || l.businessName.toLowerCase().includes(sl)).forEach(l => items.push({ type: "close", data: l }));
+    }
+    // Use cs_intel as primary when available
+    if (useCs) {
+      const filtered = csIntelData.filter(c => {
+        if (sl && !c.businessName.toLowerCase().includes(sl)) return false;
+        // Don't duplicate campaign clients
+        if (clients.some(cc => cc.business_name.toLowerCase() === c.businessName.toLowerCase())) return false;
+        const mapped = mapRenewStatus(c.health || "");
+        if (listFilter === "renewable" && mapped !== "Renewable") return false;
+        if (listFilter === "declined" && mapped !== "Declined") return false;
+        return true;
+      });
+      filtered.forEach(c => items.push({ type: "csIntel", data: c }));
     } else {
-      clients.filter(c => !sl || c.business_name.toLowerCase().includes(sl)).forEach(c => items.push({ type: "campaign", data: c }));
+      // Fallback to Close leads
+      const src = listFilter === "renewable"
+        ? closeLeads.filter(l => l.renewStatus === "Renewable")
+        : listFilter === "declined"
+        ? closeLeads.filter(l => l.renewStatus === "Declined")
+        : activeCloseLeads.filter(l => !clients.some(c => c.business_name.toLowerCase() === l.businessName.toLowerCase()));
+      src.filter(l => !sl || l.businessName.toLowerCase().includes(sl)).forEach(l => items.push({ type: "close", data: l }));
     }
     return items;
   })();
 
   const sbr = selected ? (selected.sbr_data || {}) as Record<string, unknown> : {};
   const matchingLead = selected ? closeLeads.find(l => l.businessName.toLowerCase() === selected.business_name.toLowerCase()) : null;
-  const totalMRV = closeLeads.reduce((s, l) => s + (parseFloat(l.monthly) || 0), 0);
-  const avgMonthly = closeLeads.length > 0 ? Math.round(totalMRV / closeLeads.length) : 0;
   const repDisplay = demoMode ? "Demo User" : rep.username;
 
   /* ─── Render ───────────────────────────────────────────────────────────── */
@@ -278,10 +396,10 @@ export default function CampaignDashboardPage() {
         {/* Stat pills 2x2 */}
         <div style={{ padding: "10px 12px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
           {[
-            { label: "Total", value: clients.length + activeCloseLeads.length },
-            { label: "Renewable", value: renewableLeads.length },
-            { label: "Declined", value: declinedLeads.length },
-            { label: "Cancelled", value: cancelledCount },
+            { label: "Total", value: totalCount },
+            { label: "Renewable", value: renewableCount },
+            { label: "Declined", value: declinedCount },
+            { label: useCs ? "Merged" : "Cancelled", value: useCs ? mergedCount : closeLeads.filter(l => l.renewStatus === "Cancelled" || l.status === "Cancelled").length },
           ].map(s => (
             <div key={s.label} style={{ background: BG, borderRadius: 8, padding: "6px 10px", textAlign: "center" }}>
               <div style={{ fontSize: 16, fontWeight: 700, color: TEXT }}>{s.value}</div>
@@ -322,8 +440,26 @@ export default function CampaignDashboardPage() {
                       </div>
                     </div>
                   );
+                } else if (item.type === "csIntel") {
+                  const c = item.data;
+                  const mapped = mapRenewStatus(c.health || "");
+                  const isActive = selected?.business_name?.toLowerCase() === c.businessName.toLowerCase();
+                  const mo = parseFloat(String(c.monthly || "0")) || 0;
+                  return (
+                    <div key={c.businessName + String(c.contractNumber || "")} onClick={() => selectContact({ id: c.businessName, business_name: c.businessName, city: String(c.market || c.region || ""), zip: "", category: String(c.industry || ""), services: String(c.saleItems || ""), ad_size: String(c.saleItems || ""), tagline: "", rep_id: rep!.username, stage: "intake" as const, sbr_data: null, generated_directions: null, selected_direction: null, approved_at: null, revisions: null, created_at: "" } as unknown as CampaignClient)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer", borderBottom: `1px solid ${BORDER}`, borderLeft: isActive ? `3px solid ${GOLD}` : "3px solid transparent", background: isActive ? SURFACE : "transparent" }}>
+                      <div style={{ width: 34, height: 34, borderRadius: 8, background: avatarBg(String(c.industry || "")), color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{initials(c.businessName)}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: TEXT, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.businessName}</div>
+                        <div style={{ fontSize: 10, color: GRAY }}>{c.lastEdition ? `Last: ${c.lastEdition}` : String(c.market || c.industry || "")}</div>
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
+                        {mapped && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 4, color: renewColor(c.health || ""), background: `${renewColor(c.health || "")}15` }}>{mapped}</span>}
+                        {mo > 0 && <span style={{ fontSize: 10, fontWeight: 600, color: GOLD }}>${mo.toFixed(0)}/mo</span>}
+                      </div>
+                    </div>
+                  );
                 } else {
-                  const l = item.data;
+                  const l = item.data as CloseLead;
                   const isActive = selected?.business_name?.toLowerCase() === l.businessName.toLowerCase();
                   return (
                     <div key={l.id} onClick={() => selectCloseLead(l)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer", borderBottom: `1px solid ${BORDER}`, borderLeft: isActive ? `3px solid ${GOLD}` : "3px solid transparent", background: isActive ? SURFACE : "transparent" }}>
@@ -352,16 +488,132 @@ export default function CampaignDashboardPage() {
       <div style={{ background: BG, overflowY: "auto", padding: 20 }}>
         {!selected ? (
           <div>
-            <div style={{ textAlign: "center", padding: "48px 0 32px", color: GRAY }}>
-              <div style={{ fontSize: 36, marginBottom: 8 }}>📋</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: TEXT2 }}>Select a contact</div>
-              <div style={{ fontSize: 13, color: GRAY }}>Choose from your contacts list to view details</div>
-            </div>
+            {/* BOB Snapshot */}
+            {useCs && (
+              <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 20, marginBottom: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: GOLD, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>Book of Business</div>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: TEXT }}>{repDisplay}</div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 10, color: GRAY }}>Period:</span>
+                    <input type="date" value={reportingPeriod} onChange={e => { setReportingPeriod(e.target.value); if (e.target.value) loadCsForDate(e.target.value); }} style={{ padding: "4px 8px", borderRadius: 6, border: `1px solid ${BORDER}`, fontSize: 11, color: TEXT, background: BG }} />
+                    {(() => { const wk = csIntelData[0]?.week_of; return wk ? <span style={{ fontSize: 10, background: `${NAVY}12`, color: NAVY, padding: "2px 8px", borderRadius: 10, fontWeight: 600 }}>{String(wk).slice(0, 10)}</span> : null; })()}
+                  </div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 14 }}>
+                  <div style={{ background: BG, borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: GOLD }}>${Math.round(totalMRV).toLocaleString()}</div>
+                    <div style={{ fontSize: 9, color: GRAY, fontWeight: 600 }}>MRR</div>
+                  </div>
+                  <div style={{ background: BG, borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: TEXT }}>${(totalMRV * 12 / 1000000).toFixed(2)}M</div>
+                    <div style={{ fontSize: 9, color: GRAY, fontWeight: 600 }}>ARR</div>
+                  </div>
+                  <div style={{ background: BG, borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: TEXT2 }}>${(totalMRV * 12 * 1.75 / 1000000).toFixed(2)}M</div>
+                    <div style={{ fontSize: 9, color: GRAY, fontWeight: 600 }}>TCV (est.)</div>
+                  </div>
+                  <div style={{ background: BG, borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: NAVY }}>{totalCount}</div>
+                    <div style={{ fontSize: 9, color: GRAY, fontWeight: 600 }}>Accounts</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: GREEN, background: `${GREEN}12`, padding: "3px 10px", borderRadius: 10 }}>{renewableCount} Renewable</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: RED, background: `${RED}12`, padding: "3px 10px", borderRadius: 10 }}>{declinedCount} Declined</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: AMBER, background: `${AMBER}12`, padding: "3px 10px", borderRadius: 10 }}>{mergedCount} Merged</span>
+                </div>
+              </div>
+            )}
+
+            {/* Tabs: Overview / Audit */}
+            {useCs && closeLeads.length > 0 && (
+              <div style={{ display: "flex", gap: 4, marginBottom: 14 }}>
+                {(["overview", "audit"] as const).map(t => (
+                  <button key={t} onClick={() => setEmptyTab(t)} style={{ padding: "6px 16px", borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: "pointer", border: "none", background: emptyTab === t ? NAVY : SURFACE, color: emptyTab === t ? "#fff" : TEXT2, textTransform: "capitalize" }}>{t === "audit" ? "CSOps × Close Audit" : t}</button>
+                ))}
+              </div>
+            )}
+
+            {emptyTab === "audit" && useCs && closeLeads.length > 0 ? (() => {
+              const csNames = csIntelData.map(c => ({ orig: c.businessName, norm: normName(c.businessName), data: c }));
+              const clNames = closeLeads.map(l => ({ orig: l.businessName, norm: normName(l.businessName), data: l }));
+              const matched = csNames.filter(c => clNames.some(l => l.norm === c.norm));
+              const csOnly = csNames.filter(c => !clNames.some(l => l.norm === c.norm));
+              const closeOnly = clNames.filter(l => !csNames.some(c => c.norm === l.norm));
+              return (
+                <div>
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 700, color: TEXT, marginBottom: 4 }}>CSOps × Close CRM Reconciliation</div>
+                    <div style={{ fontSize: 12, color: GRAY }}>CSOps report vs live Close CRM data</div>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 16 }}>
+                    <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 14, textAlign: "center" }}>
+                      <div style={{ fontSize: 24, fontWeight: 800, color: GREEN }}>{matched.length}</div>
+                      <div style={{ fontSize: 10, color: GRAY, fontWeight: 600 }}>Matched</div>
+                    </div>
+                    <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 14, textAlign: "center" }}>
+                      <div style={{ fontSize: 24, fontWeight: 800, color: AMBER }}>{csOnly.length}</div>
+                      <div style={{ fontSize: 10, color: GRAY, fontWeight: 600 }}>CSOps Only</div>
+                    </div>
+                    <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 14, textAlign: "center" }}>
+                      <div style={{ fontSize: 24, fontWeight: 800, color: "#4A90D9" }}>{closeOnly.length}</div>
+                      <div style={{ fontSize: 10, color: GRAY, fontWeight: 600 }}>Close Only</div>
+                    </div>
+                    <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 14, textAlign: "center" }}>
+                      <div style={{ fontSize: 24, fontWeight: 800, color: TEXT2 }}>{Math.abs(csIntelData.length - closeLeads.length)}</div>
+                      <div style={{ fontSize: 10, color: GRAY, fontWeight: 600 }}>Discrepancy</div>
+                    </div>
+                  </div>
+
+                  {/* Expandable tables */}
+                  {[
+                    { label: "Matched", color: GREEN, items: matched.map(m => m.orig), show: auditShowMatched, toggle: () => setAuditShowMatched(p => !p) },
+                    { label: "CSOps Only", color: AMBER, items: csOnly.map(c => `${c.orig} — $${parseFloat(String(c.data.monthly || "0")).toFixed(0)}/mo — ${mapRenewStatus(c.data.health || "")}`), show: auditShowCsOnly, toggle: () => setAuditShowCsOnly(p => !p) },
+                    { label: "Close Only", color: "#4A90D9", items: closeOnly.map(c => `${c.orig} — ${c.data.status} — $${c.data.monthly}/mo`), show: auditShowCloseOnly, toggle: () => setAuditShowCloseOnly(p => !p) },
+                  ].map(section => (
+                    <div key={section.label} style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 14, marginBottom: 10 }}>
+                      <button onClick={section.toggle} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, width: "100%", padding: 0 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: section.color }}>{section.label} ({section.items.length})</span>
+                        <span style={{ fontSize: 10, color: GRAY }}>{section.show ? "▼" : "▶"}</span>
+                      </button>
+                      {section.show && (
+                        <div style={{ marginTop: 8, maxHeight: 200, overflowY: "auto" }}>
+                          {section.items.map((item, i) => (
+                            <div key={i} style={{ fontSize: 11, color: TEXT, padding: "3px 0", borderBottom: `1px solid ${BORDER}` }}>{item}</div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Bruno audit */}
+                  <button onClick={async () => {
+                    setAuditBrunoLoading(true);
+                    try {
+                      const summary = `CSOps has ${csIntelData.length} accounts. Close has ${closeLeads.length}. Matched: ${matched.length}. CSOps-only: ${csOnly.length}. Close-only: ${closeOnly.length}. Top CSOps-only names: ${csOnly.slice(0, 5).map(c => c.orig).join(", ")}. Top Close-only names: ${closeOnly.slice(0, 5).map(c => c.orig).join(", ")}.`;
+                      const res = await fetch("/api/campaign/bruno-va", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: [{ role: "user", content: `Analyze this CSOps vs Close CRM audit and give me actionable recommendations: ${summary}` }], pipeline: [] }) });
+                      const d = await res.json();
+                      setAuditBrunoResponse(d.response || "No response");
+                    } catch { setAuditBrunoResponse("Failed to analyze"); }
+                    setAuditBrunoLoading(false);
+                  }} disabled={auditBrunoLoading} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 8, padding: "10px 18px", fontSize: 12, fontWeight: 700, cursor: "pointer", marginBottom: 10, opacity: auditBrunoLoading ? 0.5 : 1 }}>
+                    {auditBrunoLoading ? "Analyzing..." : "🔍 Ask Bruno to Analyze"}
+                  </button>
+                  {auditBrunoResponse && (
+                    <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 14, fontSize: 12, color: TEXT, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{auditBrunoResponse}</div>
+                  )}
+                </div>
+              );
+            })() : (
+            <>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
               {[
-                { l: "Total Active", v: clients.length + activeCloseLeads.length, c: NAVY },
-                { l: "Renewable", v: renewableLeads.length, c: GREEN },
-                { l: "Declined", v: declinedLeads.length, c: RED },
+                { l: "Total Active", v: totalCount, c: NAVY },
+                { l: "Renewable", v: renewableCount, c: GREEN },
+                { l: "Declined", v: declinedCount, c: RED },
                 { l: "Avg Monthly", v: `$${avgMonthly}`, c: GOLD },
               ].map(s => (
                 <div key={s.l} style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 16, textAlign: "center" }}>
@@ -381,6 +633,8 @@ export default function CampaignDashboardPage() {
                 </div>
               ))}
             </div>
+            </>
+            )}
           </div>
         ) : (
           <div>
@@ -575,7 +829,19 @@ export default function CampaignDashboardPage() {
                   <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/campaign/client/${selected.id}`); showToast("Portal link copied!"); }} style={{ width: "100%", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>🌐 Copy Portal Link</button>
                   {selected.stage === "approved" && <button onClick={() => updateStage("production")} style={{ width: "100%", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>▶ Mark In Production</button>}
                   {selected.stage === "production" && <button onClick={() => updateStage("delivered")} style={{ width: "100%", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>✅ Mark Delivered</button>}
-                  <button onClick={() => window.print()} style={{ width: "100%", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>📥 Delivery Pack</button>
+                  <button onClick={() => {
+                    const trimSize = AD_DIMS[selected.ad_size] || selected.ad_size;
+                    const bleedSize = AD_BLEED[selected.ad_size] || "";
+                    const w = window.open("", "_blank");
+                    if (!w) return;
+                    w.document.write(`<!DOCTYPE html><html><head><title>Delivery Pack — ${selected.business_name}</title><style>body{font-family:Georgia,serif;max-width:700px;margin:40px auto;color:#1C2B1D;line-height:1.8}h1{font-size:24px;border-bottom:2px solid #C8922A;padding-bottom:8px}h2{font-size:16px;color:#1B2A4A;margin-top:24px}table{width:100%;border-collapse:collapse;margin:8px 0}td{padding:6px 12px;border:1px solid #DDD5C0;font-size:13px}td:first-child{font-weight:700;width:200px;background:#F5F0E8}.gold{color:#C8922A;font-weight:700}</style></head><body>`);
+                    w.document.write(`<h1>BVM Campaign Delivery Pack</h1><p><strong>${selected.business_name}</strong> — ${selected.city} — ${new Date().toLocaleDateString()}</p>`);
+                    w.document.write(`<h2>Campaign Details</h2><table><tr><td>Business Name</td><td>${selected.business_name}</td></tr><tr><td>City / ZIP</td><td>${selected.city} ${selected.zip}</td></tr><tr><td>Category</td><td>${selected.category}</td></tr><tr><td>Ad Size</td><td>${selected.ad_size}</td></tr><tr><td>Tagline</td><td>${selected.tagline || "—"}</td></tr><tr><td>Services / Ad Copy</td><td>${selected.services}</td></tr><tr><td>Selected Direction</td><td>${selected.selected_direction || "—"}</td></tr></table>`);
+                    w.document.write(`<h2>Print Specifications</h2><table><tr><td>Trim Size</td><td class="gold">${trimSize}</td></tr><tr><td>Document with Bleed</td><td class="gold">${bleedSize}</td></tr><tr><td>Bleed</td><td>0.125" all sides</td></tr><tr><td>Safe Space</td><td>0.25" minimum from trim edge</td></tr><tr><td>Resolution</td><td>300dpi minimum</td></tr><tr><td>Color Mode</td><td>CMYK (convert from RGB before sending to printer)</td></tr><tr><td>Border</td><td>Visual border required around perimeter</td></tr><tr><td>File Formats</td><td>PDF, JPG, TIFF, EPS, PSD, AI, SVG</td></tr></table>`);
+                    w.document.write(`<p style="margin-top:32px;font-size:11px;color:#9B8E7A;border-top:1px solid #DDD5C0;padding-top:12px">Best Version Media | Campaign Portal | ${new Date().toLocaleDateString()}</p></body></html>`);
+                    w.document.close();
+                    w.print();
+                  }} style={{ width: "100%", background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>📥 Delivery Pack</button>
                 </div>
               )}
 

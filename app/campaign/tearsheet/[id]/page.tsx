@@ -27,9 +27,7 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
         const { data } = await sb.from("campaign_clients").select("*").eq("id", id).single();
         if (data) { setClient(data as CampaignClient); setLoading(false); return; }
       }
-    } catch (e) {
-      console.error("Load error:", e);
-    }
+    } catch (e) { console.error("Load error:", e); }
     if (retries > 0) { await new Promise(r => setTimeout(r, 1500)); return loadClient(retries - 1); }
     setLoading(false);
   }
@@ -186,21 +184,9 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
                   {regenerating ? (
                     <div style={{ width: 36, height: 36, border: "3px solid #F5C842", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
                   ) : dir.imageUrl ? (
-                    <div style={{ position: "relative", width: "100%", height: "100%" }}>
-                      <img src={dir.imageUrl} alt={dir.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(to top, rgba(0,0,0,0.85), transparent)", padding: "48px 16px 14px" }}>
-                        <div style={{ fontSize: 18, fontWeight: 700, color: "#fff", fontFamily: "Georgia, serif" }}>{client.business_name}</div>
-                        {client.tagline && <div style={{ fontSize: 13, color: "rgba(255,255,255,0.9)", fontStyle: "italic", marginTop: 4 }}>&ldquo;{client.tagline}&rdquo;</div>}
-                        <div style={{ marginTop: 8, fontSize: 11, color: "rgba(255,255,255,0.8)" }}>
-                          {[String((client as unknown as Record<string,unknown>).contact_phone || ""), String((client as unknown as Record<string,unknown>).contact_email || ""), String((client as unknown as Record<string,unknown>).contact_address || "")].filter(Boolean).join(" · ")}
-                        </div>
-                      </div>
-                    </div>
+                    <img src={dir.imageUrl} alt={dir.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   ) : (
-                    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8, background: dir.name === "Bold & Direct" ? "linear-gradient(135deg, #1B2A4A, #2d3e50)" : dir.name === "Warm & Local" ? "linear-gradient(135deg, #2C3E2D, #4a6b4f)" : "linear-gradient(135deg, #C8922A, #F5C842)" }}>
-                      <div style={{ fontSize: 18, fontWeight: 800, color: "#fff", textAlign: "center" }}>{dir.name}</div>
-                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)" }}>Generating...</div>
-                    </div>
+                    <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 14 }}>Image unavailable</div>
                   )}
                 </div>
 
