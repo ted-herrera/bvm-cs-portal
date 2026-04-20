@@ -1,35 +1,35 @@
-const CAMPAIGN_USERS = [
-  { username: "Alex Polivka", password: "password", role: "rep" },
-  { username: "April Dippolito", password: "password", role: "rep" },
-  { username: "Genele Ekinde", password: "password", role: "rep" },
-  { username: "Kala McNeely", password: "password", role: "rep" },
-  { username: "Karen Guirguis", password: "password", role: "rep" },
-  { username: "Samantha Marcus", password: "password", role: "rep" },
-  { username: "Ted Herrera", password: "password", role: "admin" },
-];
+import { NextRequest, NextResponse } from "next/server";
+import { CAMPAIGN_USERS } from "@/lib/campaign";
 
-export async function POST(request: Request) {
-  const { username, password } = (await request.json()) as {
-    username: string;
-    password: string;
-  };
+export async function POST(request: NextRequest) {
+  try {
+    const { username } = await request.json();
 
-  const trimmed = username.trim();
-  const user = CAMPAIGN_USERS.find(
-    (u) => u.username.toLowerCase() === trimmed.toLowerCase() && u.password === password
-  );
+    if (!username || typeof username !== "string") {
+      return NextResponse.json({ success: false, error: "Username is required" }, { status: 400 });
+    }
 
-  if (!user) {
-    return Response.json({ success: false, error: "Invalid credentials" });
+    const trimmed = username.trim();
+    const user = CAMPAIGN_USERS.find(
+      (u) => u.username.toLowerCase() === trimmed.toLowerCase(),
+    );
+
+    if (!user) {
+      return NextResponse.json({ success: false, error: "User not found" }, { status: 401 });
+    }
+
+    const payload = { username: user.username, role: user.role };
+    const res = NextResponse.json({ success: true, role: user.role, username: user.username });
+
+    res.cookies.set("campaign_user", JSON.stringify(payload), {
+      path: "/",
+      httpOnly: false,
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 30, // 30 days
+    });
+
+    return res;
+  } catch {
+    return NextResponse.json({ success: false, error: "Invalid request" }, { status: 400 });
   }
-
-  const cookieValue = JSON.stringify({ username: user.username, role: user.role });
-
-  return new Response(JSON.stringify({ success: true, role: user.role }), {
-    status: 200,
-    headers: {
-      "Content-Type": "application/json",
-      "Set-Cookie": `campaign_user=${encodeURIComponent(cookieValue)}; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax`,
-    },
-  });
 }

@@ -2,1324 +2,652 @@
 
 import { useState, useEffect, useRef, use } from "react";
 import Link from "next/link";
-import type { CampaignClient, CampaignDirection } from "@/lib/campaign";
+import type { CampaignClient } from "@/lib/campaign";
+import { createClient } from "@supabase/supabase-js";
+import confetti from "canvas-confetti";
 
-/* ─── Constants ────────────────────────────────────────────────────────────── */
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) return null;
+  return createClient(url, key);
+}
+
+async function fetchCampaignWithRetry(id: string, attempts = 3, delay = 1500): Promise<CampaignClient | null> {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+  for (let i = 0; i < attempts; i++) {
+    const { data, error } = await supabase
+      .from("campaign_clients")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (!error && data) return data as CampaignClient;
+    if (i < attempts - 1) await new Promise((r) => setTimeout(r, delay));
+  }
+  return null;
+}
+
+const GOLD = "#C8A951";
+const NAVY = "#1B2A4A";
+const DARK_BG = "#0F1B33";
 
 const STAGES = ["approved", "production", "review", "delivered"] as const;
-const STAGE_LABELS: Record<string, string> = {
-  approved: "Campaign Approved",
-  production: "In Production",
-  review: "Review",
-  delivered: "Delivered",
-};
+const STAGE_LABELS: Record<string, string> = { approved: "Approved", production: "In Production", review: "Under Review", delivered: "Delivered" };
 
-function stageIndex(stage: string): number {
-  const idx = STAGES.indexOf(stage as (typeof STAGES)[number]);
-  return idx >= 0 ? idx : 0;
+function getInitials(name: string): string {
+  return name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
 }
 
-function scoreColor(score: number): string {
-  if (score >= 80) return "#22c55e";
-  if (score >= 60) return "#f59e0b";
-  return "#ef4444";
-}
-
-function marketRank(score: number): string {
-  if (score > 90) return "Top 8%";
-  if (score > 80) return "Top 15%";
-  if (score > 70) return "Top 30%";
-  if (score > 60) return "Top 45%";
-  return "Top 60%";
-}
-
-function formatIncome(raw: string): string {
-  const num = parseInt(raw.replace(/[^0-9]/g, ""), 10);
-  if (isNaN(num)) return raw || "--";
-  return "$" + num.toLocaleString();
-}
-
-function formatHouseholds(raw: string): string {
-  const num = parseInt(raw.replace(/[^0-9]/g, ""), 10);
-  if (isNaN(num)) return raw || "--";
-  return num.toLocaleString();
-}
-
-function parseNumeric(raw: string): number {
-  const num = parseInt(raw.replace(/[^0-9]/g, ""), 10);
-  return isNaN(num) ? 0 : num;
-}
-
-function timeAgo(d: string): string {
-  const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
-
-/* ─── Eyebrow Label ───────────────────────────────────────────────────────── */
-
-function Eyebrow({ text }: { text: string }) {
+function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{
-      color: "#F5C842", fontSize: 10, fontWeight: 700, textTransform: "uppercase",
-      letterSpacing: "0.15em", marginBottom: 8,
-    }}>{text}</div>
-  );
-}
-
-/* ─── LMS Modal ────────────────────────────────────────────────────────────── */
-
-function LmsModal({ title, onClose }: { title: string; onClose: () => void }) {
-  return (
-    <div style={{
-      position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex",
-      alignItems: "center", justifyContent: "center", zIndex: 1000,
-    }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{
-        background: "#1B2A4A", borderRadius: 16, padding: 32, width: "90%",
-        maxWidth: 720, border: "1px solid rgba(255,255,255,0.1)",
-      }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, color: "#fff", margin: 0 }}>{title}</h3>
-          <button onClick={onClose} style={{
-            background: "rgba(255,255,255,0.1)", border: "none", color: "#fff",
-            width: 32, height: 32, borderRadius: "50%", cursor: "pointer", fontSize: 16,
-          }}>&#x2715;</button>
-        </div>
-        <div style={{ position: "relative", paddingBottom: "56.25%", height: 0, borderRadius: 10, overflow: "hidden" }}>
-          <iframe
-            src="https://www.youtube.com/embed/dQw4w9WgXcQ"
-            title={title}
-            style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" }}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-          />
-        </div>
-      </div>
+    <div style={{ fontSize: 11, color: GOLD, textTransform: "uppercase", letterSpacing: 2, fontWeight: 700, marginBottom: 12 }}>
+      {children}
     </div>
   );
 }
 
-/* ─── Nav Items ────────────────────────────────────────────────────────────── */
-
 const NAV_ITEMS = [
-  { icon: "\uD83D\uDCCA", label: "Market Intel", section: "section-market" },
-  { icon: "\uD83D\uDCF0", label: "Your Campaign", section: "section-campaign" },
-  { icon: "\uD83C\uDF10", label: "Full Suite", section: "section-suite" },
-  { icon: "\uD83D\uDCAC", label: "Messages", section: "section-messages" },
-  { icon: "\uD83C\uDF93", label: "Learning", section: "section-learning" },
+  { emoji: "\uD83D\uDCCA", label: "Market Intel", section: "intel" },
+  { emoji: "\uD83C\uDFA8", label: "Your Campaign", section: "campaign" },
+  { emoji: "\uD83D\uDCE6", label: "Full Suite", section: "suite" },
+  { emoji: "\uD83D\uDCAC", label: "Messages", section: "messages" },
+  { emoji: "\uD83C\uDF93", label: "Learning", section: "learning" },
 ];
 
-/* ─── Main Component ───────────────────────────────────────────────────────── */
-
-export default function CampaignClientPage({ params }: { params: Promise<{ id: string }> }) {
+export default function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [client, setClient] = useState<CampaignClient | null>(null);
   const [loading, setLoading] = useState(true);
-  const [revisionNote, setRevisionNote] = useState("");
-  const [revisionSending, setRevisionSending] = useState(false);
-  const [revisionSent, setRevisionSent] = useState(false);
-
-  // Asset upload
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [assetUploading, setAssetUploading] = useState(false);
-  const [assetProgress, setAssetProgress] = useState(0);
-  const [assetSent, setAssetSent] = useState(false);
+  const [activeNav, setActiveNav] = useState("intel");
+  const [msgInput, setMsgInput] = useState("");
+  const [sendingMsg, setSendingMsg] = useState(false);
+  const [taglineEdit, setTaglineEdit] = useState("");
   const [editingTagline, setEditingTagline] = useState(false);
-  const [taglineInput, setTaglineInput] = useState("");
-  const [taglineSaving, setTaglineSaving] = useState(false);
-  const [upsellSent, setUpsellSent] = useState(false);
-  const [upsellSending, setUpsellSending] = useState(false);
-  const [confettiFired, setConfettiFired] = useState(false);
-
-  // Onboarding
-  const [showOnboarding, setShowOnboarding] = useState(false);
-
-  // LMS
-  const [lmsModal, setLmsModal] = useState<string | null>(null);
-
-  // Messages
-  const [chatMessages, setChatMessages] = useState<Array<{ role: string; content: string; timestamp: string }>>([]);
-  const [clientMsgInput, setClientMsgInput] = useState("");
-  const [clientMsgSending, setClientMsgSending] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-
-  // Sidebar messages expand
-  const [sidebarMsgsExpanded, setSidebarMsgsExpanded] = useState(false);
-
-  // Locked section CTAs
-  const [bizProfileSent, setBizProfileSent] = useState(false);
-  const [bizProfileSending, setBizProfileSending] = useState(false);
-  const [expertContribSent, setExpertContribSent] = useState(false);
-  const [expertContribSending, setExpertContribSending] = useState(false);
-
-  // Active nav section
-  const [activeSection, setActiveSection] = useState("section-market");
-  const centerRef = useRef<HTMLDivElement>(null);
+  const [changeRequest, setChangeRequest] = useState("");
+  const [submittingChange, setSubmittingChange] = useState(false);
+  const [showYouTube, setShowYouTube] = useState<string | null>(null);
+  const confettiFired = useRef(false);
+  const msgRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    loadClient();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    fetchCampaignWithRetry(id).then((c) => {
+      setClient(c);
+      setLoading(false);
+      if (c?.tagline) setTaglineEdit(c.tagline);
+    });
   }, [id]);
 
-  // Check onboarding
+  // Confetti on first load if approved
   useEffect(() => {
-    if (client && client.stage !== "intake" && client.stage !== "tearsheet") {
-      const key = `campaign_onboarded_${id}`;
-      if (!localStorage.getItem(key)) {
-        setShowOnboarding(true);
-      }
+    if (client && ["approved", "production", "review", "delivered"].includes(client.stage) && !confettiFired.current) {
+      confettiFired.current = true;
+      confetti({ particleCount: 150, spread: 80, origin: { y: 0.5 } });
     }
-  }, [client, id]);
-
-  // Load messages
-  useEffect(() => {
-    if (!client) return;
-    fetchMessages();
-    const interval = setInterval(fetchMessages, 30000);
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, client]);
-
-  // IntersectionObserver for active nav section
-  useEffect(() => {
-    if (!client || client.stage === "intake" || client.stage === "tearsheet") return;
-    const sectionIds = NAV_ITEMS.map((n) => n.section);
-    const observers: IntersectionObserver[] = [];
-
-    const handleIntersect = (entries: IntersectionObserverEntry[]) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          setActiveSection(entry.target.id);
-        }
-      });
-    };
-
-    // Delay to let DOM render
-    const timer = setTimeout(() => {
-      sectionIds.forEach((sid) => {
-        const el = document.getElementById(sid);
-        if (el) {
-          const observer = new IntersectionObserver(handleIntersect, {
-            root: centerRef.current,
-            threshold: 0.2,
-          });
-          observer.observe(el);
-          observers.push(observer);
-        }
-      });
-    }, 500);
-
-    return () => {
-      clearTimeout(timer);
-      observers.forEach((o) => o.disconnect());
-    };
   }, [client]);
 
-  async function fetchMessages() {
-    try {
-      const res = await fetch(`/api/campaign/message/${id}`);
-      const data = await res.json();
-      if (data.messages) setChatMessages(data.messages);
-    } catch { /* ignore */ }
-  }
-
-  // Auto-scroll chat
+  // Auto-refresh messages every 30s
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages]);
-
-  async function loadClient() {
-    // Demo/fallback mode for Design Center IDs
-    if (id.startsWith("client-")) {
-      setClient({
-        id, created_at: new Date().toISOString(), business_name: "Ted's Pizza",
-        category: "Restaurant", city: "Tulsa", zip: "74103", services: "Wood-fired pizza, craft beer, catering",
-        ad_size: "1/4 page", tagline: "Tulsa's favorite slice.", rep_id: "demo",
-        stage: "approved", approved_at: new Date().toISOString(),
-        sbr_data: { opportunityScore: 94, medianIncome: "74200", households: "52000", topCategories: ["Restaurants", "Food", "Catering"], competitorGap: "Low competition in pizza category", incomeRing: "Ring 1 · $65-90K", marketBrief: "Strong opportunity in the Tulsa restaurant market." },
-        generated_directions: [{ name: "Bold & Direct", imageUrl: "", description: "Strong headline, direct offer", prompt: "" }],
-        selected_direction: "Bold & Direct", revisions: null,
-      } as CampaignClient);
-      setLoading(false);
-      return;
+    if (!client || !["approved", "production", "review", "delivered"].includes(client.stage)) return;
+    async function refreshMessages() {
+      try {
+        const res = await fetch(`/api/campaign/message/${id}`);
+        const data = await res.json();
+        if (data.messages) {
+          setClient((prev) => prev ? { ...prev, messages: data.messages } : prev);
+        }
+      } catch { /* silent */ }
     }
-    try {
-      const { getSupabase } = await import("@/lib/supabase");
-      const sb = getSupabase();
-      if (sb) {
-        const { data } = await sb.from("campaign_clients").select("*").eq("id", id).single();
-        if (data) setClient(data as CampaignClient);
-      }
-    } catch (e) {
-      console.error("Load error:", e);
-    }
-    setLoading(false);
-  }
-
-  // Fire confetti on first load when approved
-  useEffect(() => {
-    if (client && client.stage !== "intake" && client.stage !== "tearsheet" && !confettiFired) {
-      setConfettiFired(true);
-      import("canvas-confetti").then((mod) => {
-        mod.default({ particleCount: 150, spread: 90, colors: ["#F5C842", "#1B2A4A", "#ffffff"], origin: { x: 0.5, y: 0.3 } });
-        setTimeout(() => {
-          mod.default({ particleCount: 80, spread: 70, colors: ["#F5C842", "#3B82F6", "#ffffff"], origin: { x: 0.25, y: 0.5 } });
-        }, 400);
-        setTimeout(() => {
-          mod.default({ particleCount: 80, spread: 70, colors: ["#F5C842", "#8B5CF6", "#ffffff"], origin: { x: 0.75, y: 0.5 } });
-        }, 700);
-      });
-    }
-  }, [client, confettiFired]);
-
-  async function submitRevision() {
-    if (!revisionNote.trim()) return;
-    setRevisionSending(true);
-    try {
-      await fetch(`/api/campaign/revision/${id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note: revisionNote }),
-      });
-      setRevisionSent(true);
-      setRevisionNote("");
-      setTimeout(() => setRevisionSent(false), 3000);
-    } catch (e) { console.error("Revision error:", e); }
-    setRevisionSending(false);
-  }
-
-  async function saveTagline() {
-    if (!taglineInput.trim()) return;
-    setTaglineSaving(true);
-    try {
-      await fetch(`/api/campaign/revision/${id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "tagline", value: taglineInput.trim() }),
-      });
-      setClient((prev) => prev ? { ...prev, tagline: taglineInput.trim() } : prev);
-      setEditingTagline(false);
-      setTaglineInput("");
-    } catch (e) { console.error("Tagline save error:", e); }
-    setTaglineSaving(false);
-  }
-
-  async function sendUpsellInterest() {
-    setUpsellSending(true);
-    try {
-      await fetch(`/api/campaign/revision/${id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note: "Client interested in full suite", type: "upsell-interest", value: "full-suite" }),
-      });
-      setUpsellSent(true);
-    } catch (e) { console.error("Upsell error:", e); }
-    setUpsellSending(false);
-  }
-
-  async function sendBizProfileInterest() {
-    setBizProfileSending(true);
-    try {
-      await fetch(`/api/campaign/revision/${id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note: "Client interested in business profile", type: "business-profile-interest", value: "business-profile" }),
-      });
-      setBizProfileSent(true);
-    } catch (e) { console.error("Biz profile error:", e); }
-    setBizProfileSending(false);
-  }
-
-  async function sendExpertContribInterest() {
-    setExpertContribSending(true);
-    try {
-      await fetch(`/api/campaign/revision/${id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note: "Client interested in expert contributor", type: "expert-contributor-interest", value: "expert-contributor" }),
-      });
-      setExpertContribSent(true);
-    } catch (e) { console.error("Expert contrib error:", e); }
-    setExpertContribSending(false);
-  }
-
-  async function sendClientMessage() {
-    if (!clientMsgInput.trim()) return;
-    setClientMsgSending(true);
-    try {
-      const res = await fetch(`/api/campaign/message/${id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: "client", content: clientMsgInput }),
-      });
-      const data = await res.json();
-      if (data.messages) setChatMessages(data.messages);
-      setClientMsgInput("");
-    } catch { /* ignore */ }
-    setClientMsgSending(false);
-  }
-
-  function dismissOnboarding() {
-    localStorage.setItem(`campaign_onboarded_${id}`, "true");
-    setShowOnboarding(false);
-  }
-
-  function handlePrintReport() {
-    window.print();
-  }
-
-  function scrollToSection(sectionId: string) {
-    const el = document.getElementById(sectionId);
-    if (el) el.scrollIntoView({ behavior: "smooth" });
-  }
-
-  /* ─── Loading ────────────────────────────────────────────────────────────── */
+    msgRefreshRef.current = setInterval(refreshMessages, 30000);
+    return () => { if (msgRefreshRef.current) clearInterval(msgRefreshRef.current); };
+  }, [client?.stage, id]);
 
   if (loading) {
     return (
-      <div style={{ minHeight: "100vh", background: "#1B2A4A", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ width: 48, height: 48, border: "3px solid #F5C842", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <div style={{ minHeight: "100vh", background: NAVY, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ color: GOLD, fontSize: 18 }}>Loading...</div>
       </div>
     );
   }
 
   if (!client) {
     return (
-      <div style={{ minHeight: "100vh", background: "#1B2A4A", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 24, padding: 32 }}>
-        <img src="/bvm_logo.png" alt="BVM" style={{ height: 40, filter: "brightness(0) invert(1)" }} />
-        <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, color: "#fff", margin: 0, textAlign: "center" }}>
-          Your campaign portal is being set up
-        </h1>
-        <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", margin: 0, textAlign: "center", maxWidth: 400 }}>
-          Your rep is preparing your campaign. You&apos;ll receive a link when everything is ready.
-        </p>
-        <button onClick={() => window.location.href = "mailto:support@bestversionmedia.com"} style={{
-          background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 10,
-          padding: "14px 32px", fontSize: 15, fontWeight: 800, cursor: "pointer", marginTop: 8,
-        }}>
-          Contact Your Rep
-        </button>
+      <div style={{ minHeight: "100vh", background: NAVY, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ color: "#fff", fontSize: 18 }}>Campaign not found.</div>
       </div>
     );
   }
 
-  /* ─── STATE 1: Before Approval ──────────────────────────────────────────── */
-
+  // PRE-APPROVAL
   if (client.stage === "intake" || client.stage === "tearsheet") {
     return (
-      <div style={{ minHeight: "100vh", background: "#1B2A4A", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 24, padding: 32 }}>
-        <img src="/bvm_logo.png" alt="BVM" style={{ height: 40, filter: "brightness(0) invert(1)", marginBottom: 16 }} />
-        <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 32, color: "#fff", margin: 0, textAlign: "center" }}>
-          {client.business_name}
-        </h1>
-        <p style={{ fontSize: 16, color: "rgba(255,255,255,0.6)", margin: 0 }}>
-          Your campaign direction is ready.
-        </p>
-        <Link href={`/campaign/tearsheet/${id}`} style={{
-          background: "#F5C842", color: "#1B2A4A", borderRadius: 10,
-          padding: "14px 32px", fontSize: 15, fontWeight: 800, textDecoration: "none", marginTop: 8,
+      <div style={{ minHeight: "100vh", background: NAVY, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#fff" }}>
+        {/* BVM Monogram */}
+        <div style={{
+          width: 80, height: 80, borderRadius: "50%", background: GOLD, display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 28, fontWeight: 900, color: NAVY, fontFamily: "Georgia, serif", marginBottom: 24,
         }}>
+          BVM
+        </div>
+        <h1 style={{ fontSize: 28, fontFamily: "Playfair Display, Georgia, serif", margin: "0 0 8px", textAlign: "center" }}>
+          Your campaign direction is ready
+        </h1>
+        <p style={{ color: "#ffffffaa", fontSize: 14, margin: "0 0 32px" }}>Review and approve your creative direction</p>
+        <Link
+          href={`/campaign/tearsheet/${id}`}
+          style={{
+            background: GOLD, color: NAVY, padding: "14px 32px", borderRadius: 8, fontSize: 16, fontWeight: 700,
+            textDecoration: "none", display: "inline-block",
+          }}
+        >
           Review Your Campaign &rarr;
         </Link>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 32 }}>
-          {[1, 2, 3, 4].map((step) => (
-            <div key={step} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        {/* Progress */}
+        <div style={{ marginTop: 48, display: "flex", gap: 24, alignItems: "center" }}>
+          {["Review", "Approve", "Production", "Delivered"].map((step, i) => (
+            <div key={step} style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{
                 width: 28, height: 28, borderRadius: "50%",
-                background: step === 1 ? "#F5C842" : "rgba(255,255,255,0.1)",
-                color: step === 1 ? "#1B2A4A" : "rgba(255,255,255,0.3)",
+                background: i === 0 ? GOLD : "#334466",
+                color: i === 0 ? NAVY : "#ffffff66",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: 12, fontWeight: 700,
-              }}>{step}</div>
-              {step < 4 && <div style={{ width: 40, height: 2, background: "rgba(255,255,255,0.1)" }} />}
+              }}>
+                {i + 1}
+              </div>
+              <span style={{ fontSize: 12, color: i === 0 ? GOLD : "#ffffff66" }}>{step}</span>
             </div>
           ))}
         </div>
-        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", margin: 0 }}>Step 1 of 4</p>
       </div>
     );
   }
 
-  /* ─── STATE 2: Post-Approval (Dashboard Portal) ──────────────────────── */
+  // POST-APPROVAL
+  const directions = client.generated_directions || [];
+  const approvedDir = directions.find((d) => d.name === client.selected_direction) || directions[0];
+  const messages = client.messages || [];
+  const stageIndex = STAGES.indexOf(client.stage as (typeof STAGES)[number]);
 
-  const sbr = (client.sbr_data || {}) as Record<string, unknown>;
-  const currentStage = stageIndex(client.stage);
-  const approvedDir = (client.generated_directions || []).find(
-    (d: CampaignDirection) => d.name === client.selected_direction
-  );
-  const oppScore = (sbr.opportunityScore as number) || 0;
-  const medianIncomeRaw = (sbr.medianIncome as string) || "";
-  const medianIncome = formatIncome(medianIncomeRaw);
-  const medianIncomeNum = parseNumeric(medianIncomeRaw);
-  const householdsRaw = (sbr.households as string) || "";
-  const households = formatHouseholds(householdsRaw);
-  const householdsNum = parseNumeric(householdsRaw);
+  const contactPhone = (client as unknown as Record<string, unknown>).contact_phone as string | undefined;
+  const contactEmail = (client as unknown as Record<string, unknown>).contact_email as string | undefined;
+  const contactAddress = (client as unknown as Record<string, unknown>).contact_address as string | undefined;
+  const contactLine = [contactPhone, contactEmail, contactAddress].filter(Boolean).join(" \u00B7 ");
 
-  const LMS_MODULES = [
-    { num: 1, title: "Understanding Your Market Report", desc: "Learn what your opportunity score means and how BVM uses it to position your campaign." },
-    { num: 2, title: "Getting Results From Print", desc: "Best practices for local print advertising -- what works, what doesn't, and how to measure it." },
-    { num: 3, title: "Growing With BVM", desc: "Explore how print + digital + web work together to build a dominant local presence." },
+  async function sendMessage() {
+    if (!msgInput.trim()) return;
+    setSendingMsg(true);
+    try {
+      const res = await fetch(`/api/campaign/message/${id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "client", content: msgInput.trim() }),
+      });
+      const data = await res.json();
+      if (data.success && data.message) {
+        setClient((prev) => prev ? { ...prev, messages: [...(prev.messages || []), data.message] } : prev);
+        setMsgInput("");
+      }
+    } catch { /* silent */ }
+    setSendingMsg(false);
+  }
+
+  async function saveTagline() {
+    try {
+      await fetch(`/api/campaign/revision/${id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "tagline", value: taglineEdit }),
+      });
+      setClient((prev) => prev ? { ...prev, tagline: taglineEdit } : prev);
+      setEditingTagline(false);
+    } catch { /* silent */ }
+  }
+
+  async function submitChange() {
+    if (!changeRequest.trim()) return;
+    setSubmittingChange(true);
+    try {
+      await fetch(`/api/campaign/revision/${id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "change_request", note: changeRequest.trim() }),
+      });
+      setChangeRequest("");
+    } catch { /* silent */ }
+    setSubmittingChange(false);
+  }
+
+  async function requestRevision(type: string) {
+    try {
+      await fetch(`/api/campaign/revision/${id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, note: `Client requested ${type} update` }),
+      });
+    } catch { /* silent */ }
+  }
+
+  const scrollToSection = (section: string) => {
+    setActiveNav(section);
+    document.getElementById(`section-${section}`)?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const suiteCards = [
+    { label: "Print Ad", status: "active", color: GOLD },
+    { label: "Web Landing Page", status: "available", color: "#667" },
+    { label: "Digital Campaign", status: "available", color: "#667" },
   ];
 
-  const stageColorMap: Record<string, string> = {
-    approved: "#22c55e",
-    production: "#f59e0b",
-    review: "#3B82F6",
-    delivered: "#8B5CF6",
-  };
-  const stageBadgeColor = stageColorMap[client.stage] || "#F5C842";
+  const onboardingSteps = [
+    { title: "Welcome to Your Campaign", desc: "Learn how we build your brand presence." },
+    { title: "Understanding Your Market", desc: "See the data behind your ad placement." },
+    { title: "Making the Most of Your Ad", desc: "Tips to maximize your campaign ROI." },
+  ];
 
-  const nextStepText = client.stage === "approved"
-    ? "Your ad is being prepared"
-    : client.stage === "production"
-    ? "Final review coming soon"
-    : client.stage === "delivered"
-    ? "Campaign complete!"
-    : "Your campaign is in progress";
+  const lmsModules = [
+    { title: "Brand Fundamentals", videoId: "dQw4w9WgXcQ" },
+    { title: "Ad Design Principles", videoId: "dQw4w9WgXcQ" },
+    { title: "Marketing Your Business", videoId: "dQw4w9WgXcQ" },
+  ];
 
-  const sidebarMessages = sidebarMsgsExpanded ? chatMessages : chatMessages.slice(-3);
+  const repName = client.rep_id || "BVM Rep";
+  const repInitials = getInitials(repName);
 
   return (
-    <div style={{ minHeight: "100vh", background: "#1B2A4A", fontFamily: "'DM Sans', sans-serif" }}>
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes goldPulse { 0%, 100% { box-shadow: 0 0 0 4px rgba(245,200,66,0.25); } 50% { box-shadow: 0 0 0 12px rgba(245,200,66,0.05); } }
-        @keyframes mapPulse { 0%, 100% { opacity: 0.6; r: 6; } 50% { opacity: 1; r: 10; } }
-        @media print {
-          body * { visibility: hidden !important; }
-          #market-report, #market-report * { visibility: visible !important; }
-          #market-report {
-            position: absolute !important; left: 0 !important; top: 0 !important;
-            width: 100% !important; background: #fff !important; color: #1a2332 !important;
-            padding: 40px !important; border: none !important; border-radius: 0 !important;
-          }
-          #market-report h2, #market-report h3, #market-report h4 { color: #1B2A4A !important; }
-          #market-report .metric-val { color: #1B2A4A !important; }
-          #market-report::before {
-            content: "Market Intelligence Report";
-            display: block; font-size: 28px; font-weight: 800;
-            color: #1B2A4A; margin-bottom: 8px; font-family: 'Playfair Display', serif;
-          }
-          #market-report::after {
-            content: "Powered by BVM \\00b7 Bruno Analytics";
-            display: block; font-size: 11px; color: #999; margin-top: 24px;
-          }
-        }
-      `}</style>
-
-      {/* LMS Modal */}
-      {lmsModal && <LmsModal title={lmsModal} onClose={() => setLmsModal(null)} />}
-
-      {/* ── FIXED TOP HEADER (72px) ─────────────────────────────────────── */}
-      <div style={{
-        height: 72, background: "#1B2A4A", display: "flex", alignItems: "center",
-        padding: "0 24px", boxShadow: "0 1px 4px rgba(0,0,0,0.25)",
-        position: "sticky", top: 0, zIndex: 40,
-        justifyContent: "space-between",
+    <div style={{ minHeight: "100vh", background: NAVY, color: "#fff", fontFamily: "system-ui, sans-serif" }}>
+      {/* Header */}
+      <header style={{
+        position: "sticky", top: 0, zIndex: 100, height: 72, background: DARK_BG,
+        display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px",
+        borderBottom: "1px solid #ffffff11",
       }}>
-        {/* Left: Logo + Business Name */}
-        <div style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>
-          <img src="/bvm_logo.png" alt="BVM" style={{ height: 28, filter: "brightness(0) invert(1)" }} />
-          <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 700, color: "#fff" }}>
-            {client.business_name}
-          </span>
+        <div style={{ fontFamily: "Playfair Display, Georgia, serif", fontSize: 20, color: GOLD, fontWeight: 700 }}>
+          {client.business_name}
         </div>
-
-        {/* Center: Progress bar nodes inline */}
-        <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
-          {STAGES.map((stage, i) => (
-            <div key={stage} style={{ display: "flex", alignItems: "center" }}>
-              <div style={{ textAlign: "center" }}>
+        {/* Progress Nodes */}
+        <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+          {STAGES.map((s, i) => {
+            const isActive = i <= stageIndex;
+            const isCurrent = i === stageIndex;
+            return (
+              <div key={s} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <div style={{
-                  width: 32, height: 32, borderRadius: "50%",
-                  background: i <= currentStage ? "#F5C842" : "rgba(255,255,255,0.1)",
-                  color: i <= currentStage ? "#1B2A4A" : "rgba(255,255,255,0.3)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 12, fontWeight: 800,
-                  ...(i === currentStage ? { animation: "goldPulse 2s ease infinite" } : {}),
-                }}>
-                  {i < currentStage ? "\u2713" : i + 1}
-                </div>
-                <div style={{ fontSize: 9, color: i <= currentStage ? "#F5C842" : "rgba(255,255,255,0.3)", marginTop: 4, fontWeight: 600, whiteSpace: "nowrap" }}>
-                  {STAGE_LABELS[stage]}
-                </div>
+                  width: 14, height: 14, borderRadius: "50%",
+                  background: isActive ? GOLD : "#334466",
+                  boxShadow: isCurrent ? `0 0 8px ${GOLD}` : "none",
+                  animation: isCurrent ? "pulse 2s infinite" : "none",
+                }} />
+                <span style={{ fontSize: 11, color: isActive ? GOLD : "#ffffff55" }}>{STAGE_LABELS[s]}</span>
               </div>
-              {i < STAGES.length - 1 && (
-                <div style={{ width: 48, height: 2, background: i < currentStage ? "#F5C842" : "rgba(255,255,255,0.1)", margin: "0 6px", marginBottom: 18 }} />
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
-
-        {/* Right: Stage badge */}
         <div style={{
-          background: `${stageBadgeColor}20`, color: stageBadgeColor,
-          fontSize: 11, fontWeight: 700, padding: "6px 14px", borderRadius: 20,
-          border: `1px solid ${stageBadgeColor}40`, flexShrink: 0, whiteSpace: "nowrap",
+          background: GOLD, color: NAVY, padding: "6px 16px", borderRadius: 20,
+          fontSize: 12, fontWeight: 700, textTransform: "uppercase",
         }}>
           {STAGE_LABELS[client.stage] || client.stage}
         </div>
-      </div>
+      </header>
 
-      {/* ── THREE COLUMN LAYOUT ────────────────────────────────────────── */}
-      <div style={{ display: "flex", height: "calc(100vh - 72px)" }}>
+      <style>{`@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }`}</style>
 
-        {/* ── LEFT COLUMN (220px, nav) ─────────────────────────────────── */}
-        <div style={{
-          width: 220, flexShrink: 0, background: "#0d1a2e",
-          borderRight: "1px solid rgba(255,255,255,0.08)",
-          position: "sticky", top: 72, height: "calc(100vh - 72px)",
-          display: "flex", flexDirection: "column", justifyContent: "space-between",
-          overflowY: "auto",
-        }}>
-          <div>
-            {NAV_ITEMS.map((item) => (
-              <button
-                key={item.section}
-                onClick={() => scrollToSection(item.section)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 10,
-                  padding: "14px 20px", width: "100%", border: "none",
-                  background: "transparent", cursor: "pointer",
-                  fontSize: 13, fontWeight: 600,
-                  color: activeSection === item.section ? "#F5C842" : "rgba(255,255,255,0.5)",
-                  borderLeft: activeSection === item.section ? "3px solid #F5C842" : "3px solid transparent",
-                  textAlign: "left",
-                }}
-              >
-                <span style={{ fontSize: 16 }}>{item.icon}</span>
-                <span>{item.label}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Rep Card at bottom */}
-          <div style={{ padding: 20, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-              <div style={{
-                width: 44, height: 44, borderRadius: "50%", background: "#F5C842",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontWeight: 800, color: "#1B2A4A", fontSize: 15, flexShrink: 0,
-              }}>TH</div>
-              <div>
-                <div style={{ fontSize: 13, color: "#fff", fontWeight: 700 }}>Ted Herrera</div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>Your BVM AE</div>
-              </div>
-            </div>
-            <button
-              onClick={() => scrollToSection("section-messages")}
+      <div style={{ display: "flex", minHeight: "calc(100vh - 72px)" }}>
+        {/* Left Nav */}
+        <nav style={{ width: 220, background: DARK_BG, padding: "24px 0", position: "sticky", top: 72, height: "calc(100vh - 72px)", overflowY: "auto", flexShrink: 0 }}>
+          {NAV_ITEMS.map((item) => (
+            <div
+              key={item.section}
+              onClick={() => scrollToSection(item.section)}
               style={{
-                background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 8,
-                padding: "8px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer",
-                width: "100%",
+                display: "flex", alignItems: "center", gap: 10, padding: "12px 20", cursor: "pointer",
+                color: activeNav === item.section ? GOLD : "#ffffffaa",
+                background: activeNav === item.section ? "#ffffff08" : "transparent",
+                borderLeft: activeNav === item.section ? `3px solid ${GOLD}` : "3px solid transparent",
+                fontSize: 14, fontWeight: activeNav === item.section ? 700 : 400,
               }}
-            >Message Rep</button>
-          </div>
-        </div>
-
-        {/* ── CENTER COLUMN (flex-1, scrollable) ───────────────────────── */}
-        <div
-          ref={centerRef}
-          style={{
-            flex: 1, overflowY: "auto", padding: 24,
-          }}
-        >
-
-          {/* ── SECTION 1: MARKET INTELLIGENCE TEASER ──────────────────── */}
-          <div id="section-market" style={{ marginBottom: 32 }}>
-            <Eyebrow text="TERRITORY INTELLIGENCE" />
-            <div style={{
-              background: "#243454", border: "1px solid rgba(245,200,66,0.2)",
-              borderRadius: 16, padding: 32,
-            }}>
-              <div style={{ display: "flex", gap: 32, alignItems: "flex-start", flexWrap: "wrap" }}>
-                {/* Left side */}
-                <div style={{ flex: 1, minWidth: 280 }}>
-                  <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, color: "#fff", margin: "0 0 12px" }}>
-                    Your Market Report
-                  </h2>
-                  <p style={{ fontSize: 14, color: "rgba(255,255,255,0.55)", lineHeight: 1.6, margin: "0 0 20px" }}>
-                    See income heat maps, opportunity scores, and competitor gaps for your exact market — the same data enterprise companies pay $20,000/year for.
-                  </p>
-
-                  {/* Mini stat pills */}
-                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 24 }}>
-                    <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 8, padding: "8px 14px" }}>
-                      <div style={{ fontSize: 18, fontWeight: 800, color: scoreColor(oppScore), lineHeight: 1 }}>{oppScore}</div>
-                      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>Score</div>
-                    </div>
-                    <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 8, padding: "8px 14px" }}>
-                      <div style={{ fontSize: 18, fontWeight: 800, color: "#F5C842", lineHeight: 1 }}>{medianIncome}</div>
-                      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>Income</div>
-                    </div>
-                    <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 8, padding: "8px 14px" }}>
-                      <div style={{ fontSize: 18, fontWeight: 800, color: "#F5C842", lineHeight: 1 }}>{households}</div>
-                      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>Households</div>
-                    </div>
-                    <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 8, padding: "8px 14px" }}>
-                      <div style={{ fontSize: 18, fontWeight: 800, color: "#F5C842", lineHeight: 1 }}>{marketRank(oppScore)}</div>
-                      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>Rank</div>
-                    </div>
-                  </div>
-
-                  <Link href={`/campaign/intelligence/${id}`} style={{
-                    display: "inline-block", background: "#F5C842", color: "#1B2A4A",
-                    borderRadius: 8, padding: "12px 24px", fontWeight: 700,
-                    fontSize: 14, textDecoration: "none",
-                  }}>
-                    Explore Your Market &rarr;
-                  </Link>
-                </div>
-
-                {/* Right side: SVG map teaser */}
-                <div style={{ width: 300, flexShrink: 0 }}>
-                  <div style={{
-                    background: "#0d1a2e", borderRadius: 12, overflow: "hidden",
-                    position: "relative", height: 220,
-                    border: "1px solid rgba(255,255,255,0.06)",
-                  }}>
-                    {/* Gradient overlay */}
-                    <div style={{
-                      position: "absolute", inset: 0,
-                      background: "linear-gradient(135deg, rgba(27,42,74,0.3) 0%, rgba(245,200,66,0.08) 100%)",
-                      zIndex: 1,
-                    }} />
-                    <svg width="300" height="220" viewBox="0 0 300 220" style={{ position: "absolute", inset: 0, zIndex: 0 }}>
-                      {/* Grid lines (streets) */}
-                      <line x1="50" y1="0" x2="50" y2="220" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
-                      <line x1="100" y1="0" x2="100" y2="220" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
-                      <line x1="150" y1="0" x2="150" y2="220" stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
-                      <line x1="200" y1="0" x2="200" y2="220" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
-                      <line x1="250" y1="0" x2="250" y2="220" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
-                      <line x1="0" y1="40" x2="300" y2="40" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
-                      <line x1="0" y1="80" x2="300" y2="80" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
-                      <line x1="0" y1="110" x2="300" y2="110" stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
-                      <line x1="0" y1="150" x2="300" y2="150" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
-                      <line x1="0" y1="190" x2="300" y2="190" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
-                      {/* Concentric circles */}
-                      <circle cx="150" cy="110" r="80" fill="none" stroke="rgba(139,92,246,0.15)" strokeWidth="1" strokeDasharray="4 4" />
-                      <circle cx="150" cy="110" r="50" fill="none" stroke="rgba(59,130,246,0.2)" strokeWidth="1" strokeDasharray="4 4" />
-                      <circle cx="150" cy="110" r="25" fill="none" stroke="rgba(245,200,66,0.3)" strokeWidth="1" />
-                      {/* Gold pulsing center dot */}
-                      <circle cx="150" cy="110" r="4" fill="#F5C842" opacity="0.8">
-                        <animate attributeName="r" values="4;8;4" dur="2s" repeatCount="indefinite" />
-                        <animate attributeName="opacity" values="0.8;0.4;0.8" dur="2s" repeatCount="indefinite" />
-                      </circle>
-                      <circle cx="150" cy="110" r="3" fill="#F5C842" />
-                    </svg>
-                  </div>
-                  <div style={{
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    gap: 6, marginTop: 8,
-                  }}>
-                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#F5C842" }} />
-                    <span style={{ fontSize: 10, color: "#F5C842", fontWeight: 600 }}>Powered by Bruno Territory Intelligence</span>
-                  </div>
-                </div>
+            >
+              <span style={{ fontSize: 18 }}>{item.emoji}</span>
+              {item.label}
+            </div>
+          ))}
+          {/* Rep Card */}
+          <div style={{ margin: "auto 16px 16px", marginTop: "auto", padding: 16, background: "#ffffff08", borderRadius: 12, position: "absolute", bottom: 16, left: 16, right: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: "50%", background: GOLD, color: NAVY,
+                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700,
+              }}>
+                {repInitials}
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{repName}</div>
+                <div style={{ fontSize: 11, color: "#ffffffaa" }}>Your Rep</div>
               </div>
             </div>
           </div>
+        </nav>
 
-          {/* ── SECTION 2: YOUR CAMPAIGN ────────────────────────────────── */}
-          <div id="section-campaign" style={{ marginBottom: 32 }}>
-            <Eyebrow text="YOUR CAMPAIGN" />
-            <div style={{
-              background: "#243454", border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: 16, padding: 32,
-            }}>
-              <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, color: "#fff", margin: "0 0 24px" }}>Your Ad Direction</h2>
+        {/* Center Content */}
+        <main style={{ flex: 1, padding: 24, overflowY: "auto" }}>
 
-              {/* Approved ad image centered */}
-              <div style={{ textAlign: "center", marginBottom: 24 }}>
-                {approvedDir?.imageUrl ? (
-                  <div style={{ display: "inline-block", maxWidth: 400, borderRadius: 12, overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)" }}>
-                    <img src={approvedDir.imageUrl} alt={approvedDir.name} style={{ width: "100%", display: "block" }} />
-                  </div>
+          {/* MARKET INTELLIGENCE */}
+          <section id="section-intel" style={{ marginBottom: 48 }}>
+            <Eyebrow>Market Intelligence</Eyebrow>
+            <div style={{ background: "#ffffff08", borderRadius: 16, padding: 24, marginBottom: 16 }}>
+              <h3 style={{ margin: "0 0 8px", fontSize: 18 }}>Your Market at a Glance</h3>
+              <p style={{ color: "#ffffffaa", fontSize: 14, margin: "0 0 16px" }}>
+                Explore the SBR data powering your campaign strategy.
+              </p>
+              <Link
+                href={`/campaign/intelligence/${id}`}
+                style={{ color: GOLD, fontSize: 14, fontWeight: 600, textDecoration: "none" }}
+              >
+                Explore Your Market &rarr;
+              </Link>
+            </div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              {["Opportunity Score", "Households", "Avg Income", "Top Category"].map((label) => (
+                <div key={label} style={{
+                  background: "#223556", borderRadius: 20, padding: "8px 16px",
+                  fontSize: 12, color: "#ffffffcc",
+                }}>
+                  {label}
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* YOUR CAMPAIGN */}
+          <section id="section-campaign" style={{ marginBottom: 48 }}>
+            <Eyebrow>Your Campaign</Eyebrow>
+            {/* Approved Ad with Overlay */}
+            {approvedDir && (
+              <div style={{ position: "relative", borderRadius: 16, overflow: "hidden", maxWidth: 480, marginBottom: 16 }}>
+                {approvedDir.imageUrl ? (
+                  <img src={approvedDir.imageUrl} alt="Approved direction" style={{ width: "100%", aspectRatio: "1/1", objectFit: "cover", display: "block" }} />
                 ) : (
-                  <div style={{ display: "inline-block", width: 400, height: 320, background: "rgba(255,255,255,0.04)", borderRadius: 12, lineHeight: "320px", color: "rgba(255,255,255,0.2)" }}>No image</div>
-                )}
-              </div>
-
-              {/* Tagline */}
-              {client.tagline ? (
-                <p style={{ fontSize: 18, color: "#F5C842", fontStyle: "italic", fontFamily: "'Playfair Display', serif", margin: "0 0 16px", textAlign: "center" }}>&ldquo;{client.tagline}&rdquo;</p>
-              ) : editingTagline ? (
-                <div style={{ marginBottom: 16 }}>
-                  <input type="text" value={taglineInput} onChange={(e) => setTaglineInput(e.target.value)} placeholder="Enter your tagline..." style={{ width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 6, padding: "10px 14px", fontSize: 14, color: "#fff", outline: "none", boxSizing: "border-box" }} />
-                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                    <button onClick={saveTagline} disabled={taglineSaving || !taglineInput.trim()} style={{ background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{taglineSaving ? "Saving..." : "Save"}</button>
-                    <button onClick={() => setEditingTagline(false)} style={{ background: "transparent", color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "8px 16px", fontSize: 12, cursor: "pointer" }}>Cancel</button>
+                  <div style={{ width: "100%", aspectRatio: "1/1", background: `linear-gradient(135deg, ${NAVY} 0%, ${GOLD} 100%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 700 }}>
+                    {approvedDir.name}
                   </div>
+                )}
+                <div style={{
+                  position: "absolute", bottom: 0, left: 0, right: 0,
+                  background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)",
+                  padding: "48px 16px 16px",
+                }}>
+                  <div style={{ color: "#fff", fontSize: 18, fontWeight: 700, fontFamily: "Georgia, serif" }}>{client.business_name}</div>
+                  {client.tagline && <div style={{ color: "#fff", fontSize: 13, fontStyle: "italic", marginTop: 4 }}>{client.tagline}</div>}
+                  {contactLine && <div style={{ color: "#fff", fontSize: 11, marginTop: 6 }}>{contactLine}</div>}
+                </div>
+              </div>
+            )}
+
+            {/* Tagline Edit */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 12, color: "#ffffffaa", marginBottom: 4 }}>Tagline</div>
+              {editingTagline ? (
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    value={taglineEdit}
+                    onChange={(e) => setTaglineEdit(e.target.value)}
+                    style={{ flex: 1, background: "#223556", border: "1px solid #ffffff22", borderRadius: 6, padding: "8px 12px", color: "#fff", fontSize: 14 }}
+                  />
+                  <button onClick={saveTagline} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 6, padding: "8px 16px", fontWeight: 700, cursor: "pointer" }}>Save</button>
+                  <button onClick={() => { setEditingTagline(false); setTaglineEdit(client.tagline); }} style={{ background: "#334466", color: "#fff", border: "none", borderRadius: 6, padding: "8px 16px", cursor: "pointer" }}>Cancel</button>
                 </div>
               ) : (
-                <div style={{ textAlign: "center", marginBottom: 16 }}>
-                  <button onClick={() => setEditingTagline(true)} style={{ background: "transparent", border: "none", color: "#F5C842", fontSize: 14, fontWeight: 700, cursor: "pointer", padding: 0 }}>Add Your Tagline &rarr;</button>
-                </div>
-              )}
-
-              {/* Ad size + dimensions */}
-              <div style={{ textAlign: "center", marginBottom: 16 }}>
-                <span style={{ background: "rgba(245,200,66,0.15)", color: "#F5C842", fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 6 }}>
-                  {client.ad_size?.toUpperCase() || "AD"}
-                </span>
-                {client.selected_direction && (
-                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginLeft: 10 }}>{client.selected_direction}</span>
-                )}
-              </div>
-
-              {/* Status card */}
-              <div style={{ background: client.stage === "production" ? "rgba(245,158,11,0.1)" : "rgba(34,197,94,0.1)", border: `1px solid ${client.stage === "production" ? "rgba(245,158,11,0.2)" : "rgba(34,197,94,0.2)"}`, borderRadius: 10, padding: "12px 16px", marginBottom: 16 }}>
-                <p style={{ fontSize: 14, color: client.stage === "production" ? "#f59e0b" : "#22c55e", fontWeight: 600, margin: 0 }}>
-                  {client.stage === "production" ? "Your campaign is in production" : client.stage === "delivered" ? "Campaign delivered!" : "Campaign approved"}
-                </p>
-              </div>
-
-              {/* Upload Your Assets */}
-              <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 24, marginBottom: 24 }}>
-                <h3 style={{ fontSize: 16, color: "#fff", margin: "0 0 4px", fontWeight: 700 }}>Have Your Own Assets?</h3>
-                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", margin: "0 0 16px" }}>Upload your logo, photos, or existing artwork and we&apos;ll incorporate them into your campaign.</p>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-                  {/* Logo zone */}
-                  <label style={{ border: "2px dashed rgba(245,200,66,0.4)", borderRadius: 8, padding: 20, textAlign: "center", cursor: "pointer", background: "rgba(255,255,255,0.02)" }}>
-                    <div style={{ fontSize: 28, marginBottom: 6 }}>🎨</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 4 }}>Logo & Brand Files</div>
-                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 10 }}>EPS, AI, PDF, PNG (preferred)</div>
-                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", lineHeight: 1.8, textAlign: "left" }}>
-                      <div style={{ color: "#22c55e" }}>✓ Vector files preferred (EPS, AI, PDF)</div>
-                      <div style={{ color: "#22c55e" }}>✓ PNG with transparent background</div>
-                      <div style={{ color: "#ef4444" }}>✗ No Word documents</div>
-                      <div style={{ color: "#ef4444" }}>✗ No low-resolution web images</div>
-                    </div>
-                    <input type="file" accept=".eps,.ai,.pdf,.png,.svg" style={{ display: "none" }} onChange={(e) => { if (e.target.files?.[0]) setLogoFile(e.target.files[0]); }} />
-                    {logoFile && <div style={{ marginTop: 8, fontSize: 11, color: "#22c55e", fontWeight: 600 }}>✓ {logoFile.name} ({(logoFile.size / 1024).toFixed(0)} KB)</div>}
-                  </label>
-
-                  {/* Photo zone */}
-                  <label style={{ border: "2px dashed rgba(245,200,66,0.4)", borderRadius: 8, padding: 20, textAlign: "center", cursor: "pointer", background: "rgba(255,255,255,0.02)" }}>
-                    <div style={{ fontSize: 28, marginBottom: 6 }}>📸</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 4 }}>Photos & Images</div>
-                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 10 }}>JPG, TIFF, PNG — 300dpi minimum</div>
-                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", lineHeight: 1.8, textAlign: "left" }}>
-                      <div style={{ color: "#22c55e" }}>✓ Minimum 300dpi at 100% size</div>
-                      <div style={{ color: "#22c55e" }}>✓ Original photos only</div>
-                      <div style={{ color: "#ef4444" }}>✗ Internet/web images (72dpi)</div>
-                      <div style={{ color: "#ef4444" }}>✗ No screenshots</div>
-                    </div>
-                    <input type="file" accept=".jpg,.jpeg,.tiff,.tif,.png" style={{ display: "none" }} onChange={(e) => { if (e.target.files?.[0]) setPhotoFile(e.target.files[0]); }} />
-                    {photoFile && <div style={{ marginTop: 8, fontSize: 11, color: "#22c55e", fontWeight: 600 }}>✓ {photoFile.name} ({(photoFile.size / 1024).toFixed(0)} KB)</div>}
-                  </label>
-                </div>
-
-                {/* Requirements callout */}
-                <div style={{ background: "rgba(200,118,26,0.1)", border: "1px solid rgba(200,118,26,0.3)", borderRadius: 8, padding: 14, marginBottom: 14 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#f59e0b", marginBottom: 4 }}>⚠️ Print Resolution Requirements</div>
-                  <p style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", margin: 0, lineHeight: 1.6 }}>Print ads require a minimum of 300dpi at 100% size. Internet and web images are typically 72dpi and cannot be converted to print quality. When in doubt, send the original file — our content team will advise.</p>
-                </div>
-
-                {/* Submit */}
-                {assetSent ? (
-                  <div style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", borderRadius: 8, padding: 14 }}>
-                    <p style={{ fontSize: 13, color: "#22c55e", fontWeight: 600, margin: 0 }}>✅ Assets received! Your rep has been notified and will incorporate your files into the campaign.</p>
-                  </div>
-                ) : (
-                  <div>
-                    {assetUploading && (
-                      <div style={{ marginBottom: 8 }}>
-                        <div style={{ height: 6, background: "rgba(255,255,255,0.1)", borderRadius: 3, overflow: "hidden" }}>
-                          <div style={{ height: "100%", width: `${assetProgress}%`, background: "#F5C842", borderRadius: 3, transition: "width 0.3s ease" }} />
-                        </div>
-                        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", margin: "4px 0 0" }}>Uploading... {assetProgress}%</p>
-                      </div>
-                    )}
-                    <button
-                      onClick={async () => {
-                        if (!logoFile && !photoFile) { return; }
-                        setAssetUploading(true); setAssetProgress(0);
-                        const interval = setInterval(() => { setAssetProgress((p) => { if (p >= 100) { clearInterval(interval); return 100; } return p + 5; }); }, 100);
-                        setTimeout(async () => {
-                          clearInterval(interval); setAssetProgress(100);
-                          try {
-                            const filenames = [logoFile?.name, photoFile?.name].filter(Boolean);
-                            await fetch(`/api/campaign/revision/${id}`, {
-                              method: "POST", headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ type: "asset-upload", value: filenames.join(", "), note: "Client uploaded brand assets: " + filenames.join(", ") }),
-                            });
-                          } catch { /* */ }
-                          setAssetUploading(false); setAssetSent(true);
-                        }, 2000);
-                      }}
-                      disabled={assetUploading || (!logoFile && !photoFile)}
-                      style={{
-                        width: "100%", background: (logoFile || photoFile) ? "#F5C842" : "rgba(255,255,255,0.08)",
-                        color: (logoFile || photoFile) ? "#1B2A4A" : "rgba(255,255,255,0.3)",
-                        border: "none", borderRadius: 8, padding: "12px 24px", fontSize: 14, fontWeight: 700,
-                        cursor: (logoFile || photoFile) ? "pointer" : "not-allowed",
-                      }}
-                    >
-                      {assetUploading ? "Uploading..." : "Send Assets to Your Rep →"}
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Request a change */}
-              <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 24 }}>
-                <h3 style={{ fontSize: 16, color: "#fff", margin: "0 0 12px", fontWeight: 700 }}>Request a Change</h3>
-                <textarea value={revisionNote} onChange={(e) => setRevisionNote(e.target.value)} placeholder="Describe what you'd like changed..." style={{ width: "100%", minHeight: 80, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: 14, fontSize: 14, color: "#fff", resize: "vertical", outline: "none", boxSizing: "border-box" }} />
-                <button onClick={submitRevision} disabled={!revisionNote.trim() || revisionSending} style={{ marginTop: 8, background: revisionNote.trim() ? "#F5C842" : "rgba(255,255,255,0.08)", color: revisionNote.trim() ? "#1B2A4A" : "rgba(255,255,255,0.3)", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 14, fontWeight: 700, cursor: revisionNote.trim() ? "pointer" : "not-allowed" }}>
-                  {revisionSending ? "Sending..." : "Submit Change Request"}
-                </button>
-                {revisionSent && <p style={{ fontSize: 13, color: "#22c55e", margin: "8px 0 0" }}>Change request submitted -- your rep will be in touch.</p>}
-              </div>
-
-              {/* Download preview */}
-              {approvedDir?.imageUrl && (
-                <div style={{ textAlign: "center", marginTop: 20 }}>
-                  <a href={approvedDir.imageUrl} download={`${client.business_name}-campaign.png`} style={{ display: "inline-block", background: "rgba(255,255,255,0.08)", color: "#fff", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 600, textDecoration: "none" }}>Download Preview</a>
+                <div onClick={() => setEditingTagline(true)} style={{ cursor: "pointer", fontSize: 16, color: "#fff", padding: "8px 0", borderBottom: "1px dashed #ffffff33" }}>
+                  {client.tagline || "Click to add tagline"} <span style={{ color: GOLD, fontSize: 12 }}>edit</span>
                 </div>
               )}
             </div>
-          </div>
 
-          {/* ── SECTION 3: CAMPAIGN SUITE ───────────────────────────────── */}
-          <div id="section-suite" style={{ marginBottom: 32 }}>
-            <Eyebrow text="CAMPAIGN SUITE" />
-            <div style={{
-              background: "#243454", border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: 16, padding: 32,
-            }}>
-              <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, color: "#fff", margin: "0 0 4px" }}>See Your Complete BVM Campaign</h2>
-              <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", margin: "0 0 4px" }}>This is what a full print + digital + web campaign looks like for {client.business_name}.</p>
-              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", margin: "0 0 28px" }}>Your current campaign includes {client.ad_size} print. The preview below shows the complete suite.</p>
-
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20, marginBottom: 28 }}>
-                {/* Print - Active */}
-                <div style={{ background: "rgba(245,200,66,0.04)", border: "2px solid rgba(245,200,66,0.3)", borderRadius: 14, overflow: "hidden" }}>
-                  <div style={{ height: 200, background: "#0d1a2e", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                    {approvedDir?.imageUrl ? <img src={approvedDir.imageUrl} alt="Print Ad" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ color: "rgba(255,255,255,0.15)", fontSize: 13 }}>Preview</div>}
-                  </div>
-                  <div style={{ padding: "16px 20px" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>Your Magazine Ad</span>
-                      <span style={{ background: "rgba(34,197,94,0.15)", color: "#22c55e", fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 8 }}>Active</span>
-                    </div>
-                    <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", margin: 0 }}>PRINT</p>
-                  </div>
-                </div>
-
-                {/* Web - Available */}
-                <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, overflow: "hidden" }}>
-                  <div style={{ height: 200, background: "#0d1a2e", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <svg width="160" height="120" viewBox="0 0 160 120">
-                      <rect x="20" y="8" width="120" height="80" rx="6" fill="#243454" stroke="rgba(255,255,255,0.15)" strokeWidth="2" />
-                      <rect x="28" y="16" width="104" height="64" rx="2" fill="url(#webGrad)" />
-                      <rect x="10" y="88" width="140" height="8" rx="4" fill="#243454" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
-                      <defs><linearGradient id="webGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#1B2A4A" /><stop offset="100%" stopColor="#F5C842" stopOpacity="0.2" /></linearGradient></defs>
-                      <text x="80" y="52" textAnchor="middle" fill="rgba(255,255,255,0.3)" fontSize="9" fontFamily="DM Sans">{client.business_name}</text>
-                    </svg>
-                  </div>
-                  <div style={{ padding: "16px 20px" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>Your Business Website</span>
-                      <span style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 8 }}>Available</span>
-                    </div>
-                    <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", margin: 0 }}>WEB</p>
-                  </div>
-                </div>
-
-                {/* Digital - Available */}
-                <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, overflow: "hidden" }}>
-                  <div style={{ height: 200, background: "#0d1a2e", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <svg width="80" height="140" viewBox="0 0 80 140">
-                      <rect x="8" y="4" width="64" height="132" rx="12" fill="#243454" stroke="rgba(255,255,255,0.15)" strokeWidth="2" />
-                      <rect x="14" y="20" width="52" height="100" rx="2" fill="url(#digGrad)" />
-                      <defs><linearGradient id="digGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.3" /><stop offset="100%" stopColor="#F5C842" stopOpacity="0.2" /></linearGradient></defs>
-                      <circle cx="40" cy="130" r="4" fill="rgba(255,255,255,0.1)" />
-                      <text x="40" y="72" textAnchor="middle" fill="rgba(255,255,255,0.3)" fontSize="7" fontFamily="DM Sans">Digital Ad</text>
-                    </svg>
-                  </div>
-                  <div style={{ padding: "16px 20px" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>Digital Ad Campaign</span>
-                      <span style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 8 }}>Available</span>
-                    </div>
-                    <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", margin: 0 }}>DIGITAL</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Upsell CTA */}
-              <div style={{ textAlign: "center" }}>
-                {upsellSent ? (
-                  <div style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 10, padding: "16px 24px", display: "inline-block" }}>
-                    <p style={{ fontSize: 15, color: "#22c55e", fontWeight: 700, margin: 0 }}>Your rep has been notified -- expect a call soon!</p>
-                  </div>
-                ) : (
-                  <button onClick={sendUpsellInterest} disabled={upsellSending} style={{
-                    background: "linear-gradient(135deg, #F5C842, #e6b935)", color: "#1B2A4A",
-                    border: "none", borderRadius: 10, padding: "16px 40px",
-                    fontSize: 15, fontWeight: 800, cursor: upsellSending ? "not-allowed" : "pointer",
-                    boxShadow: "0 4px 16px rgba(245,200,66,0.3)", opacity: upsellSending ? 0.6 : 1,
-                  }}>{upsellSending ? "Sending..." : "Talk to Your Rep About the Full Suite \u2192"}</button>
-                )}
-              </div>
+            {/* Status Card */}
+            <div style={{ background: "#ffffff08", borderRadius: 12, padding: 16, marginBottom: 16 }}>
+              <div style={{ fontSize: 12, color: GOLD, marginBottom: 4 }}>Status</div>
+              <div style={{ fontSize: 16, fontWeight: 600 }}>{STAGE_LABELS[client.stage] || client.stage}</div>
+              {client.approved_at && <div style={{ fontSize: 12, color: "#ffffffaa", marginTop: 4 }}>Approved: {new Date(client.approved_at).toLocaleDateString()}</div>}
             </div>
-          </div>
 
-          {/* ── SECTION 4: MESSAGES ─────────────────────────────────────── */}
-          <div id="section-messages" style={{ marginBottom: 32 }}>
-            <Eyebrow text="MESSAGES" />
-            <div style={{
-              background: "#243454", border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: 16, padding: 32,
-            }}>
-              <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, color: "#fff", margin: "0 0 16px" }}>Messages</h2>
-
-              <div style={{ marginBottom: 16, maxHeight: 400, overflowY: "auto" }}>
-                {chatMessages.length === 0 ? (
-                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.3)", margin: 0 }}>No messages yet. Start the conversation!</p>
-                ) : (
-                  chatMessages.map((m, i) => (
-                    <div key={i} style={{ marginBottom: 14 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                        <span style={{
-                          fontSize: 9, fontWeight: 700, color: "#fff", padding: "1px 6px", borderRadius: 4,
-                          background: m.role === "rep" ? "#2d3e50" : "#0891b2",
-                        }}>{m.role === "rep" ? "REP" : "YOU"}</span>
-                        <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>{timeAgo(m.timestamp)}</span>
-                      </div>
-                      <p style={{ fontSize: 13, color: "#fff", margin: 0, lineHeight: 1.5 }}>{m.content}</p>
-                    </div>
-                  ))
-                )}
-                <div ref={chatEndRef} />
-              </div>
-
-              <div style={{ display: "flex", gap: 8 }}>
-                <textarea
-                  value={clientMsgInput}
-                  onChange={(e) => setClientMsgInput(e.target.value)}
-                  placeholder="Type your message..."
-                  rows={2}
-                  style={{
-                    flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)",
-                    borderRadius: 8, padding: 12, fontSize: 13, color: "#fff", resize: "none", outline: "none", boxSizing: "border-box",
-                  }}
-                />
-                <button
-                  onClick={sendClientMessage}
-                  disabled={!clientMsgInput.trim() || clientMsgSending}
-                  style={{
-                    background: clientMsgInput.trim() ? "#F5C842" : "rgba(255,255,255,0.08)",
-                    color: clientMsgInput.trim() ? "#1B2A4A" : "rgba(255,255,255,0.3)",
-                    border: "none", borderRadius: 8, padding: "10px 18px", fontSize: 13,
-                    fontWeight: 700, cursor: clientMsgInput.trim() ? "pointer" : "not-allowed",
-                    alignSelf: "flex-end",
-                  }}
-                >{clientMsgSending ? "..." : "Send"}</button>
-              </div>
-            </div>
-          </div>
-
-          {/* ── SECTION 5: LEARNING CENTER ──────────────────────────────── */}
-          <div id="section-learning" style={{ marginBottom: 32 }}>
-            <Eyebrow text="LEARNING CENTER" />
-            <div style={{
-              background: "#243454", border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: 16, padding: 32,
-            }}>
-              <div style={{ display: "flex", gap: 32, flexWrap: "wrap" }}>
-                {/* Left sub: Onboarding */}
-                <div style={{ flex: 1, minWidth: 260 }}>
-                  {showOnboarding ? (
-                    <div>
-                      <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, color: "#fff", margin: "0 0 16px" }}>Getting Started</h3>
-                      <div style={{ borderLeft: "3px solid #F5C842", paddingLeft: 20 }}>
-                        {[
-                          { num: 1, title: "We're building your ad", desc: "Our design team is producing your campaign based on the direction you approved." },
-                          { num: 2, title: "You'll review and confirm", desc: "We'll notify you when your ad is ready for final review." },
-                          { num: 3, title: "Your campaign goes live", desc: "Your ad runs in the next available edition in your market." },
-                        ].map((step) => (
-                          <div key={step.num} style={{ display: "flex", gap: 14, marginBottom: 18 }}>
-                            <div style={{
-                              width: 28, height: 28, borderRadius: "50%", background: "#F5C842",
-                              color: "#1B2A4A", display: "flex", alignItems: "center", justifyContent: "center",
-                              fontSize: 13, fontWeight: 800, flexShrink: 0,
-                            }}>{step.num}</div>
-                            <div>
-                              <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 2 }}>{step.title}</div>
-                              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", lineHeight: 1.5 }}>{step.desc}</div>
-                            </div>
-                          </div>
-                        ))}
-                        <button onClick={dismissOnboarding} style={{
-                          background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 8,
-                          padding: "10px 24px", fontSize: 13, fontWeight: 800, cursor: "pointer",
-                        }}>Got it &rarr;</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                        <span style={{ fontSize: 16, color: "#22c55e" }}>{"\u2713"}</span>
-                        <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: "rgba(255,255,255,0.5)", margin: 0 }}>Getting Started</h3>
-                      </div>
-                      <p style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", margin: 0 }}>Onboarding complete</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Right sub: LMS Modules */}
-                <div style={{ flex: 1, minWidth: 260 }}>
-                  <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, color: "#fff", margin: "0 0 16px" }}>Campaign Success Guide</h3>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    {LMS_MODULES.map((mod) => (
-                      <div key={mod.num} style={{
-                        background: "#1B2A4A", borderRadius: 12, padding: "16px 18px",
-                        border: "1px solid rgba(255,255,255,0.08)", position: "relative",
-                      }}>
-                        <span style={{
-                          position: "absolute", top: 10, left: 12,
-                          background: "rgba(245,200,66,0.15)", color: "#F5C842",
-                          fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 6,
-                        }}>Module {mod.num}</span>
-                        <h4 style={{ fontSize: 14, fontWeight: 700, color: "#fff", margin: "22px 0 6px" }}>{mod.title}</h4>
-                        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", lineHeight: 1.5, margin: "0 0 12px" }}>{mod.desc}</p>
-                        <button onClick={() => setLmsModal(mod.title)} style={{
-                          background: "transparent", border: "none", color: "#F5C842",
-                          fontSize: 12, fontWeight: 700, cursor: "pointer", padding: 0,
-                        }}>Start &rarr;</button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* ── BUSINESS PROFILE (locked) ───────────────────────────────── */}
-          <div style={{ marginBottom: 32 }}>
-            <Eyebrow text="PREMIUM" />
-            <div style={{
-              background: "#243454", border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: 16, padding: 32,
-            }}>
-              <div style={{ borderLeft: "3px solid #F5C842", paddingLeft: 24, position: "relative" }}>
-                <div style={{ position: "absolute", top: 0, right: 0, fontSize: 20, opacity: 0.5 }}>{"\uD83D\uDD12"}</div>
-                <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, color: "#fff", margin: "0 0 8px" }}>Business Profile</h2>
-                <p style={{ fontSize: 15, color: "rgba(255,255,255,0.55)", margin: "0 0 16px", lineHeight: 1.6 }}>
-                  Share your story with your neighborhood
-                </p>
-                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: "0 0 20px", lineHeight: 1.6 }}>
-                  A Business Profile is a full-page editorial feature in your BVM magazine. It tells your story, highlights your expertise, and introduces you to thousands of households in your community. Think of it as a magazine article about your business -- written, designed, and distributed by BVM.
-                </p>
-
-                {/* Preview mockup */}
-                <div style={{
-                  background: "#1B2A4A", border: "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: 12, padding: "24px 28px", marginBottom: 20, maxWidth: 480,
+            {/* Asset Upload Zones */}
+            <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
+              {["Logo Upload", "Photo Upload"].map((label) => (
+                <div key={label} style={{
+                  flex: 1, border: "2px dashed #ffffff22", borderRadius: 12, padding: 32,
+                  textAlign: "center", color: "#ffffff66", fontSize: 14, cursor: "pointer",
                 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>PREVIEW</div>
-                  <h4 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, color: "#fff", margin: "0 0 6px" }}>
-                    {client.business_name}: {client.tagline || "Your Neighborhood Partner"}
-                  </h4>
-                  <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", margin: "0 0 12px", lineHeight: 1.5 }}>
-                    Meet the team behind {client.business_name}, serving {client.city} with quality {client.category.toLowerCase()} services...
-                  </p>
-                  <div style={{ height: 80, background: "rgba(255,255,255,0.03)", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.15)" }}>Full article preview</span>
+                  {label}
+                </div>
+              ))}
+            </div>
+
+            {/* Change Request */}
+            <div>
+              <textarea
+                placeholder="Request a change..."
+                value={changeRequest}
+                onChange={(e) => setChangeRequest(e.target.value)}
+                style={{ width: "100%", background: "#223556", border: "1px solid #ffffff22", borderRadius: 8, padding: 12, color: "#fff", fontSize: 14, minHeight: 80, resize: "vertical", boxSizing: "border-box" }}
+              />
+              <button
+                onClick={submitChange}
+                disabled={submittingChange || !changeRequest.trim()}
+                style={{
+                  marginTop: 8, background: GOLD, color: NAVY, border: "none", borderRadius: 6,
+                  padding: "10px 24px", fontWeight: 700, cursor: changeRequest.trim() ? "pointer" : "not-allowed",
+                  opacity: changeRequest.trim() ? 1 : 0.5,
+                }}
+              >
+                {submittingChange ? "Submitting..." : "Submit Change Request"}
+              </button>
+            </div>
+          </section>
+
+          {/* CAMPAIGN SUITE */}
+          <section id="section-suite" style={{ marginBottom: 48 }}>
+            <Eyebrow>Campaign Suite</Eyebrow>
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
+              {suiteCards.map((card) => (
+                <div key={card.label} style={{
+                  flex: "1 1 200px", background: "#ffffff08", borderRadius: 12, padding: 20,
+                  border: card.status === "active" ? `2px solid ${GOLD}` : "2px solid transparent",
+                }}>
+                  <div style={{ fontSize: 16, fontWeight: 600, color: card.status === "active" ? GOLD : "#ffffffaa" }}>{card.label}</div>
+                  <div style={{ fontSize: 12, color: card.status === "active" ? GOLD : "#ffffff55", marginTop: 4, textTransform: "uppercase" }}>{card.status}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ background: "#ffffff08", borderRadius: 12, padding: 20, textAlign: "center" }}>
+              <div style={{ fontSize: 14, color: "#ffffffaa", marginBottom: 8 }}>Expand your campaign reach with digital and web placements</div>
+              <button style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 6, padding: "10px 24px", fontWeight: 700, cursor: "pointer" }}>
+                Upgrade Your Suite
+              </button>
+            </div>
+          </section>
+
+          {/* MESSAGES */}
+          <section id="section-messages" style={{ marginBottom: 48 }}>
+            <Eyebrow>Messages</Eyebrow>
+            <div style={{ background: "#ffffff08", borderRadius: 12, padding: 16, maxHeight: 320, overflowY: "auto", marginBottom: 12 }}>
+              {messages.length === 0 && <div style={{ color: "#ffffff55", fontSize: 14, textAlign: "center", padding: 24 }}>No messages yet</div>}
+              {messages.map((msg, i) => (
+                <div key={i} style={{
+                  marginBottom: 12, padding: 10, borderRadius: 8,
+                  background: msg.role === "client" ? "#1a3a5c" : "#223556",
+                  marginLeft: msg.role === "client" ? 40 : 0,
+                  marginRight: msg.role !== "client" ? 40 : 0,
+                }}>
+                  <div style={{ fontSize: 11, color: GOLD, marginBottom: 4, textTransform: "capitalize" }}>{msg.role}</div>
+                  <div style={{ fontSize: 14 }}>{msg.content}</div>
+                  <div style={{ fontSize: 10, color: "#ffffff44", marginTop: 4 }}>{new Date(msg.timestamp).toLocaleString()}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                value={msgInput}
+                onChange={(e) => setMsgInput(e.target.value)}
+                placeholder="Type a message..."
+                onKeyDown={(e) => { if (e.key === "Enter") sendMessage(); }}
+                style={{ flex: 1, background: "#223556", border: "1px solid #ffffff22", borderRadius: 6, padding: "10px 14px", color: "#fff", fontSize: 14 }}
+              />
+              <button
+                onClick={sendMessage}
+                disabled={sendingMsg || !msgInput.trim()}
+                style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 6, padding: "10px 20px", fontWeight: 700, cursor: "pointer" }}
+              >
+                {sendingMsg ? "..." : "Send"}
+              </button>
+            </div>
+          </section>
+
+          {/* BUSINESS PROFILE */}
+          <section style={{ marginBottom: 48 }}>
+            <Eyebrow>Business Profile</Eyebrow>
+            <div style={{ background: "#ffffff08", borderRadius: 12, padding: 24, textAlign: "center" }}>
+              <div style={{ fontSize: 14, color: "#ffffffaa", marginBottom: 12 }}>Update your business profile to enhance your campaign</div>
+              <button
+                onClick={() => requestRevision("business_profile")}
+                style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 6, padding: "10px 24px", fontWeight: 700, cursor: "pointer" }}
+              >
+                Update Business Profile
+              </button>
+            </div>
+          </section>
+
+          {/* EXPERT CONTRIBUTOR */}
+          <section style={{ marginBottom: 48 }}>
+            <Eyebrow>Expert Contributor</Eyebrow>
+            <div style={{ background: "#ffffff08", borderRadius: 12, padding: 24, textAlign: "center" }}>
+              <div style={{ fontSize: 14, color: "#ffffffaa", marginBottom: 12 }}>Become a featured expert contributor in your edition</div>
+              <button
+                onClick={() => requestRevision("expert_contributor")}
+                style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 6, padding: "10px 24px", fontWeight: 700, cursor: "pointer" }}
+              >
+                Become a Contributor
+              </button>
+            </div>
+          </section>
+
+          {/* LEARNING CENTER */}
+          <section id="section-learning" style={{ marginBottom: 48 }}>
+            <Eyebrow>Learning Center</Eyebrow>
+            {/* Onboarding */}
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Onboarding</div>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                {onboardingSteps.map((step, i) => (
+                  <div key={i} style={{ flex: "1 1 200px", background: "#ffffff08", borderRadius: 12, padding: 16 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Step {i + 1}: {step.title}</div>
+                    <div style={{ fontSize: 12, color: "#ffffffaa" }}>{step.desc}</div>
                   </div>
-                </div>
-
-                <span style={{
-                  display: "inline-block", background: "rgba(245,158,11,0.15)", color: "#f59e0b",
-                  fontSize: 11, fontWeight: 700, padding: "4px 12px", borderRadius: 6, marginBottom: 16,
-                }}>Available with 24-month agreement</span>
-
-                <div>
-                  {bizProfileSent ? (
-                    <div style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 10, padding: "14px 20px", display: "inline-block" }}>
-                      <p style={{ fontSize: 14, color: "#22c55e", fontWeight: 700, margin: 0 }}>Your rep will reach out with details on Business Profiles.</p>
-                    </div>
-                  ) : (
-                    <button onClick={sendBizProfileInterest} disabled={bizProfileSending} style={{
-                      background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 8,
-                      padding: "12px 28px", fontSize: 14, fontWeight: 800, cursor: bizProfileSending ? "not-allowed" : "pointer",
-                      opacity: bizProfileSending ? 0.6 : 1,
-                    }}>{bizProfileSending ? "Sending..." : "Request Your Business Profile \u2192"}</button>
-                  )}
-                </div>
+                ))}
               </div>
             </div>
-          </div>
-
-          {/* ── EXPERT CONTRIBUTOR (locked) ──────────────────────────────── */}
-          <div style={{ marginBottom: 32 }}>
-            <Eyebrow text="PREMIUM" />
-            <div style={{
-              background: "#243454", border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: 16, padding: 32,
-            }}>
-              <div style={{ borderLeft: "3px solid #F5C842", paddingLeft: 24, position: "relative" }}>
-                <div style={{ position: "absolute", top: 0, right: 0, fontSize: 20, opacity: 0.5 }}>{"\uD83D\uDD12"}</div>
-                <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, color: "#fff", margin: "0 0 8px" }}>Expert Contributor</h2>
-                <p style={{ fontSize: 15, color: "rgba(255,255,255,0.55)", margin: "0 0 16px", lineHeight: 1.6 }}>
-                  Become the trusted voice in your neighborhood
-                </p>
-                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: "0 0 16px", lineHeight: 1.6 }}>
-                  As an Expert Contributor, you write a recurring column in your BVM magazine on topics related to your industry. This positions you as the go-to authority in your neighborhood and builds trust with thousands of local households every month.
-                </p>
-
-                {/* Primer topic bullets */}
-                <div style={{ marginBottom: 16 }}>
-                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", margin: "0 0 10px", fontWeight: 600 }}>Example topics for {client.category}:</p>
-                  {[
-                    `Seasonal tips for ${client.category.toLowerCase()} customers`,
-                    "Common mistakes homeowners make (and how to avoid them)",
-                    `What to look for when choosing a ${client.category.toLowerCase()} provider`,
-                    "Behind the scenes: how our team serves your neighborhood",
-                  ].map((topic, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
-                      <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#F5C842", flexShrink: 0, marginTop: 6 }} />
-                      <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", lineHeight: 1.4 }}>{topic}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", margin: "0 0 16px", lineHeight: 1.5 }}>
-                  Submissions are reviewed by the BVM editorial team. Articles should be 300-500 words, educational in nature, and free of direct promotional language. BVM reserves the right to edit for clarity and style.
-                </p>
-
-                <div>
-                  {expertContribSent ? (
-                    <div style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 10, padding: "14px 20px", display: "inline-block" }}>
-                      <p style={{ fontSize: 14, color: "#22c55e", fontWeight: 700, margin: 0 }}>Your rep will reach out with details on becoming an Expert Contributor.</p>
-                    </div>
-                  ) : (
-                    <button onClick={sendExpertContribInterest} disabled={expertContribSending} style={{
-                      background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 8,
-                      padding: "12px 28px", fontSize: 14, fontWeight: 800, cursor: expertContribSending ? "not-allowed" : "pointer",
-                      opacity: expertContribSending ? 0.6 : 1,
-                    }}>{expertContribSending ? "Sending..." : "Become an Expert Contributor \u2192"}</button>
-                  )}
-                </div>
+            {/* LMS Modules */}
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Learning Modules</div>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                {lmsModules.map((mod, i) => (
+                  <div
+                    key={i}
+                    onClick={() => setShowYouTube(mod.videoId)}
+                    style={{ flex: "1 1 200px", background: "#ffffff08", borderRadius: 12, padding: 16, cursor: "pointer", border: `1px solid ${GOLD}33` }}
+                  >
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>{mod.title}</div>
+                    <div style={{ fontSize: 12, color: GOLD, marginTop: 4 }}>Watch &rarr;</div>
+                  </div>
+                ))}
               </div>
             </div>
-          </div>
+          </section>
+        </main>
 
-        </div>{/* END CENTER COLUMN */}
-
-        {/* ── RIGHT COLUMN (260px, sticky sidebar) ─────────────────────── */}
-        <div style={{
-          width: 260, flexShrink: 0, position: "sticky", top: 72,
-          height: "calc(100vh - 72px)", overflowY: "auto",
-          background: "#0d1a2e", padding: 20,
-          borderLeft: "1px solid rgba(255,255,255,0.08)",
-        }}>
-
+        {/* Right Sidebar */}
+        <aside style={{ width: 260, background: DARK_BG, padding: 20, position: "sticky", top: 72, height: "calc(100vh - 72px)", overflowY: "auto", flexShrink: 0 }}>
           {/* Approved Ad Image */}
-          {approvedDir?.imageUrl ? (
-            <div style={{ width: "100%", borderRadius: 12, overflow: "hidden", marginBottom: 12 }}>
-              <img src={approvedDir.imageUrl} alt={approvedDir.name} style={{ width: "100%", display: "block" }} />
+          {approvedDir && (
+            <div style={{ borderRadius: 12, overflow: "hidden", marginBottom: 16 }}>
+              {approvedDir.imageUrl ? (
+                <img src={approvedDir.imageUrl} alt="Ad preview" style={{ width: "100%", aspectRatio: "1/1", objectFit: "cover", display: "block" }} />
+              ) : (
+                <div style={{ width: "100%", aspectRatio: "1/1", background: `linear-gradient(135deg, ${NAVY}, ${GOLD})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700 }}>
+                  {approvedDir.name}
+                </div>
+              )}
             </div>
-          ) : (
-            <div style={{
-              width: "100%", height: 180, background: "rgba(255,255,255,0.04)",
-              borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center",
-              color: "rgba(255,255,255,0.2)", fontSize: 12, marginBottom: 12,
-            }}>No ad preview</div>
-          )}
-
-          {/* Ad size badge */}
-          <div style={{ marginBottom: 12 }}>
-            <span style={{
-              background: "rgba(245,200,66,0.15)", color: "#F5C842",
-              fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 6,
-            }}>{client.ad_size?.toUpperCase() || "AD"}</span>
-          </div>
-
-          {/* Tagline */}
-          {client.tagline && (
-            <p style={{ fontSize: 15, color: "#F5C842", fontStyle: "italic", fontFamily: "'Playfair Display', serif", margin: "0 0 14px" }}>
-              &ldquo;{client.tagline}&rdquo;
-            </p>
           )}
 
           {/* Stage Card */}
           <div style={{
-            background: "#243454", borderRadius: 12, padding: 16, marginBottom: 14,
-            border: "1px solid rgba(255,255,255,0.08)",
+            background: "#ffffff08", borderRadius: 12, padding: 14, marginBottom: 16, textAlign: "center",
+            border: `1px solid ${GOLD}44`,
           }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-              <div style={{
-                width: 10, height: 10, borderRadius: "50%", background: "#F5C842",
-                animation: "goldPulse 2s ease infinite",
-              }} />
-              <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
-                {STAGE_LABELS[client.stage] || client.stage}
-              </span>
-            </div>
-            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", margin: 0, lineHeight: 1.5 }}>
-              {nextStepText}
-            </p>
+            <div style={{ fontSize: 11, color: GOLD, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Stage</div>
+            <div style={{ fontSize: 16, fontWeight: 700, animation: "pulse 2s infinite" }}>{STAGE_LABELS[client.stage] || client.stage}</div>
           </div>
 
           {/* Download Buttons */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
-            {approvedDir?.imageUrl ? (
-              <a href={approvedDir.imageUrl} download={`${client.business_name}-campaign.png`} style={{
-                display: "block", textAlign: "center", textDecoration: "none",
-                background: "#F5C842", color: "#1B2A4A", borderRadius: 10,
-                padding: "10px 16px", fontSize: 12, fontWeight: 800,
-              }}>Download Ad Preview</a>
-            ) : (
-              <button disabled style={{
-                background: "rgba(245,200,66,0.3)", color: "#1B2A4A", border: "none", borderRadius: 10,
-                padding: "10px 16px", fontSize: 12, fontWeight: 800, cursor: "not-allowed", opacity: 0.5,
-              }}>Download Ad Preview</button>
-            )}
-            <button onClick={handlePrintReport} style={{
-              background: "transparent", color: "#F5C842",
-              border: "1px solid rgba(245,200,66,0.3)", borderRadius: 10,
-              padding: "10px 16px", fontSize: 12, fontWeight: 800, cursor: "pointer",
-            }}>Download Market Report</button>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+            <button style={{ background: "#223556", color: "#fff", border: "1px solid #ffffff22", borderRadius: 8, padding: "10px", fontSize: 13, cursor: "pointer" }}>
+              Download Proof PDF
+            </button>
+            <button style={{ background: "#223556", color: "#fff", border: "1px solid #ffffff22", borderRadius: 8, padding: "10px", fontSize: 13, cursor: "pointer" }}>
+              Download Hi-Res Image
+            </button>
           </div>
 
-          {/* Quick Stats */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <div style={{
-              background: "#243454", borderRadius: 10, padding: "12px 14px",
-              border: "1px solid rgba(255,255,255,0.06)",
-            }}>
-              <div style={{ fontSize: 24, fontWeight: 800, color: scoreColor(oppScore), lineHeight: 1 }}>{oppScore}</div>
-              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>Opportunity Score</div>
-            </div>
-            <div style={{
-              background: "#243454", borderRadius: 10, padding: "12px 14px",
-              border: "1px solid rgba(255,255,255,0.06)",
-            }}>
-              <div style={{ fontSize: 18, fontWeight: 800, color: "#F5C842", lineHeight: 1 }}>{medianIncome}</div>
-              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>Median Income</div>
-            </div>
-            <div style={{
-              background: "#243454", borderRadius: 10, padding: "12px 14px",
-              border: "1px solid rgba(255,255,255,0.06)",
-            }}>
-              <div style={{ fontSize: 18, fontWeight: 800, color: "#F5C842", lineHeight: 1 }}>{households}</div>
-              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>Households</div>
+          {/* Rep Card */}
+          <div style={{ background: "#ffffff08", borderRadius: 12, padding: 14, marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{
+                width: 32, height: 32, borderRadius: "50%", background: GOLD, color: NAVY,
+                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700,
+              }}>
+                {repInitials}
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{repName}</div>
+                <div style={{ fontSize: 11, color: "#ffffffaa" }}>Your Rep</div>
+              </div>
             </div>
           </div>
 
-        </div>{/* END RIGHT COLUMN */}
+          {/* Compact Messages */}
+          <div style={{ background: "#ffffff08", borderRadius: 12, padding: 14 }}>
+            <div style={{ fontSize: 11, color: GOLD, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Recent Messages</div>
+            {messages.length === 0 && <div style={{ fontSize: 12, color: "#ffffff44" }}>No messages</div>}
+            {messages.slice(-3).map((msg, i) => (
+              <div key={i} style={{ marginBottom: 8, fontSize: 12 }}>
+                <span style={{ color: GOLD, textTransform: "capitalize" }}>{msg.role}: </span>
+                <span style={{ color: "#ffffffcc" }}>{msg.content.length > 60 ? msg.content.slice(0, 60) + "..." : msg.content}</span>
+              </div>
+            ))}
+          </div>
+        </aside>
+      </div>
 
-      </div>{/* END THREE COLUMN LAYOUT */}
+      {/* YouTube Modal */}
+      {showYouTube && (
+        <div
+          onClick={() => setShowYouTube(null)}
+          style={{
+            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+          }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ width: "80%", maxWidth: 800, aspectRatio: "16/9" }}>
+            <iframe
+              src={`https://www.youtube.com/embed/${showYouTube}?autoplay=1`}
+              style={{ width: "100%", height: "100%", border: "none", borderRadius: 12 }}
+              allow="autoplay; encrypted-media"
+              allowFullScreen
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

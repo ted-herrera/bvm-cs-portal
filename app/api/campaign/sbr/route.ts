@@ -1,20 +1,23 @@
+import { NextRequest, NextResponse } from "next/server";
 import { SBR_SYSTEM_PROMPT } from "@/lib/sbr";
 
-export async function POST(request: Request) {
-  const { businessName, city, zip, category } = (await request.json()) as {
-    businessName: string;
-    city: string;
-    zip: string;
-    category: string;
-  };
-
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return Response.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 500 });
-  }
-
+export async function POST(request: NextRequest) {
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const { businessName, city, zip, category } = await request.json();
+
+    if (!businessName || !category) {
+      return NextResponse.json(
+        { error: "businessName and category are required" },
+        { status: 400 },
+      );
+    }
+
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: "Anthropic API key not configured" }, { status: 500 });
+    }
+
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -29,53 +32,27 @@ export async function POST(request: Request) {
         messages: [
           {
             role: "user",
-            content: `Run Bruno SBR for: ${category} business "${businessName}" in ${city}, ${zip}`,
+            content: `Run Bruno SBR for: ${businessName} | ${category} | ${city || "Unknown"} | ${zip || "Unknown"}`,
           },
         ],
       }),
     });
 
-    if (!res.ok) {
-      const err = await res.text();
-      return Response.json({ error: err }, { status: res.status });
+    if (!response.ok) {
+      const err = await response.text();
+      return NextResponse.json({ error: `Anthropic API error: ${err}` }, { status: 502 });
     }
 
-    const data = (await res.json()) as {
-      content?: Array<{ type: string; text?: string }>;
-    };
-
-    let text = "";
-    if (Array.isArray(data.content)) {
-      for (const block of data.content) {
-        if (block?.type === "text" && typeof block.text === "string") {
-          text += block.text;
-        }
-      }
-    }
+    const data = await response.json();
+    const text =
+      data.content?.[0]?.type === "text" ? data.content[0].text : "";
 
     const cleaned = text.replace(/```json\n?|```\n?/g, "").trim();
     const parsed = JSON.parse(cleaned);
 
-    // Translate to client-facing format
-    const result = {
-      opportunityScore: Math.min(100, Math.max(40, Math.floor(Math.random() * 30) + 65)),
-      incomeRing: parsed.demographics?.medianIncome || "N/A",
-      medianIncome: parsed.demographics?.medianIncome || "N/A",
-      households: parsed.demographics?.homeownerPercent || "N/A",
-      topCategories: parsed.competitors?.slice(0, 5) || [],
-      competitorGap: parsed.competitorBenchmark || "",
-      marketBrief: parsed.marketInsight || "",
-      campaignHeadline: parsed.campaignHeadline || "",
-      geoCopyBlock: parsed.geoCopyBlock || "",
-      creativeDirection: parsed.creativeDirection || "",
-      localAdvantage: parsed.localAdvantage || "",
-      taglineSuggestions: parsed.taglineSuggestions || [],
-      raw: parsed,
-    };
-
-    return Response.json(result);
+    return NextResponse.json(parsed);
   } catch (e) {
-    console.error("[campaign/sbr] Error:", e);
-    return Response.json({ error: "SBR analysis failed" }, { status: 500 });
+    const message = e instanceof Error ? e.message : "Unknown error";
+    return NextResponse.json({ error: `SBR failed: ${message}` }, { status: 500 });
   }
 }

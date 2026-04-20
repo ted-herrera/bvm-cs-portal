@@ -1,28 +1,43 @@
+import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 
-export async function POST(request: Request) {
-  const { id, client_email, client_phone, client_first_name, qr_url } =
-    (await request.json()) as {
-      id: string;
-      client_email?: string;
-      client_phone?: string;
-      client_first_name?: string;
-      qr_url?: string;
-    };
+export async function POST(request: NextRequest) {
+  try {
+    const { id, client_email, client_phone, client_first_name, qr_url } =
+      await request.json();
 
-  const sb = getSupabase();
-  if (!sb) return Response.json({ error: "Database not configured" }, { status: 500 });
+    if (!id) {
+      return NextResponse.json({ error: "id is required" }, { status: 400 });
+    }
 
-  const update: Record<string, unknown> = {};
-  if (client_email !== undefined) update.client_email = client_email;
-  if (client_phone !== undefined) update.client_phone = client_phone;
-  if (client_first_name !== undefined) update.client_first_name = client_first_name;
-  if (qr_url !== undefined) update.qr_url = qr_url;
+    const supabase = getSupabase();
+    if (!supabase) {
+      return NextResponse.json({ error: "Database not configured" }, { status: 500 });
+    }
 
-  if (Object.keys(update).length === 0) return Response.json({ error: "No fields to update" }, { status: 400 });
+    const updates: Record<string, string> = {};
+    if (client_email !== undefined) updates.client_email = client_email;
+    if (client_phone !== undefined) updates.client_phone = client_phone;
+    if (client_first_name !== undefined) updates.client_first_name = client_first_name;
+    if (qr_url !== undefined) updates.qr_url = qr_url;
 
-  const { error } = await sb.from("campaign_clients").update(update).eq("id", id);
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: "No fields to update" }, { status: 400 });
+    }
 
-  return Response.json({ success: true });
+    const { data, error } = await supabase
+      .from("campaign_clients")
+      .update(updates)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, data });
+  } catch {
+    return NextResponse.json({ error: "Failed to update contact" }, { status: 500 });
+  }
 }

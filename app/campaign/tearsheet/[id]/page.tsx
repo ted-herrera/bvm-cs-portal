@@ -2,347 +2,288 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import type { CampaignClient, CampaignDirection } from "@/lib/campaign";
+import type { CampaignClient } from "@/lib/campaign";
+import { createClient } from "@supabase/supabase-js";
+import confetti from "canvas-confetti";
+
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) return null;
+  return createClient(url, key);
+}
+
+async function fetchCampaignWithRetry(id: string, attempts = 3, delay = 1500): Promise<CampaignClient | null> {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+  for (let i = 0; i < attempts; i++) {
+    const { data, error } = await supabase
+      .from("campaign_clients")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (!error && data) return data as CampaignClient;
+    if (i < attempts - 1) await new Promise((r) => setTimeout(r, delay));
+  }
+  return null;
+}
 
 export default function TearsheetPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const [client, setClient] = useState<CampaignClient | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedDir, setSelectedDir] = useState<string | null>(null);
-  const [regenerating, setRegenerating] = useState(false);
+  const [selectedDir, setSelectedDir] = useState<number>(0);
+  const [generating, setGenerating] = useState(false);
   const [checks, setChecks] = useState([false, false, false, false]);
   const [approving, setApproving] = useState(false);
 
   useEffect(() => {
-    loadClient();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    fetchCampaignWithRetry(id).then((c) => {
+      setClient(c);
+      setLoading(false);
+    });
   }, [id]);
-
-  async function loadClient(retries = 3) {
-    try {
-      const { getSupabase } = await import("@/lib/supabase");
-      const sb = getSupabase();
-      if (sb) {
-        const { data } = await sb.from("campaign_clients").select("*").eq("id", id).single();
-        if (data) { setClient(data as CampaignClient); setLoading(false); return; }
-      }
-    } catch (e) { console.error("Load error:", e); }
-    if (retries > 0) { await new Promise(r => setTimeout(r, 1500)); return loadClient(retries - 1); }
-    setLoading(false);
-  }
-
-  async function handleRegenerate() {
-    if (!client) return;
-    setRegenerating(true);
-    setSelectedDir(null);
-
-    try {
-      const res = await fetch("/api/campaign/generate-image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          businessName: client.business_name,
-          category: client.category,
-          city: client.city,
-          services: client.services,
-          adSize: client.ad_size,
-          tagline: client.tagline,
-          sbrData: client.sbr_data,
-        }),
-      });
-      const data = await res.json();
-
-      if (data.directions) {
-        // Update in Supabase
-        const { getSupabase } = await import("@/lib/supabase");
-        const sb = getSupabase();
-        if (sb) {
-          await sb.from("campaign_clients").update({ generated_directions: data.directions }).eq("id", id);
-        }
-        setClient((prev) => prev ? { ...prev, generated_directions: data.directions } : prev);
-      }
-    } catch (e) {
-      console.error("Regenerate error:", e);
-    }
-    setRegenerating(false);
-  }
-
-  async function handleApprove() {
-    if (!selectedDir) return;
-    setApproving(true);
-
-    try {
-      await fetch(`/api/campaign/approve/${id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ direction: selectedDir }),
-      });
-
-      // Fire confetti
-      const confetti = await import("canvas-confetti");
-      confetti.default({ particleCount: 150, spread: 90, colors: ["#F5C842", "#1B2A4A", "#ffffff"] });
-
-      setTimeout(() => router.push(`/campaign/client/${id}`), 1500);
-    } catch (e) {
-      console.error("Approve error:", e);
-      setApproving(false);
-    }
-  }
 
   if (loading) {
     return (
       <div style={{ minHeight: "100vh", background: "#1B2A4A", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ width: 48, height: 48, border: "3px solid #F5C842", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        <div style={{ color: "#C8A951", fontSize: 18 }}>Loading tearsheet...</div>
       </div>
     );
   }
 
   if (!client) {
     return (
-      <div style={{ minHeight: "100vh", background: "#1B2A4A", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
-        <p>Campaign not found.</p>
+      <div style={{ minHeight: "100vh", background: "#1B2A4A", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
+        <div style={{ fontSize: 48, color: "#C8A951", fontFamily: "Playfair Display, Georgia, serif" }}>Campaign Coming Soon</div>
+        <div style={{ color: "#ffffffaa", fontSize: 16 }}>This campaign is being prepared. Check back shortly.</div>
       </div>
     );
   }
 
-  const sbr = (client.sbr_data || {}) as Record<string, unknown>;
-  const directions = (client.generated_directions || []) as CampaignDirection[];
-  const allChecked = checks.every(Boolean);
+  const directions = client.generated_directions || [];
+  const sbr = client.sbr_data || {};
+
+  const contactPhone = (client as unknown as Record<string, unknown>).contact_phone as string | undefined;
+  const contactEmail = (client as unknown as Record<string, unknown>).contact_email as string | undefined;
+  const contactAddress = (client as unknown as Record<string, unknown>).contact_address as string | undefined;
+
+  function buildContact(): string {
+    return [contactPhone, contactEmail, contactAddress].filter(Boolean).join(" \u00B7 ");
+  }
+
+  async function handleAutomagic() {
+    setGenerating(true);
+    try {
+      const res = await fetch("/api/campaign/generate-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessName: client!.business_name,
+          category: client!.category,
+          city: client!.city,
+          services: client!.services,
+          adSize: client!.ad_size,
+          tagline: client!.tagline,
+          sbrData: client!.sbr_data,
+        }),
+      });
+      const data = await res.json();
+      if (data.directions) {
+        setClient((prev) => prev ? { ...prev, generated_directions: data.directions } : prev);
+        setSelectedDir(0);
+      }
+    } catch { /* silent */ }
+    setGenerating(false);
+  }
+
+  async function handleApprove() {
+    if (!checks.every(Boolean)) return;
+    const dir = directions[selectedDir];
+    if (!dir) return;
+    setApproving(true);
+    try {
+      const res = await fetch(`/api/campaign/approve/${id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ direction: dir.name }),
+      });
+      if (res.ok) {
+        confetti({ particleCount: 200, spread: 90, origin: { y: 0.6 } });
+        setTimeout(() => router.push(`/campaign/client/${id}`), 2000);
+      }
+    } catch { /* silent */ }
+    setApproving(false);
+  }
+
+  const toggleCheck = (i: number) => setChecks((prev) => prev.map((v, idx) => (idx === i ? !v : v)));
+
+  const checkLabels = [
+    "I approve the selected creative direction",
+    "The business name and contact info are correct",
+    "The tagline represents my brand accurately",
+    "I understand production will begin after approval",
+  ];
+
+  const sbrCards: { label: string; key: string; fallback: string }[] = [
+    { label: "Opportunity Score", key: "opportunity_score", fallback: "N/A" },
+    { label: "Households", key: "households", fallback: "--" },
+    { label: "Avg Income", key: "median_income", fallback: "--" },
+    { label: "Top Categories", key: "top_categories", fallback: "--" },
+  ];
 
   return (
-    <div style={{ minHeight: "100vh", background: "#1B2A4A" }}>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } } @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } } @keyframes goldPulse { 0%, 100% { box-shadow: 0 0 0 4px rgba(245,200,66,0.25); } 50% { box-shadow: 0 0 0 12px rgba(245,200,66,0.05); } }`}</style>
-
+    <div style={{ minHeight: "100vh", background: "#1B2A4A", color: "#fff", fontFamily: "system-ui, sans-serif" }}>
       {/* Hero */}
-      <div style={{ padding: "60px 48px 40px", textAlign: "center", borderBottom: "1px solid rgba(245,200,66,0.15)" }}>
-        <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 42, color: "#fff", margin: "0 0 8px", fontWeight: 700 }}>
+      <div style={{ textAlign: "center", padding: "48px 24px 24px" }}>
+        <h1 style={{ fontFamily: "Playfair Display, Georgia, serif", fontSize: 36, color: "#C8A951", margin: 0 }}>
           {client.business_name}
         </h1>
-        <p style={{ fontSize: 16, color: "rgba(255,255,255,0.5)", margin: "0 0 4px" }}>{client.city}</p>
-        <p style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: "#F5C842", margin: "0 0 32px" }}>
+        <div style={{ color: "#ffffffcc", fontSize: 16, marginTop: 4 }}>{client.city}</div>
+        <div style={{ color: "#ffffffaa", fontSize: 14, marginTop: 8, letterSpacing: 2, textTransform: "uppercase" }}>
           Your Campaign Direction
-        </p>
-
-        {/* SBR Market Intelligence Cards */}
-        <div style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap", maxWidth: 900, margin: "0 auto" }}>
-          {[
-            { label: "Your Market", value: `${client.city}${sbr.incomeRing ? `, ${sbr.incomeRing}` : ""}` },
-            { label: "Households in Your Area", value: (sbr.households as string) || "Analyzing..." },
-            { label: "Opportunity Score", value: sbr.opportunityScore ? `${sbr.opportunityScore}/100` : "Analyzing..." },
-            { label: "Top Local Searches", value: Array.isArray(sbr.topCategories) ? (sbr.topCategories as string[]).slice(0, 3).join(", ") : "Analyzing..." },
-          ].map((card, i) => (
-            <div key={i} style={{
-              background: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(245,200,66,0.15)",
-              borderRadius: 12,
-              padding: "16px 24px",
-              minWidth: 180,
-              flex: "1 1 180px",
-              maxWidth: 220,
-            }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
-                {card.label}
-              </div>
-              <div style={{ fontSize: 15, color: "#F5C842", fontWeight: 700 }}>
-                {card.value}
-              </div>
-            </div>
-          ))}
         </div>
       </div>
 
-      {/* Three Directions */}
-      <div style={{ padding: "48px 48px 32px" }}>
-        <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, color: "#fff", textAlign: "center", margin: "0 0 32px" }}>
-          Choose Your Direction
-        </h2>
-
-        <div style={{ display: "flex", gap: 24, justifyContent: "center", flexWrap: "wrap", maxWidth: 1100, margin: "0 auto" }}>
-          {directions.map((dir, i) => {
-            const isSelected = selectedDir === dir.name;
-            return (
-              <div
-                key={i}
-                style={{
-                  background: isSelected ? "rgba(245,200,66,0.08)" : "rgba(255,255,255,0.04)",
-                  border: isSelected ? "2px solid #F5C842" : "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: 16,
-                  padding: 0,
-                  width: 320,
-                  overflow: "hidden",
-                  cursor: "pointer",
-                  transition: "all 0.2s",
-                  animation: `fadeIn 0.5s ease ${i * 0.15}s both`,
-                  ...(isSelected ? { boxShadow: "0 0 24px rgba(245,200,66,0.15)" } : {}),
-                }}
-                onClick={() => setSelectedDir(dir.name)}
-              >
-                {/* Image */}
-                <div style={{ width: "100%", aspectRatio: "1/1", background: "#0d1a2e", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                  {regenerating ? (
-                    <div style={{ width: 36, height: 36, border: "3px solid #F5C842", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
-                  ) : dir.imageUrl ? (
-                    <div style={{ position: "relative", width: "100%", height: "100%" }}>
-                      <img src={dir.imageUrl} alt={dir.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(to top, rgba(0,0,0,0.85), transparent)", padding: "48px 16px 16px" }}>
-                        <div style={{ fontSize: 20, fontWeight: 700, color: "#fff", fontFamily: "Georgia, serif" }}>{client.business_name}</div>
-                        {client.tagline && <div style={{ fontSize: 14, color: "rgba(255,255,255,0.9)", fontStyle: "italic", marginTop: 4 }}>&ldquo;{client.tagline}&rdquo;</div>}
-                        <div style={{ marginTop: 6, fontSize: 12, color: "rgba(255,255,255,0.8)" }}>
-                          {[String((client as unknown as Record<string,unknown>).contact_phone || ""), String((client as unknown as Record<string,unknown>).contact_email || ""), String((client as unknown as Record<string,unknown>).contact_address || "")].filter(Boolean).join(" · ")}
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #1B2A4A, #2d3e50)" }}>
-                      <div style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.3)" }}>{dir.name}</div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Info */}
-                <div style={{ padding: "20px 24px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                    <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: "#fff", margin: 0, fontWeight: 700 }}>
-                      {dir.name}
-                    </h3>
-                    {isSelected && (
-                      <span style={{ background: "#F5C842", color: "#1B2A4A", fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 10 }}>
-                        SELECTED
-                      </span>
-                    )}
-                  </div>
-                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", lineHeight: 1.5, margin: 0 }}>
-                    {dir.description}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Download Ad Preview */}
-        {selectedDir && (() => {
-          const selDir = directions.find((d) => d.name === selectedDir);
-          return selDir?.imageUrl ? (
-            <div style={{ textAlign: "center", marginTop: 24 }}>
-              <button
-                onClick={async () => {
-                  const img = new Image();
-                  img.crossOrigin = "anonymous";
-                  img.onload = () => {
-                    const canvas = document.createElement("canvas");
-                    canvas.width = img.naturalWidth;
-                    canvas.height = img.naturalHeight;
-                    const ctx = canvas.getContext("2d");
-                    if (!ctx) return;
-                    ctx.drawImage(img, 0, 0);
-                    ctx.fillStyle = "rgba(0,0,0,0.5)";
-                    ctx.fillRect(0, canvas.height - 60, canvas.width, 60);
-                    ctx.fillStyle = "#fff";
-                    ctx.font = "bold 24px Playfair Display, Georgia, serif";
-                    ctx.fillText(client.business_name, 20, canvas.height - 24);
-                    ctx.fillStyle = "rgba(245,200,66,0.7)";
-                    ctx.font = "bold 16px DM Sans, sans-serif";
-                    ctx.fillText("BVM", canvas.width - 50, canvas.height - 24);
-                    const link = document.createElement("a");
-                    link.download = `${client.business_name.replace(/\s+/g, "_")}_CampaignPreview.png`;
-                    link.href = canvas.toDataURL("image/png");
-                    link.click();
-                  };
-                  img.src = selDir.imageUrl;
-                }}
-                style={{
-                  background: "#F5C842", color: "#1B2A4A", border: "none", borderRadius: 8,
-                  padding: "10px 24px", fontSize: 13, fontWeight: 700, cursor: "pointer",
-                }}
-              >
-                Download Ad Preview
-              </button>
+      {/* SBR Cards */}
+      <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", padding: "0 24px 32px" }}>
+        {sbrCards.map((card) => (
+          <div key={card.key} style={{ background: "#223556", borderRadius: 12, padding: "16px 24px", minWidth: 140, textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#C8A951", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>{card.label}</div>
+            <div style={{ fontSize: 20, fontWeight: 700 }}>
+              {String((sbr as Record<string, unknown>)[card.key] ?? card.fallback)}
             </div>
-          ) : null;
-        })()}
+          </div>
+        ))}
+      </div>
 
-        {/* Automagic Button */}
-        <div style={{ textAlign: "center", marginTop: 40 }}>
-          <button
-            onClick={handleRegenerate}
-            disabled={regenerating}
+      {/* Direction Cards */}
+      <div style={{ display: "flex", gap: 20, justifyContent: "center", flexWrap: "wrap", padding: "0 24px 24px" }}>
+        {directions.map((dir, i) => (
+          <div
+            key={i}
+            onClick={() => setSelectedDir(i)}
             style={{
-              background: "linear-gradient(135deg, #F5C842, #e6b935)",
-              color: "#1B2A4A",
-              border: "none",
-              borderRadius: 12,
-              padding: "16px 40px",
-              fontSize: 16,
-              fontWeight: 800,
-              cursor: regenerating ? "not-allowed" : "pointer",
-              letterSpacing: "0.02em",
-              boxShadow: "0 4px 20px rgba(245,200,66,0.3)",
-              opacity: regenerating ? 0.6 : 1,
+              width: 320,
+              borderRadius: 16,
+              overflow: "hidden",
+              position: "relative",
+              cursor: "pointer",
+              border: selectedDir === i ? "3px solid #C8A951" : "3px solid transparent",
+              transition: "border 0.2s",
             }}
           >
-            {regenerating ? "Regenerating..." : "✨ Automagic — Regenerate Directions"}
-          </button>
+            {dir.imageUrl ? (
+              <img
+                src={dir.imageUrl}
+                alt={dir.name}
+                style={{ width: "100%", aspectRatio: "1/1", objectFit: "cover", display: "block" }}
+              />
+            ) : (
+              <div style={{
+                width: "100%",
+                aspectRatio: "1/1",
+                background: "linear-gradient(135deg, #1B2A4A 0%, #C8A951 100%)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 20,
+                fontWeight: 700,
+                color: "#fff",
+              }}>
+                {dir.name}
+              </div>
+            )}
+            {/* Overlay */}
+            <div style={{
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)",
+              padding: "48px 16px 16px",
+            }}>
+              <div style={{ color: "#fff", fontSize: 18, fontWeight: 700, fontFamily: "Georgia, serif" }}>
+                {client.business_name}
+              </div>
+              {client.tagline && (
+                <div style={{ color: "#fff", fontSize: 13, fontStyle: "italic", marginTop: 4 }}>
+                  {client.tagline}
+                </div>
+              )}
+              {buildContact() && (
+                <div style={{ color: "#fff", fontSize: 11, marginTop: 6 }}>{buildContact()}</div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Direction name + description below */}
+      {directions.length > 0 && (
+        <div style={{ textAlign: "center", padding: "0 24px 24px", maxWidth: 600, margin: "0 auto" }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#C8A951" }}>{directions[selectedDir]?.name}</div>
+          <div style={{ fontSize: 14, color: "#ffffffaa", marginTop: 8 }}>{directions[selectedDir]?.description}</div>
         </div>
+      )}
+
+      {/* Automagic Button */}
+      <div style={{ textAlign: "center", padding: "16px 24px 32px" }}>
+        <button
+          onClick={handleAutomagic}
+          disabled={generating}
+          style={{
+            background: "#C8A951",
+            color: "#1B2A4A",
+            border: "none",
+            borderRadius: 8,
+            padding: "14px 32px",
+            fontSize: 16,
+            fontWeight: 700,
+            cursor: generating ? "wait" : "pointer",
+            opacity: generating ? 0.7 : 1,
+          }}
+        >
+          {generating ? "Generating..." : "Automagic \u2728"}
+        </button>
       </div>
 
       {/* Approval Gate */}
-      <div style={{ padding: "32px 48px 64px", maxWidth: 600, margin: "0 auto" }}>
-        <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, padding: 32 }}>
-          <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, color: "#fff", margin: "0 0 20px" }}>
-            Confirm & Approve
-          </h3>
-
-          {[
-            "I confirm my business name is correct",
-            "I confirm my primary offer/service is correct",
-            "I confirm my city and market area",
-            "I'm happy with my selected campaign direction",
-          ].map((label, i) => (
-            <label
-              key={i}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                marginBottom: 14,
-                cursor: "pointer",
-                fontSize: 14,
-                color: checks[i] ? "#F5C842" : "rgba(255,255,255,0.6)",
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={checks[i]}
-                onChange={() => setChecks((prev) => { const n = [...prev]; n[i] = !n[i]; return n; })}
-                style={{ width: 18, height: 18, accentColor: "#F5C842" }}
-              />
-              {label}
-            </label>
-          ))}
-
-          <button
-            onClick={handleApprove}
-            disabled={!allChecked || !selectedDir || approving}
-            style={{
-              width: "100%",
-              marginTop: 20,
-              background: allChecked && selectedDir ? "#F5C842" : "rgba(255,255,255,0.08)",
-              color: allChecked && selectedDir ? "#1B2A4A" : "rgba(255,255,255,0.3)",
-              border: "none",
-              borderRadius: 10,
-              padding: "14px 24px",
-              fontSize: 15,
-              fontWeight: 800,
-              cursor: allChecked && selectedDir ? "pointer" : "not-allowed",
-              transition: "all 0.2s",
-            }}
+      <div style={{ maxWidth: 500, margin: "0 auto", padding: "0 24px 64px" }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: "#C8A951", marginBottom: 16 }}>Approval Gate</div>
+        {checkLabels.map((label, i) => (
+          <label
+            key={i}
+            style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, cursor: "pointer", fontSize: 14, color: "#ffffffcc" }}
           >
-            {approving ? "Approving..." : "Approve Campaign Direction →"}
-          </button>
-        </div>
+            <input
+              type="checkbox"
+              checked={checks[i]}
+              onChange={() => toggleCheck(i)}
+              style={{ accentColor: "#C8A951", width: 18, height: 18 }}
+            />
+            {label}
+          </label>
+        ))}
+        <button
+          onClick={handleApprove}
+          disabled={!checks.every(Boolean) || approving}
+          style={{
+            marginTop: 16,
+            width: "100%",
+            background: checks.every(Boolean) ? "#C8A951" : "#555",
+            color: checks.every(Boolean) ? "#1B2A4A" : "#999",
+            border: "none",
+            borderRadius: 8,
+            padding: "14px",
+            fontSize: 16,
+            fontWeight: 700,
+            cursor: checks.every(Boolean) ? "pointer" : "not-allowed",
+          }}
+        >
+          {approving ? "Approving..." : "Approve Campaign"}
+        </button>
       </div>
     </div>
   );

@@ -1,12 +1,3 @@
-import { getSupabase } from "./supabase";
-
-export interface CampaignDirection {
-  name: string;
-  imageUrl: string;
-  description: string;
-  prompt: string;
-}
-
 export interface CampaignClient {
   id: string;
   created_at: string;
@@ -20,92 +11,63 @@ export interface CampaignClient {
   rep_id: string;
   stage: "intake" | "tearsheet" | "approved" | "production" | "delivered";
   sbr_data: Record<string, unknown> | null;
-  generated_directions: CampaignDirection[] | null;
+  generated_directions: Array<{ name: string; imageUrl: string; description: string; prompt: string }> | null;
   selected_direction: string | null;
   approved_at: string | null;
-  revisions: Array<{ note: string; created_at: string }> | null;
+  revisions: Array<{ note?: string; type?: string; value?: string; created_at: string }> | null;
+  messages: Array<{ role: string; content: string; timestamp: string }> | null;
+  client_email: string;
+  client_first_name: string;
+  client_phone: string;
+  contact_phone: string;
+  contact_email: string;
+  contact_address: string;
+  ad_copy: string;
+  qr_url: string | null;
+  health_score: number | null;
+  risk_level: string | null;
+  renewal_date: string | null;
+  past_due: number;
 }
 
-export async function getCampaignClient(id: string): Promise<CampaignClient | null> {
-  const sb = getSupabase();
-  if (!sb) return null;
-  const { data } = await sb.from("campaign_clients").select("*").eq("id", id).single();
-  return data as CampaignClient | null;
-}
-
-export async function upsertCampaignClient(client: Partial<CampaignClient> & { id: string }): Promise<CampaignClient | null> {
-  const sb = getSupabase();
-  if (!sb) return null;
-  const { data } = await sb.from("campaign_clients").upsert(client).select().single();
-  return data as CampaignClient | null;
-}
-
-export async function listCampaignClients(): Promise<CampaignClient[]> {
-  const sb = getSupabase();
-  if (!sb) return [];
-  const { data } = await sb.from("campaign_clients").select("*").order("created_at", { ascending: false });
-  return (data as CampaignClient[]) || [];
-}
-
-export const CAMPAIGN_BRUNO_PROMPT = `You are Bruno — the AI behind BVM's print campaign product. You're sharp, warm, and direct. You're guiding a local business owner through setting up their print ad campaign.
-
-PERSONALITY:
-- Warm but efficient. You care about getting it right, not just getting it done.
-- Vary your acknowledgments. Never say 'Got it' or 'Perfect' or 'Great' more than once in a row. Mix in: 'Love it.', 'Nice.', 'That works.', 'Good one.', 'Okay —', 'Solid.', 'Yes —'
-- Keep responses SHORT. 1-2 sentences max per turn. You're building momentum.
-- Never sound like a form. Never use numbered lists. This is a conversation.
-- Never mechanically repeat the user's words back at them.
-
-CORRECTION HANDLING:
-- If user says 'sorry I mean X', 'actually X', 'no wait X' — extract X as the real answer. Respond naturally: 'Oh no worries — [X] it is.' Move on.
-- If user makes a typo, silently correct it and use the corrected version going forward.
-
-YOU ARE COLLECTING THESE 6 FIELDS (in natural conversation, any order):
-1. Business name
-2. Business category (what kind of business — dental, restaurant, roofing, etc.)
-3. City + ZIP code
-4. Primary service or offer (the main thing that goes on the ad)
-5. Preferred ad size: 1/8 page, 1/4 page, 1/2 page, full page, or front cover
-6. Tagline (if they have one — if not, you'll generate options for them)
-
-AD SIZE GUIDANCE:
-- If they seem unsure about ad size, explain briefly: "Most of our clients go with 1/4 page — it's the sweet spot for visibility and value. But if you really want to stand out, half or full page makes a statement."
-- Never pressure. Just guide.
-
-TAGLINE:
-- If they don't have one, generate 3 options as clickable pills.
-- If rejected, ask what feeling they want their brand to convey and generate 3 more.
-- After 2 attempts, pick the best one: "I'll go with [tagline] — your rep can always update this later."
-
-RESPONSE FORMAT:
-You MUST return valid JSON with these exact keys:
-{
-  "action": "continue" | "complete",
-  "brunoMessage": "your conversational message to the user",
-  "collectedFields": {
-    "businessName": string | null,
-    "category": string | null,
-    "city": string | null,
-    "zip": string | null,
-    "services": string | null,
-    "adSize": string | null,
-    "tagline": string | null
-  },
-  "pills": string[] | null,
-  "complete": boolean
-}
-
-- "collectedFields" should contain ALL fields collected so far (not just the current turn).
-- Set "action" to "complete" and "complete" to true ONLY when all 6 fields are filled.
-- "pills" should be an array of clickable options when offering tagline choices or ad size options.
-- "brunoMessage" must always feel human. Never robotic.
-
-Start by warmly greeting them and asking about their business.`;
-
-export const AD_SIZE_DIMENSIONS: Record<string, { width: number; height: number; label: string }> = {
-  "1/8 page": { width: 400, height: 300, label: "1/8 Page" },
-  "1/4 page": { width: 500, height: 400, label: "1/4 Page" },
-  "1/2 page": { width: 600, height: 500, label: "1/2 Page" },
-  "full page": { width: 700, height: 900, label: "Full Page" },
-  "front cover": { width: 700, height: 900, label: "Front Cover" },
+export const AD_SIZES: Record<string, { label: string; trim: string; bleed: string; px: { w: number; h: number } }> = {
+  "1/8 page": { label: "1/8 Page", trim: '3.65" × 2.5"', bleed: '3.9" × 2.75"', px: { w: 548, h: 375 } },
+  "1/4 page": { label: "1/4 Page", trim: '3.65" × 5"', bleed: '3.9" × 5.25"', px: { w: 548, h: 750 } },
+  "1/3 page vertical": { label: "1/3 Page Vertical", trim: '2.5" × 10"', bleed: '2.75" × 10.25"', px: { w: 375, h: 1500 } },
+  "1/2 page": { label: "1/2 Page", trim: '7.5" × 5"', bleed: '7.75" × 5.25"', px: { w: 1125, h: 750 } },
+  "full page": { label: "Full Page", trim: '7.5" × 10"', bleed: '8.625" × 11.125"', px: { w: 1125, h: 1500 } },
+  "front cover": { label: "Front Cover", trim: '7.5" × 10"', bleed: '8.625" × 11.125"', px: { w: 1125, h: 1500 } },
 };
+
+export const CAMPAIGN_USERS = [
+  { username: "Alex Polivka", password: "password", role: "rep" as const },
+  { username: "April Dippolito", password: "password", role: "rep" as const },
+  { username: "Genele Ekinde", password: "password", role: "rep" as const },
+  { username: "Kala McNeely", password: "password", role: "rep" as const },
+  { username: "Karen Guirguis", password: "password", role: "rep" as const },
+  { username: "Samantha Marcus", password: "password", role: "rep" as const },
+  { username: "Ted Herrera", password: "password", role: "admin" as const },
+];
+
+export const CLOSE_USER_IDS: Record<string, string> = {
+  "Alex Polivka": "user_ZDhdlcanHiDZj6QoOTReknHGifsEhZpV03hDhQEutis",
+  "April Dippolito": "user_thprS88WhvHcnElDBzhcz2CvY4BeGgKMYFwuHQEeLhR",
+  "Genele Ekinde": "user_sVfp8aLaBkWMNs4NzYUrJ45nPl9twtpvpI75cQTtMLS",
+  "Kala McNeely": "user_2garXAc19Evv9pYyMHr6cVgDJdCkERbZTUlx6vs7JkC",
+  "Karen Guirguis": "user_bco3BJa2xPHHmrT570fuH3jBBWG4MKjBX0SZYKdL5k4",
+  "Samantha Marcus": "user_rOPMIjFq1Fh1kGRljVkkyAPDnt61OSloJ1x0nX5UKWI",
+  "Ted Herrera": "user_GGLCIENjMBktSidCBK16Fny5CIWno7rIMd55QhHBKtD",
+};
+
+export function getCampaignUser(): { username: string; role: string } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    let raw = localStorage.getItem("campaign_user");
+    if (!raw) {
+      const c = document.cookie.split(";").find(x => x.trim().startsWith("campaign_user="));
+      if (c) raw = decodeURIComponent(c.split("=").slice(1).join("="));
+    }
+    if (raw) return JSON.parse(raw);
+  } catch { /* */ }
+  return null;
+}

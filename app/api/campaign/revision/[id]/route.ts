@@ -1,53 +1,66 @@
+import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 
 export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id } = await params;
-  const body = (await request.json()) as { note?: string; type?: string; value?: string };
+  try {
+    const { id } = await params;
+    const { type, note, value } = await request.json();
 
-  const sb = getSupabase();
-  if (!sb) {
-    return Response.json({ error: "Database not configured" }, { status: 500 });
-  }
-
-  // Handle tagline update
-  if (body.type === "tagline" && body.value) {
-    const { error: tErr } = await sb
-      .from("campaign_clients")
-      .update({ tagline: body.value })
-      .eq("id", id);
-    if (tErr) {
-      return Response.json({ error: tErr.message }, { status: 500 });
+    if (!type) {
+      return NextResponse.json({ error: "type is required" }, { status: 400 });
     }
-    return Response.json({ success: true });
+
+    const supabase = getSupabase();
+    if (!supabase) {
+      return NextResponse.json({ error: "Database not configured" }, { status: 500 });
+    }
+
+    // If type is 'tagline', update the tagline field directly
+    if (type === "tagline") {
+      const { data, error } = await supabase
+        .from("campaign_clients")
+        .update({ tagline: value })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, data });
+    }
+
+    // Otherwise, append to revisions array
+    const { data: current, error: fetchError } = await supabase
+      .from("campaign_clients")
+      .select("revisions")
+      .eq("id", id)
+      .single();
+
+    if (fetchError) {
+      return NextResponse.json({ error: fetchError.message }, { status: 500 });
+    }
+
+    const revisions = Array.isArray(current?.revisions) ? current.revisions : [];
+    revisions.push({ type, note, value, created_at: new Date().toISOString() });
+
+    const { data, error } = await supabase
+      .from("campaign_clients")
+      .update({ revisions })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, data });
+  } catch {
+    return NextResponse.json({ error: "Failed to submit revision" }, { status: 500 });
   }
-
-  // Get current revisions
-  const { data: current } = await sb
-    .from("campaign_clients")
-    .select("revisions")
-    .eq("id", id)
-    .single();
-
-  const revisions = Array.isArray(current?.revisions) ? current.revisions : [];
-  revisions.push({
-    note: body.note || "",
-    type: body.type || "revision",
-    value: body.value || null,
-    created_at: new Date().toISOString(),
-  });
-
-  const { error } = await sb
-    .from("campaign_clients")
-    .update({ revisions })
-    .eq("id", id);
-
-  if (error) {
-    console.error("[campaign/revision] Error:", error);
-    return Response.json({ error: error.message }, { status: 500 });
-  }
-
-  return Response.json({ success: true });
 }

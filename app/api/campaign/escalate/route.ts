@@ -1,61 +1,70 @@
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwP7an51A5YzMDy2lhVWD7deWRMEuY8W9Q12tc6pXNJfCJDNXqSWP9h7_BhChezKg/exec";
+import { NextRequest, NextResponse } from "next/server";
 
-export async function POST(request: Request) {
-  const body = (await request.json()) as {
-    type?: string;
-    repName?: string;
-    clientName?: string;
-    clientStatus?: string;
-    note?: string;
-    to?: string;
-    subject?: string;
-    body?: string;
-  };
+const APPS_SCRIPT_URL =
+  "https://script.google.com/macros/s/AKfycbwP7an51A5YzMDy2lhVWD7deWRMEuY8W9Q12tc6pXNJfCJDNXqSWP9h7_BhChezKg/exec";
 
-  const type = body.type || "escalation";
+type EscalationType = "escalation" | "email" | "card-email" | "card-snail";
 
-  let payload: { to: string; subject: string; body: string };
+interface EscalationPayload {
+  type: EscalationType;
+  subject?: string;
+  body?: string;
+  to?: string;
+  html?: string;
+  clientName?: string;
+  repName?: string;
+  note?: string;
+}
 
-  if (type === "email") {
-    payload = {
-      to: body.to || "",
-      subject: body.subject || "",
-      body: body.body || "",
-    };
-  } else if (type === "card-email") {
-    payload = {
-      to: body.to || "",
-      subject: body.subject || `A personal note from ${body.repName || "your rep"} at BVM`,
-      body: body.body || "",
-    };
-  } else if (type === "card-snail") {
-    payload = {
-      to: "therrera@bestversionmedia.com",
-      subject: `SNAIL MAIL CARD REQUEST — ${body.clientName || "Client"}`,
-      body: `Hi Ted,\n\nRep: ${body.repName || "Rep"} wants to send a physical card to:\n\nClient: ${body.clientName || ""}\nMessage: ${body.note || ""}\nTemplate: ${body.body || ""}\n\nPlease handle manually.\n\nSent from BVM Campaign Portal`,
-    };
-  } else {
-    // escalation
-    payload = {
-      to: "therrera@bestversionmedia.com",
-      subject: `CAMPAIGN ESCALATION — ${body.clientName || "Client"}`,
-      body: `Hi Ted,\n\nRep: ${body.repName || "Rep"}\nClient: ${body.clientName || ""}\nStatus: ${body.clientStatus || ""}\n\nNote:\n${body.note || ""}\n\nSent from BVM Campaign Portal`,
-    };
-  }
-
+export async function POST(request: NextRequest) {
   try {
+    const payload: EscalationPayload = await request.json();
+    const { type } = payload;
+
+    if (!type) {
+      return NextResponse.json({ error: "type is required" }, { status: 400 });
+    }
+
+    const validTypes: EscalationType[] = ["escalation", "email", "card-email", "card-snail"];
+    if (!validTypes.includes(type)) {
+      return NextResponse.json(
+        { error: `Invalid type. Must be one of: ${validTypes.join(", ")}` },
+        { status: 400 },
+      );
+    }
+
+    // Build the payload for Apps Script
+    const scriptPayload: Record<string, unknown> = { ...payload };
+
+    // Set default recipients based on type
+    if (type === "escalation") {
+      scriptPayload.to = "therrera@bestversionmedia.com";
+    } else if (type === "card-snail") {
+      scriptPayload.to = "therrera@bestversionmedia.com";
+      scriptPayload.note = payload.note || "Physical card request — please coordinate with Ted.";
+    }
+
     const res = await fetch(APPS_SCRIPT_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      cache: "no-store",
+      body: JSON.stringify(scriptPayload),
     });
-    const text = await res.text();
+
     if (!res.ok) {
-      return Response.json({ error: text || `HTTP ${res.status}` }, { status: 502 });
+      const err = await res.text();
+      return NextResponse.json({ error: `Apps Script error: ${err}` }, { status: 502 });
     }
-    return Response.json({ success: true });
+
+    let result: unknown;
+    try {
+      result = await res.json();
+    } catch {
+      result = { status: "sent" };
+    }
+
+    return NextResponse.json({ success: true, result });
   } catch (e) {
-    return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+    const message = e instanceof Error ? e.message : "Unknown error";
+    return NextResponse.json({ error: `Escalation failed: ${message}` }, { status: 500 });
   }
 }

@@ -1,23 +1,24 @@
-export async function POST(request: Request) {
-  const { messages, pipeline } = (await request.json()) as {
-    messages: Array<{ role: string; content: string }>;
-    pipeline: unknown;
-  };
+import { NextRequest, NextResponse } from "next/server";
+import { BRUNO_INTAKE_PROMPT } from "@/lib/sbr";
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return Response.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 500 });
-  }
-
-  const system = `You are Bruno, BVM's campaign intelligence assistant. You help CS reps manage print campaigns, understand market data, track client health, and grow their book of business.
-
-You have access to this rep's campaign pipeline:
-${JSON.stringify(pipeline, null, 2)}
-
-Be direct, data-driven, specific. Never generic. When asked about at-risk clients, look at days since last activity, stage changes, and health scores. When asked about opportunities, look at opportunity scores and market data.`;
-
+export async function POST(request: NextRequest) {
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const { messages, pipeline } = await request.json();
+
+    if (!messages || !Array.isArray(messages)) {
+      return NextResponse.json({ error: "messages array is required" }, { status: 400 });
+    }
+
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: "Anthropic API key not configured" }, { status: 500 });
+    }
+
+    const systemPrompt = pipeline
+      ? `${BRUNO_INTAKE_PROMPT}\n\nPipeline context: ${JSON.stringify(pipeline)}`
+      : BRUNO_INTAKE_PROMPT;
+
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -27,33 +28,23 @@ Be direct, data-driven, specific. Never generic. When asked about at-risk client
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
         max_tokens: 1024,
-        temperature: 0.5,
-        system,
+        system: systemPrompt,
         messages,
       }),
     });
 
-    if (!res.ok) {
-      const err = await res.text();
-      return Response.json({ error: err }, { status: res.status });
+    if (!response.ok) {
+      const err = await response.text();
+      return NextResponse.json({ error: `Anthropic API error: ${err}` }, { status: 502 });
     }
 
-    const data = (await res.json()) as {
-      content?: Array<{ type: string; text?: string }>;
-    };
+    const data = await response.json();
+    const text =
+      data.content?.[0]?.type === "text" ? data.content[0].text : "";
 
-    let text = "";
-    if (Array.isArray(data.content)) {
-      for (const block of data.content) {
-        if (block?.type === "text" && typeof block.text === "string") {
-          text += block.text;
-        }
-      }
-    }
-
-    return Response.json({ response: text });
+    return NextResponse.json({ response: text });
   } catch (e) {
-    console.error("[campaign/bruno-va] Error:", e);
-    return Response.json({ error: "Bruno VA failed" }, { status: 500 });
+    const message = e instanceof Error ? e.message : "Unknown error";
+    return NextResponse.json({ error: `Bruno VA failed: ${message}` }, { status: 500 });
   }
 }

@@ -1,32 +1,60 @@
+import { NextRequest, NextResponse } from "next/server";
 import { classifyBusinessType, detectSubType } from "@/lib/business-classifier";
 import { getPhotoLibraryKey, getPhotoSourceList } from "@/lib/photo-library";
 
-export const maxDuration = 30;
+export const maxDuration = 60;
 
-const DIRECTIONS = [
-  { name: "Bold & Direct", description: "Bold, high-contrast design. Strong typography. Direct call to action." },
-  { name: "Warm & Local", description: "Warm community feel. Friendly and approachable." },
-  { name: "Premium & Polished", description: "Upscale sophisticated design. Clean lines." },
-];
+export async function POST(request: NextRequest) {
+  try {
+    const { businessName, category, city, services, adSize, tagline, sbrData } =
+      await request.json();
 
-export async function POST(request: Request) {
-  const { businessName, category, services } = (await request.json()) as {
-    businessName: string; category: string; services: string;
-    city?: string; adSize?: string; tagline?: string; sbrData?: unknown;
-  };
+    if (!businessName || !category) {
+      return NextResponse.json({ error: "businessName and category are required" }, { status: 400 });
+    }
 
-  const bizType = classifyBusinessType(businessName, `${category} ${services}`);
-  const subType = detectSubType(businessName, `${category} ${services}`);
-  const key = getPhotoLibraryKey(bizType, subType);
-  const sources = getPhotoSourceList(bizType, subType);
-  const photos = sources.filter(s => s.source === "unsplash").map(s => s.url);
+    const businessType = classifyBusinessType(businessName, category);
+    const subType = detectSubType(businessName, category);
+    const photoKey = getPhotoLibraryKey(businessType, subType);
+    const sources = getPhotoSourceList(businessType, subType);
 
-  const directions = DIRECTIONS.map((dir, i) => ({
-    name: dir.name,
-    imageUrl: photos[i] || photos[i % photos.length] || "",
-    description: dir.description,
-    prompt: `${key}/${bizType} — ${dir.name}`,
-  }));
+    const unsplashPhotos = sources.filter((s) => s.source === "unsplash");
 
-  return Response.json({ directions });
+    const directions = [
+      {
+        name: "Direction A — Bold & Modern",
+        description: `Clean, high-contrast design for ${businessName}. Emphasizes ${tagline || "brand identity"} with bold typography.`,
+        imageUrl: unsplashPhotos[0]?.url || "",
+        photoKey,
+        city,
+        services,
+        adSize,
+        sbrData,
+      },
+      {
+        name: "Direction B — Warm & Inviting",
+        description: `Warm tones and approachable layout for ${businessName}. Community-focused design highlighting ${city || "local"} presence.`,
+        imageUrl: unsplashPhotos[1]?.url || "",
+        photoKey,
+        city,
+        services,
+        adSize,
+        sbrData,
+      },
+      {
+        name: "Direction C — Premium & Elegant",
+        description: `Sophisticated design for ${businessName}. Refined aesthetics with premium feel for discerning ${category} clients.`,
+        imageUrl: unsplashPhotos[2]?.url || "",
+        photoKey,
+        city,
+        services,
+        adSize,
+        sbrData,
+      },
+    ];
+
+    return NextResponse.json({ directions });
+  } catch {
+    return NextResponse.json({ error: "Failed to generate image directions" }, { status: 500 });
+  }
 }
