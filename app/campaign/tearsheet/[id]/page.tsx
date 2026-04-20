@@ -9,7 +9,6 @@ import {
   renderPrintAd,
   getSizeSpec,
   normalizeSize,
-  SIZE_LABELS,
   SIZE_DESCRIPTIONS,
   VARIATION_LABELS,
   VARIATION_DESCRIPTIONS,
@@ -17,6 +16,7 @@ import {
   type PrintVariation,
   type PrintSize,
 } from "@/lib/print-engine";
+import PrintAdPreview from "@/components/PrintAdPreview";
 
 const NAVY = "#0C2340";
 const NAVY_MID = "#1a2f50";
@@ -466,28 +466,13 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
             <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 24, color: NAVY, margin: "8px 0 12px" }}>
               Your print ad is locked in
             </h3>
-            <div style={{
-              width: "100%",
-              aspectRatio: `${sizeSpec.trimInches.w} / ${sizeSpec.trimInches.h}`,
-              overflow: "hidden",
-              background: "#f8f7f2",
-              borderRadius: 8,
-              position: "relative",
-              marginBottom: 14,
-            }}>
-              <div
-                style={{
-                  width: sizeSpec.trimPx150.w,
-                  height: sizeSpec.trimPx150.h,
-                  transformOrigin: "top left",
-                }}
-                ref={(el) => {
-                  if (el && el.parentElement) {
-                    const pw = el.parentElement.clientWidth;
-                    el.style.transform = `scale(${pw / sizeSpec.trimPx150.w})`;
-                  }
-                }}
-                dangerouslySetInnerHTML={{ __html: renderPrintAd(adData, { dpi: 150 }) }}
+            <div style={{ marginBottom: 14 }}>
+              <PrintAdPreview
+                client={client}
+                variation={selectedVar}
+                subVariation={subVariation}
+                maxWidth={420}
+                rounded={8}
               />
             </div>
             <div style={{ fontSize: 12, color: TEXT2 }}>
@@ -531,16 +516,13 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
                 </div>
               </div>
               {/* mini print */}
-              <div style={{ flex: 1, aspectRatio: `${sizeSpec.trimInches.w} / ${sizeSpec.trimInches.h}`, background: "#fff", borderRadius: 6, overflow: "hidden", position: "relative" }}>
-                <div
-                  style={{ width: sizeSpec.trimPx150.w, height: sizeSpec.trimPx150.h, transformOrigin: "top left" }}
-                  ref={(el) => {
-                    if (el && el.parentElement) {
-                      const pw = el.parentElement.clientWidth;
-                      el.style.transform = `scale(${pw / sizeSpec.trimPx150.w})`;
-                    }
-                  }}
-                  dangerouslySetInnerHTML={{ __html: renderPrintAd(adData, { dpi: 150 }) }}
+              <div style={{ flex: 1, background: "#fff", borderRadius: 6, overflow: "hidden", position: "relative" }}>
+                <PrintAdPreview
+                  client={client}
+                  variation={selectedVar}
+                  subVariation={subVariation}
+                  maxWidth={140}
+                  rounded={4}
                 />
               </div>
             </div>

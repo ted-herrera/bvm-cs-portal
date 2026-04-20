@@ -522,24 +522,6 @@ export default function DashboardPage() {
 
         {/* Right controls */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-          {/* New Intake button */}
-          <Link
-            href="/campaign/dashboard"
-            style={{
-              background: "rgba(245,200,66,0.15)",
-              color: "#F5C842",
-              borderRadius: 6,
-              padding: "8px 16px",
-              fontSize: 12,
-              fontWeight: 700,
-              textDecoration: "none",
-              letterSpacing: "0.02em",
-              whiteSpace: "nowrap",
-              border: "1px solid rgba(245,200,66,0.3)",
-            }}
-          >
-            Campaign Portal
-          </Link>
           <Link
             href="/intake"
             style={{

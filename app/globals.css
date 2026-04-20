@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@400;700&display=swap');
+@import "tailwindcss";
 
 @keyframes pulse {
   0%, 100% { box-shadow: 0 0 0 4px rgba(245,200,66,0.25); }
@@ -8,7 +9,6 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
-@import "tailwindcss";
 
 :root {
   --navy-dark: #0d1a2e;
