@@ -1532,7 +1532,7 @@ export default function DashboardPage() {
                   {gcalConnected && (
                     <button onClick={() => addToCalendar(`Follow up: ${selectedClient.business_name}`, `Check in on ${selectedClient.business_name} build status. Stage: ${STAGE_LABELS[selectedClient.stage]}`)} style={{ background: "#f8fafc", border: "1px solid #e5e9ef", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>📅 Add Calendar Reminder</button>
                   )}
-                  <Link href={`/qa?clientId=${selectedClient.id}`} style={{ display: "block", background: "#f8fafc", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none", textAlign: "center", border: "1px solid #e5e9ef" }}>Run QA</Link>
+                  <Link href={`/tearsheet/${selectedClient.id}`} style={{ display: "block", background: "#f8fafc", color: "#1a2332", padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none", textAlign: "center", border: "1px solid #e5e9ef" }}>Open Tearsheet</Link>
 
                   <div style={{ height: 1, background: "#e5e9ef", margin: "4px 0" }} />
                   <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#7a8a9a", margin: "4px 0" }}>Pulse</p>
@@ -1672,7 +1672,7 @@ export default function DashboardPage() {
                     📋 Send Reminder — Close CRM
                   </button>
 
-                  {/* Escalate Website Issue */}
+                  {/* Escalate Print Issue */}
                   <button
                     onClick={async () => {
                       setActionConfirm("Sending...");
@@ -1693,7 +1693,7 @@ export default function DashboardPage() {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
-                              message: "⚠ Escalation email sent to Elizabeth & Sal",
+                              message: "⚠ Escalation email sent to Ted",
                               from: "rep",
                               repName: "Ted",
                             }),
@@ -1701,7 +1701,7 @@ export default function DashboardPage() {
                         } catch {
                           /* ignore */
                         }
-                        setActionConfirm("✓ Escalation sent to Elizabeth and Sal");
+                        setActionConfirm("✓ Escalation sent to Ted");
                       } catch {
                         setActionConfirm("Email failed — try again");
                       }
@@ -1719,7 +1719,7 @@ export default function DashboardPage() {
                       textAlign: "center",
                     }}
                   >
-                    ⚠ Escalate Website Issue
+                    ⚠ Escalate Print Issue
                   </button>
 
                   {/* Send Card — Handwrytten */}

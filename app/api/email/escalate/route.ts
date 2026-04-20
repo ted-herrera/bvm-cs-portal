@@ -12,19 +12,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "clientName required" }, { status: 400 });
   }
 
-  const subject = `WEBSITE ISSUE – ${clientName}`;
+  const subject = `PRINT ISSUE – ${clientName}`;
   const body =
-    `Hi Elizabeth and Sal,\n\n` +
+    `Hi Ted,\n\n` +
     `Date of next client call: [rep to fill]\n\n` +
     `Issue / delay / escalation:\n[rep to fill]\n\n` +
     `What I need to move it forward:\n[rep to fill]\n\n` +
     `Client: ${clientName}\n` +
     `Rep: ${repName || "—"}\n` +
     `Stage: ${stage || "—"}\n\n` +
-    `Sent from BVM Design Center`;
+    `Sent from BVM Client Success Portal`;
 
   const result = await sendEmailViaAppsScript({
-    to: "enorman@bestversionmedia.com,sfaiella@bestversionmedia.com",
+    to: "therrera@bestversionmedia.com",
     subject,
     body,
   });

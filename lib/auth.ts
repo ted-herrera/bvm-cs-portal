@@ -6,23 +6,13 @@ export interface User {
 }
 
 export const USERS: User[] = [
-  { username: "ted", password: "password", role: "rep", name: "Ted Herrera" },
-  { username: "sal", password: "password", role: "rep", name: "Sal" },
-  { username: "alex", password: "password", role: "rep", name: "Alex" },
-  { username: "jacquelyn", password: "password", role: "rep", name: "Jacquelyn" },
-  { username: "dev", password: "password", role: "dev", name: "Dev Team" },
-  { username: "dev1", password: "password", role: "dev", name: "Dev 1" },
-  { username: "dev2", password: "password", role: "dev", name: "Dev 2" },
-  { username: "demo", password: "demo", role: "rep", name: "Demo Rep" },
-  { username: "alexa", password: "alexa", role: "rep", name: "Alex A" },
-  { username: "elizabeth", password: "elizabeth", role: "rep", name: "Elizabeth" },
-  { username: "Alex Polivka", password: "password", role: "rep", name: "Alex Polivka" },
-  { username: "April Dippolito", password: "password", role: "rep", name: "April Dippolito" },
-  { username: "Genele Ekinde", password: "password", role: "rep", name: "Genele Ekinde" },
-  { username: "Kala McNeely", password: "password", role: "rep", name: "Kala McNeely" },
-  { username: "Karen Guirguis", password: "password", role: "rep", name: "Karen Guirguis" },
-  { username: "Samantha Marcus", password: "password", role: "rep", name: "Samantha Marcus" },
-  { username: "Ted Herrera", password: "password", role: "admin", name: "Ted Herrera" },
+  { username: "alex", password: "password", role: "rep", name: "Alex P" },
+  { username: "april", password: "password", role: "rep", name: "April D" },
+  { username: "genele", password: "password", role: "rep", name: "Genele E" },
+  { username: "kala", password: "password", role: "rep", name: "Kala M" },
+  { username: "karen", password: "password", role: "rep", name: "Karen G" },
+  { username: "samantha", password: "password", role: "rep", name: "Samantha M" },
+  { username: "ted", password: "password", role: "admin", name: "Ted Herrera" },
 ];
 
 const BOT_SECRET = process.env.BOT_SECRET || "designcenter2026";

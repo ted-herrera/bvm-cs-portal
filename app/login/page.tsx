@@ -24,7 +24,7 @@ export default function LoginPage() {
 
       const data = await res.json();
       if (res.ok) {
-        router.push(data.role === "dev" ? "/build-queue" : "/dashboard");
+        router.push(data.role === "admin" ? "/admin" : "/dashboard");
       } else {
         setError(data.error || "Invalid credentials");
       }
@@ -45,7 +45,7 @@ export default function LoginPage() {
       body: JSON.stringify({ username: "demo", password: "demo" }),
     }).then(async (res) => {
       const data = await res.json();
-      if (res.ok) router.push(data.role === "dev" ? "/build-queue" : "/dashboard");
+      if (res.ok) router.push(data.role === "admin" ? "/admin" : "/dashboard");
       else setError("Demo login failed");
       setLoading(false);
     }).catch(() => { setError("Something went wrong"); setLoading(false); });
@@ -69,11 +69,14 @@ export default function LoginPage() {
           {/* Login card */}
           <div style={{ background: "#ffffff", border: "none", borderRadius: 20, padding: "40px 36px", position: "relative", zIndex: 1, overflow: "visible", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)" }}>
             <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.15em", color: "#0d1a2e", textAlign: "center", margin: "0 0 4px" }}>
-              BVM DESIGN CENTER
+              BVM CLIENT SUCCESS PORTAL
             </p>
-            <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 26, fontWeight: 700, color: "#0d1a2e", textAlign: "center", margin: "0 0 24px" }}>
-              Welcome back
+            <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 26, fontWeight: 700, color: "#0d1a2e", textAlign: "center", margin: "0 0 8px" }}>
+              BVM Client Success Portal
             </h1>
+            <p style={{ fontSize: 13, color: "#64748b", textAlign: "center", margin: "0 0 20px" }}>
+              Print Campaign Management
+            </p>
 
             <form onSubmit={handleSubmit}>
               <div style={{ marginBottom: 16 }}>

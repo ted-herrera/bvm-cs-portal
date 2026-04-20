@@ -36,6 +36,23 @@ export function detectSubType(businessName: string, description: string): string
   if (a.match(/sushi|ramen|japanese/)) return "japanese";
   if (a.match(/bar|pub|tavern|brewery|brew(?!ery)|grill|gastropub|saloon|lounge|nightclub|club/)) return "bar";
   if (a.match(/bbq|barbecue|smokehouse/)) return "bbq";
+  if (a.match(/salon|barber|stylist/)) return "salon";
+  if (a.match(/spa|massage|facial/)) return "spa";
+  if (a.match(/vet|veterinar/)) return "veterinary";
+  if (a.match(/pharma|drugstore/)) return "pharmacy";
+  if (a.match(/optom|optical|eyewear|glasses/)) return "optical";
+  if (a.match(/chiro/)) return "chiropractic";
+  if (a.match(/physical.*therapy|rehab/)) return "physical_therapy";
+  if (a.match(/childcare|daycare|preschool/)) return "childcare";
+  if (a.match(/pet.*groom|dog.*walk/)) return "pet_services";
+  if (a.match(/plumb/)) return "plumbing";
+  if (a.match(/electric/)) return "electrical";
+  if (a.match(/paint/)) return "painting";
+  if (a.match(/floor/)) return "flooring";
+  if (a.match(/remodel|renovat/)) return "remodeling";
+  if (a.match(/photograph/)) return "photography";
+  if (a.match(/cater/)) return "catering";
+  if (a.match(/tutor/)) return "tutoring";
   return classifyBusinessType(businessName, description);
 }
 
@@ -55,6 +72,23 @@ const SUBTYPE_SERVICES: Record<string, string[]> = {
   sushi: ["Fresh Rolls & Sashimi", "Omakase Experience", "Takeout & Delivery"],
   bar: ["Draft Beer Selection", "Craft Cocktails & Spirits", "Happy Hour Specials"],
   bbq: ["Dine-In", "Takeout & Catering", "Smoked Meats by the Pound"],
+  salon: ["Cut & Color", "Blowouts & Styling", "Special Occasion Packages"],
+  spa: ["Massage Therapy", "Facials & Skincare", "Wellness Packages"],
+  veterinary: ["Wellness Exams", "Vaccinations", "Surgical Services"],
+  pharmacy: ["Prescription Fills", "Compounding", "Vaccinations"],
+  optical: ["Eye Exams", "Frames & Lenses", "Contact Lenses"],
+  chiropractic: ["Adjustments", "Therapeutic Massage", "Custom Treatment Plans"],
+  physical_therapy: ["Injury Rehab", "Post-Surgery Recovery", "Sports Therapy"],
+  childcare: ["Full-Day Programs", "Half-Day & Part-Time", "Summer Camps"],
+  pet_services: ["Grooming", "Boarding & Daycare", "Walking & Sitting"],
+  plumbing: ["Emergency Repair", "Fixture Installation", "Drain Cleaning"],
+  electrical: ["Panel Upgrades", "Wiring & Repair", "Lighting Installation"],
+  painting: ["Interior Painting", "Exterior Painting", "Color Consultation"],
+  flooring: ["Hardwood Installation", "Tile & Stone", "Refinishing"],
+  remodeling: ["Kitchen Remodels", "Bathroom Renovations", "Whole-Home Projects"],
+  photography: ["Portrait Sessions", "Events & Weddings", "Commercial Work"],
+  catering: ["Corporate Catering", "Weddings & Events", "Drop-Off Service"],
+  tutoring: ["One-on-One", "Group Sessions", "Test Prep"],
 };
 
 const SERVICE_MAP: Record<string, string[]> = {

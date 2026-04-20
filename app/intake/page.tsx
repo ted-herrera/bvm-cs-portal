@@ -7,7 +7,7 @@ import TopNav from "@/components/TopNav";
 interface Msg {
   role: "bruno" | "user";
   text: string;
-  cards?: { label: string; value: string; desc: string; accent: string }[];
+  chips?: { label: string; value: string }[];
 }
 
 interface IntakeFields {
@@ -15,74 +15,78 @@ interface IntakeFields {
   city: string;
   zip: string;
   desc: string;
+  address: string;
+  targetCustomer: string;
   services: string[];
   cta: string;
-  look: string;
+  brandVibe: string;
+  logoUrl: string;
+  photoUrl: string;
+  printSize: string; // eighth|quarter|third|half|full|cover
   tagline: string;
-  domain: string;
+  qrType: string; // url|email|other|none
+  qrValue: string;
+  phone: string;
 }
 
-const LOOK_OPTIONS = [
-  { id: "warm_bold", label: "Local", accent: "#c2692a", desc: "Clean & Classic" },
-  { id: "professional", label: "Community", accent: "#185fa5", desc: "Professional & Trusted" },
-  { id: "bold_modern", label: "Premier", accent: "#F5C842", desc: "Bold & Premium" },
+const PRINT_SIZES = [
+  { id: "eighth", label: "Eighth", desc: "Business card style" },
+  { id: "quarter", label: "Quarter", desc: "Most popular" },
+  { id: "third", label: "Third", desc: "Tall vertical column" },
+  { id: "half", label: "Half", desc: "Bold landscape" },
+  { id: "full", label: "Full", desc: "Full page premium" },
+  { id: "cover", label: "Cover", desc: "Featured cover" },
 ];
 
-const SYSTEM_PROMPT = `You are Bruno, an intake assistant for BVM Design Center. Your job is to collect exactly 6 pieces of information to build a local business website. Be conversational, warm, and natural — exactly like talking to a smart friend.
+const SYSTEM_PROMPT = `You are Bruno, the print campaign intake assistant for BVM Client Success. Your job is to collect the details needed to build a print ad campaign direction. Be warm, conversational, and natural — like a smart friend helping a business owner.
 
-The 6 things you need:
-1. Business name (bizName)
-2. City and ZIP code (city, zip)
-3. What the business does (desc)
-4. 2-3 services they offer (services)
-5. Their call to action (cta) — Order Now, Book Now, Call Us, etc
-6. Their preferred look (look) — show as 3 clickable cards: Local, Community, Premier
+Collect in this order (but flex if the user answers out of order):
+1. Business name + city (bizName, city — also capture zip if mentioned)
+2. What the business does in one sentence (desc)
+3. Street address for the ad (address)
+4. Target customer (targetCustomer)
+5. Top 3 services or products (services as array)
+6. Call-to-action (cta) — "Order Now", "Book Today", "Call Us", etc.
+7. Brand vibe — colors, energy, feel (brandVibe, free text)
+8. Logo — ask if they have one. They can upload or skip. (logoUrl set by UI; you just note it)
+9. Photo — ask if they have a photo of the business/team. Upload or skip (stock photo used if skip). (photoUrl set by UI)
+10. Print size (printSize) — one of: eighth, quarter, third, half, full, cover. Describe each briefly.
+11. Tagline (tagline) — SUGGEST one based on what you know. Client accepts, edits, or skips. Even if skipped, keep a soft internal tagline in the JSON.
+12. QR code (qrType + qrValue). Ask if they want one. If yes, ask: website URL or email? If "something else", respond that their rep will follow up — don't block. If no, mark qrType as "none" and the QR is hidden entirely.
 
 ABSOLUTE RULES — DO NOT VIOLATE:
-1. Before asking ANY question, check the ALREADY COLLECTED list (injected by the system). NEVER ask for a field that's already been collected. If bizName is already "Ted's Tacos", do NOT ask "what's the business name?" again.
-2. When you receive a user message, first extract any new fields from it, merge them into what you already know, then ask ONLY for what's still missing.
-3. If all 6 fields are collected, skip directly to a confirmation summary. Do not ask additional questions.
-4. Never break flow no matter what the user types — handle anything gracefully and move forward.
-5. Collect the 6 fields in any natural order.
-6. Never ask rigid scripted questions — just converse and extract.
-7. Your text response MUST be a plain conversational string (no JSON inside the text) — the JSON block goes at the very end between the markers.
+1. Before asking any question, check the ALREADY COLLECTED list. Never ask for a field already set.
+2. Extract any new fields from user input; merge into state; ask only for what's still missing.
+3. Skip is always allowed. If the user says "skip", "pass", "I don't have one", or similar, move gracefully to the next question.
+4. Never break flow. Handle anything gracefully.
+5. Never ask rigid scripted questions — converse naturally.
+6. Your text response MUST be plain prose (no JSON inside it). The JSON block goes at the very end.
+7. After the final question, when all required items are collected OR acknowledged as skipped, your confirmation message MUST be EXACTLY: "I have everything I need to build your campaign direction." followed by a short 3-line summary, then set complete: true.
 
-CRITICAL OUTPUT FORMAT: You must ALWAYS end every response with a JSON block on its own line in this exact format:
+CRITICAL OUTPUT FORMAT: Every response ends with a JSON block on its own line:
 ###FIELDS###
-{"bizName":"","city":"","zip":"","desc":"","services":[],"cta":"","look":"","tagline":"","complete":false}
+{"bizName":"","city":"","zip":"","desc":"","address":"","targetCustomer":"","services":[],"cta":"","brandVibe":"","printSize":"","tagline":"","qrType":"","qrValue":"","phone":"","complete":false}
 ###END###
 
-Fill in whatever fields you've collected so far from the conversation (including anything from the ALREADY COLLECTED list, so the client state stays accurate). Leave uncollected fields as empty strings or empty arrays. Set "complete" to true ONLY when all 6 items (bizName, city, zip, desc, services, cta, look) are populated AND the user has confirmed your summary.
-
-For "look", use one of: "warm_bold", "professional", "bold_modern" (or empty if not chosen yet).
-For "cta", use title case like "Order Now", "Book Now", "Call Us".
-For "tagline", generate a short catchy tagline based on what you know about the business.
-
-When you're ready to show the look options, mention all three: Local (clean & classic), Community (professional & trusted), Premier (bold & premium). The UI will render them as clickable cards automatically when look hasn't been chosen yet and you mention them.
-
-When you have all 6 fields and the user confirms the summary, set complete to true and give a closing confirmation.`;
+For "printSize", use one of: "eighth", "quarter", "third", "half", "full", "cover".
+For "qrType", use one of: "url", "email", "other", "none".
+`;
 
 function parseResponse(raw: string): { text: string; fields: Partial<IntakeFields> & { complete?: boolean } } {
   const marker = "###FIELDS###";
   const endMarker = "###END###";
   const markerIdx = raw.indexOf(marker);
   if (markerIdx === -1) {
-    // No marker — try to strip any stray JSON-looking text from the response.
     const cleaned = raw.replace(/\{[^{}]*"bizName"[^{}]*\}/g, "").trim();
     return { text: cleaned || raw.trim(), fields: {} };
   }
-
   const text = raw.substring(0, markerIdx).trim();
   const endIdx = raw.indexOf(endMarker, markerIdx);
-  const jsonSlice = endIdx > -1
-    ? raw.substring(markerIdx + marker.length, endIdx)
-    : raw.substring(markerIdx + marker.length);
+  const jsonSlice = endIdx > -1 ? raw.substring(markerIdx + marker.length, endIdx) : raw.substring(markerIdx + marker.length);
   const jsonStr = jsonSlice.trim();
   try {
-    const fields = JSON.parse(jsonStr);
-    return { text, fields };
+    return { text, fields: JSON.parse(jsonStr) };
   } catch {
-    // Try to find the first {...} block inside the slice
     const m = jsonStr.match(/\{[\s\S]*\}/);
     if (m) {
       try { return { text, fields: JSON.parse(m[0]) }; } catch { /* ignore */ }
@@ -91,16 +95,12 @@ function parseResponse(raw: string): { text: string; fields: Partial<IntakeField
   }
 }
 
-function buildCollectedFields(f: IntakeFields): Record<string, unknown> {
+function buildCollected(f: IntakeFields): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  if (f.bizName) out.bizName = f.bizName;
-  if (f.city) out.city = f.city;
-  if (f.zip) out.zip = f.zip;
-  if (f.desc) out.desc = f.desc;
-  if (f.services && f.services.length > 0) out.services = f.services;
-  if (f.cta) out.cta = f.cta;
-  if (f.look) out.look = f.look;
-  if (f.tagline) out.tagline = f.tagline;
+  (Object.keys(f) as (keyof IntakeFields)[]).forEach((k) => {
+    const v = f[k];
+    if (Array.isArray(v) ? v.length > 0 : v) out[k] = v;
+  });
   return out;
 }
 
@@ -112,55 +112,34 @@ function IntakeInner() {
   const [chat, setChat] = useState<Msg[]>([{
     role: "bruno",
     text: isMagic
-      ? "Hey — your rep set up this link for you. Tell me about the business! What's the name, what do they do, where are they?"
-      : "Hey — I'm Bruno! Tell me about the business. What's the name, what do they do, where are they located?",
+      ? "Hey — your rep set up this link for you. Tell me about the business! What's the name and what city are you in?"
+      : "Hey — I'm Bruno. Let's build your print campaign direction. What's the business name and city?",
   }]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [finished, setFinished] = useState(false);
 
   const [fields, setFields] = useState<IntakeFields>({
-    bizName: "", city: "", zip: "", desc: "",
-    services: [], cta: "", look: "", tagline: "", domain: "",
+    bizName: "", city: "", zip: "", desc: "", address: "", targetCustomer: "",
+    services: [], cta: "", brandVibe: "", logoUrl: "", photoUrl: "",
+    printSize: "", tagline: "", qrType: "", qrValue: "", phone: "",
   });
 
-  const [previewHtml, setPreviewHtml] = useState("");
   const [sbrData, setSbrData] = useState<Record<string, unknown> | null>(null);
 
   const historyRef = useRef<{ role: string; content: string }[]>([{
     role: "assistant",
     content: isMagic
-      ? "Hey — your rep set up this link for you. Tell me about the business! What's the name, what do they do, where are they?"
-      : "Hey — I'm Bruno! Tell me about the business. What's the name, what do they do, where are they located?",
+      ? "Hey — your rep set up this link for you. Tell me about the business! What's the name and what city are you in?"
+      : "Hey — I'm Bruno. Let's build your print campaign direction. What's the business name and city?",
   }]);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const sbrFiredRef = useRef(false);
-  const domainCheckedRef = useRef(false);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chat]);
 
-  // Live preview update
-  useEffect(() => {
-    if (!fields.look || !fields.bizName) return;
-    fetch("/api/site/generate", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        clientId: "preview", lookKey: fields.look,
-        profileData: {
-          business_name: fields.bizName, city: fields.city, zip: fields.zip, phone: "",
-          intakeAnswers: {
-            q1: `${fields.bizName}, ${fields.city} ${fields.zip}`,
-            q2: fields.desc, q3: fields.services.join(", "),
-            q4: fields.cta, q5: fields.look,
-          },
-          sbrData: sbrData || undefined,
-        },
-      }),
-    }).then((r) => r.json()).then((d) => setPreviewHtml(d.html || "")).catch(() => {});
-  }, [fields.look, fields.bizName, fields.city, fields.zip, fields.desc, fields.services, fields.cta, sbrData]);
-
-  // Fire SBR once we have name + city + zip
+  // Fire SBR silently once we have name + city + zip
   useEffect(() => {
     if (sbrFiredRef.current || !fields.bizName || !fields.city || !fields.zip) return;
     sbrFiredRef.current = true;
@@ -172,8 +151,8 @@ function IntakeInner() {
     }).catch(() => {});
   }, [fields.bizName, fields.city, fields.zip, fields.desc]);
 
-  function addMsg(role: "bruno" | "user", text: string, cards?: Msg["cards"]) {
-    setChat((p) => [...p, { role, text, cards }]);
+  function addMsg(role: "bruno" | "user", text: string, chips?: Msg["chips"]) {
+    setChat((p) => [...p, { role, text, chips }]);
   }
 
   async function handleSend(override?: string) {
@@ -182,7 +161,6 @@ function IntakeInner() {
     setInput("");
     addMsg("user", ans);
     setLoading(true);
-
     historyRef.current.push({ role: "user", content: ans });
 
     try {
@@ -192,81 +170,49 @@ function IntakeInner() {
           system: SYSTEM_PROMPT,
           messages: historyRef.current,
           temperature: 0.7,
-          collectedFields: buildCollectedFields(fields),
+          collectedFields: buildCollected(fields),
         }),
       });
       const data = await res.json();
-      console.log("[Bruno] /api/chat response:", JSON.stringify(data));
 
       if (!res.ok || data.error) {
-        const errMsg = data.error || `API returned ${res.status}`;
-        console.error("[Bruno] API error:", errMsg);
-        addMsg("bruno", `Something went wrong: ${errMsg}`);
+        addMsg("bruno", `Something went wrong: ${data.error || res.status}`);
         setLoading(false);
         return;
       }
 
-      const raw =
-        typeof data.response === "string" && data.response
-          ? data.response
-          : typeof data.content?.[0]?.text === "string"
-            ? data.content[0].text
-            : "";
+      const raw = typeof data.response === "string" ? data.response
+        : typeof data.content?.[0]?.text === "string" ? data.content[0].text : "";
       if (!raw) {
-        console.warn("[Bruno] Empty response from API");
         addMsg("bruno", "I got an empty response — try again?");
         setLoading(false);
         return;
       }
       const { text, fields: newFields } = parseResponse(raw);
 
-      // Update fields with whatever Bruno extracted
       setFields((prev) => {
-        const updated = { ...prev };
-        if (newFields.bizName) updated.bizName = newFields.bizName;
-        if (newFields.city) updated.city = newFields.city;
-        if (newFields.zip) updated.zip = newFields.zip;
-        if (newFields.desc) updated.desc = newFields.desc;
-        if (newFields.services && newFields.services.length > 0) updated.services = newFields.services;
-        if (newFields.cta) updated.cta = newFields.cta;
-        if (newFields.look) updated.look = newFields.look;
-        if (newFields.tagline) updated.tagline = newFields.tagline;
-        return updated;
+        const u = { ...prev };
+        (Object.keys(newFields) as (keyof IntakeFields)[]).forEach((k) => {
+          const val = (newFields as Record<string, unknown>)[k];
+          if (val === undefined || val === null) return;
+          if (Array.isArray(val) && val.length > 0) (u as Record<string, unknown>)[k] = val;
+          else if (typeof val === "string" && val) (u as Record<string, unknown>)[k] = val;
+        });
+        return u;
       });
 
-      // Silent domain check when bizName + city first collected
-      if (newFields.bizName && newFields.city && !domainCheckedRef.current) {
-        domainCheckedRef.current = true;
-        const slug = newFields.bizName.toLowerCase().replace(/[^a-z0-9]+/g, "");
-        fetch("/api/domain/check", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ businessName: newFields.bizName, domain: `${slug}.com` }),
-        }).then((r) => r.json()).then((d) => {
-          if (d.available) {
-            addMsg("bruno", `${slug}.com is available ✓`);
-          } else {
-            const alts = d.alternatives?.join(", ") || `${slug}local.com, ${slug}city.com, my${slug}.com`;
-            addMsg("bruno", `${slug}.com is taken — here are 3 alternatives: ${alts}`);
-          }
-          setFields((prev) => ({ ...prev, domain: d.available ? `${slug}.com` : (d.alternatives?.[0] || `${slug}.com`) }));
-        }).catch(() => { /* domain check failed silently */ });
-      }
-
-      // Show look cards if Bruno is asking about look and it hasn't been chosen yet
-      const showLookCards = !newFields.look && !fields.look && /local|community|premier/i.test(text);
-      const cards = showLookCards
-        ? LOOK_OPTIONS.map((l) => ({ label: l.label, value: l.id, desc: l.desc, accent: l.accent }))
+      const showSizeCards = !newFields.printSize && !fields.printSize && /eighth|quarter|third|half|full|cover|print size/i.test(text);
+      const chips = showSizeCards
+        ? PRINT_SIZES.map((s) => ({ label: `${s.label} — ${s.desc}`, value: s.id }))
         : undefined;
 
-      addMsg("bruno", text, cards);
+      addMsg("bruno", text, chips);
       historyRef.current.push({ role: "assistant", content: raw });
 
-      // Confetti for Premier
-      if (newFields.look === "bold_modern") {
+      if (newFields.printSize === "cover") {
         import("canvas-confetti").then((mod) => mod.default({ particleCount: 120, spread: 80, colors: ["#F5C842", "#0d1a2e", "#ffffff"] }));
       }
 
-      // If complete, fire the POST
       if (newFields.complete) {
         setFinished(true);
         await doFinish(newFields);
@@ -274,25 +220,37 @@ function IntakeInner() {
     } catch {
       addMsg("bruno", "Sorry, had a hiccup. Say that again?");
     }
-
     setLoading(false);
   }
 
   async function doFinish(finalFields: Partial<IntakeFields>) {
     const f = { ...fields, ...finalFields };
     const slug = f.bizName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "");
-
     try {
       const res = await fetch("/api/intake/create", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           intakeAnswers: {
-            q1: `${f.bizName}, ${f.city} ${f.zip}`, q2: f.desc,
-            q3: f.services.join(", "), q4: f.cta, q5: f.look,
-            q6: "no", q7: "", q8: f.tagline, q9: `${slug}.com`,
+            q1: `${f.bizName}, ${f.city}${f.zip ? " " + f.zip : ""}`,
+            q2: f.desc,
+            q3: f.services.join(", "),
+            q4: f.cta,
+            q5: f.printSize,
+            q6: f.qrType === "none" ? "no" : "yes",
+            q7: f.qrValue,
+            q8: f.tagline,
+            q9: `${slug}.com`,
+            address: f.address,
+            targetCustomer: f.targetCustomer,
+            brandVibe: f.brandVibe,
+            logoUrl: f.logoUrl,
+            photoUrl: f.photoUrl,
+            phone: f.phone,
           },
           sbrData: {
-            ...(sbrData || {}), tagline: f.tagline, suggestedTagline: f.tagline,
+            ...(sbrData || {}),
+            tagline: f.tagline,
+            suggestedTagline: f.tagline,
             services: f.services.map((s) => ({ name: s, description: `${s} — proudly serving ${f.city}.` })),
           },
           rep: isMagic ? "magic-link" : "ted",
@@ -301,47 +259,95 @@ function IntakeInner() {
       const data = await res.json();
       if (data.profile?.id) {
         await new Promise((r) => setTimeout(r, 600));
-        router.push("/dashboard");
+        router.push(`/tearsheet/${data.profile.id}`);
       }
     } catch { /* error */ }
   }
 
-  // Demo mode
   async function runDemo() {
     const w = (ms: number) => new Promise((r) => setTimeout(r, ms));
-    const d = 600;
-    addMsg("user", "Ted's Tacos, smash burgers and street tacos in Tulsa 74103");
-    await w(d);
-    setFields((p) => ({ ...p, bizName: "Ted's Tacos", city: "Tulsa", zip: "74103", desc: "smash burgers and street tacos" }));
-    addMsg("bruno", "Love it — Ted's Tacos in Tulsa! Smash burgers and street tacos sounds amazing. What are the top 2-3 things you guys offer?");
-    await w(d);
-    addMsg("user", "Street Tacos, Catering, Late Night");
-    await w(d);
-    setFields((p) => ({ ...p, services: ["Street Tacos", "Catering", "Late Night"] }));
-    addMsg("bruno", "Street Tacos, Catering, and Late Night — solid lineup. What should the main button on your site say? Something like \"Order Now\" or \"Call Us\"?");
-    await w(d);
-    addMsg("user", "Order Now");
-    await w(d);
-    setFields((p) => ({ ...p, cta: "Order Now" }));
-    addMsg("bruno", "Order Now it is. Last thing — pick your site's vibe:", LOOK_OPTIONS.map((l) => ({ label: l.label, value: l.id, desc: l.desc, accent: l.accent })));
-    await w(d);
-    addMsg("user", "Premier");
-    await w(d);
-    setFields((p) => ({ ...p, look: "bold_modern", tagline: "Tulsa's Taco Revolution Starts Here" }));
-    import("canvas-confetti").then((mod) => mod.default({ particleCount: 120, spread: 80, colors: ["#F5C842", "#0d1a2e", "#ffffff"] }));
-    addMsg("bruno", "Premier — great taste! Here's what I've got:\n\n• Business: Ted's Tacos\n• Location: Tulsa, 74103\n• What you do: Smash burgers and street tacos\n• Services: Street Tacos, Catering, Late Night\n• Button: Order Now\n• Look: Premier\n\nCreating your profile now...");
-    await w(1000);
-    router.push("/dashboard");
-  }
+    const d = 500;
+    const demo = {
+      bizName: "Ted's Tacos", city: "Tulsa", zip: "74103",
+      desc: "street tacos, smash burgers and craft sodas",
+      address: "123 Main St, Tulsa OK 74103",
+      targetCustomer: "Young families, downtown workers, late-night foodies",
+      services: ["Street Tacos", "Catering", "Late Night"],
+      cta: "Order Now",
+      brandVibe: "warm, bold, street-food energy — red and gold",
+      printSize: "quarter",
+      tagline: "Tulsa's Taco Revolution Starts Here",
+      qrType: "url" as const,
+      qrValue: "tedstacos.com",
+      phone: "(918) 555-0199",
+    };
 
-  // Check if we should show look cards (look not yet selected and no cards currently showing)
-  const needsLook = !fields.look && !finished;
+    addMsg("user", `${demo.bizName} in ${demo.city} ${demo.zip}`);
+    await w(d);
+    setFields((p) => ({ ...p, bizName: demo.bizName, city: demo.city, zip: demo.zip }));
+    addMsg("bruno", `${demo.bizName} in ${demo.city} — love it. What does the business do in one sentence?`);
+    await w(d);
+    addMsg("user", demo.desc);
+    setFields((p) => ({ ...p, desc: demo.desc }));
+    await w(d);
+    addMsg("bruno", "Perfect. What's the street address for the ad?");
+    await w(d);
+    addMsg("user", demo.address);
+    setFields((p) => ({ ...p, address: demo.address }));
+    await w(d);
+    addMsg("bruno", "Got it. Who's your target customer?");
+    await w(d);
+    addMsg("user", demo.targetCustomer);
+    setFields((p) => ({ ...p, targetCustomer: demo.targetCustomer }));
+    await w(d);
+    addMsg("bruno", "Top 3 services or products?");
+    await w(d);
+    addMsg("user", demo.services.join(", "));
+    setFields((p) => ({ ...p, services: demo.services }));
+    await w(d);
+    addMsg("bruno", "What should the CTA say?");
+    await w(d);
+    addMsg("user", demo.cta);
+    setFields((p) => ({ ...p, cta: demo.cta }));
+    await w(d);
+    addMsg("bruno", "Describe your brand vibe — colors, energy, feel.");
+    await w(d);
+    addMsg("user", demo.brandVibe);
+    setFields((p) => ({ ...p, brandVibe: demo.brandVibe }));
+    await w(d);
+    addMsg("bruno", "Do you have a logo? (Upload or skip)");
+    await w(d);
+    addMsg("user", "skip");
+    await w(d);
+    addMsg("bruno", "Photo of the business? (Upload or skip — we'll use stock if skipped)");
+    await w(d);
+    addMsg("user", "skip");
+    await w(d);
+    addMsg("bruno", "What print size? Eighth, quarter, third, half, full, or cover?");
+    await w(d);
+    addMsg("user", "Quarter — most popular");
+    setFields((p) => ({ ...p, printSize: demo.printSize }));
+    await w(d);
+    addMsg("bruno", `Here's a tagline I wrote: "${demo.tagline}". Good, want to tweak, or skip?`);
+    await w(d);
+    addMsg("user", "Perfect — use it.");
+    setFields((p) => ({ ...p, tagline: demo.tagline }));
+    await w(d);
+    addMsg("bruno", "QR code? Want one? (URL or email, or skip)");
+    await w(d);
+    addMsg("user", `Yes — ${demo.qrValue}`);
+    setFields((p) => ({ ...p, qrType: demo.qrType, qrValue: demo.qrValue, phone: demo.phone }));
+    await w(d);
+    addMsg("bruno", "I have everything I need to build your campaign direction.\n\n• " + demo.bizName + " — " + demo.city + "\n• " + demo.cta + " · Quarter page\n• QR: " + demo.qrValue);
+
+    setFinished(true);
+    await doFinish({ ...demo, logoUrl: "", photoUrl: "" });
+  }
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "#0d1a2e" }}>
       <TopNav activePage="intake" />
       <div style={{ display: "flex", flex: 1 }}>
-        {/* Chat */}
         <div style={{ width: "50%", display: "flex", flexDirection: "column", borderRight: "1px solid #1e293b" }}>
           <div style={{ borderBottom: "1px solid #1e293b", padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
@@ -349,11 +355,16 @@ function IntakeInner() {
               <p style={{ fontSize: 12, color: "#64748b", margin: "2px 0 0" }}>
                 {[
                   fields.bizName && "Name",
-                  fields.city && "Location",
-                  fields.desc && "Description",
+                  fields.city && "City",
+                  fields.address && "Address",
+                  fields.desc && "Desc",
+                  fields.targetCustomer && "Target",
                   fields.services.length > 0 && "Services",
                   fields.cta && "CTA",
-                  fields.look && "Look",
+                  fields.brandVibe && "Vibe",
+                  fields.printSize && "Size",
+                  fields.tagline && "Tagline",
+                  fields.qrType && "QR",
                 ].filter(Boolean).join(" · ") || "Getting started..."}
               </p>
             </div>
@@ -380,18 +391,13 @@ function IntakeInner() {
                     {msg.text}
                   </div>
                 </div>
-                {/* Look option cards */}
-                {msg.cards && needsLook && (
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginTop: 12, paddingLeft: 32 }}>
-                    {msg.cards.map((c) => (
+                {msg.chips && !fields.printSize && (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginTop: 12, paddingLeft: 32 }}>
+                    {msg.chips.map((c) => (
                       <button key={c.value} onClick={() => handleSend(c.label)} style={{
-                        background: "#1a2740", border: c.value === "bold_modern" ? "2px solid #F5C842" : "1px solid #334155",
-                        borderRadius: 12, padding: 16, cursor: "pointer", textAlign: "left",
-                      }}>
-                        <div style={{ height: 4, background: c.accent, borderRadius: 2, marginBottom: 10 }} />
-                        <p style={{ fontSize: 14, fontWeight: 700, color: "#fff", margin: "0 0 4px" }}>{c.label}</p>
-                        <p style={{ fontSize: 11, color: "#64748b", margin: 0 }}>{c.desc}</p>
-                      </button>
+                        background: "#1a2740", border: "1px solid #334155",
+                        borderRadius: 10, padding: 12, cursor: "pointer", textAlign: "left", color: "#fff", fontSize: 12,
+                      }}>{c.label}</button>
                     ))}
                   </div>
                 )}
@@ -410,23 +416,24 @@ function IntakeInner() {
           {!finished && (
             <div style={{ borderTop: "1px solid #1e293b", padding: 16 }}>
               <div style={{ display: "flex", gap: 8 }}>
-                <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSend()} placeholder="Type your answer..." style={{ flex: 1, borderRadius: 8, border: "1px solid #334155", background: "#1a2740", padding: "10px 16px", fontSize: 14, color: "#fff", outline: "none" }} disabled={loading} />
+                <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSend()} placeholder="Type your answer or 'skip'..." style={{ flex: 1, borderRadius: 8, border: "1px solid #334155", background: "#1a2740", padding: "10px 16px", fontSize: 14, color: "#fff", outline: "none" }} disabled={loading} />
                 <button onClick={() => handleSend()} disabled={loading || !input.trim()} style={{ background: "#F5C842", color: "#0d1a2e", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 14, fontWeight: 700, cursor: "pointer", opacity: loading || !input.trim() ? 0.5 : 1 }}>Send</button>
               </div>
             </div>
           )}
         </div>
 
-        {/* Preview */}
         <div style={{ width: "50%", background: "#1a2740", padding: 32, overflowY: "auto", position: "sticky", top: 0, height: "100vh" }}>
-          <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "#F5C842", marginBottom: 24 }}>Live Preview</p>
+          <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "#F5C842", marginBottom: 24 }}>Campaign Direction — Building</p>
           <div style={{ background: "#0d1a2e", border: "1px solid #334155", borderRadius: 12, padding: 32 }}>
             {fields.bizName ? (
               <>
-                <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 24, fontWeight: 700, color: "#fff", margin: 0 }}>{fields.bizName}</h2>
+                <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 26, fontWeight: 700, color: "#fff", margin: 0 }}>{fields.bizName}</h2>
                 {fields.city && <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 4 }}>{fields.city}{fields.zip ? `, ${fields.zip}` : ""}</p>}
                 {fields.tagline && <p style={{ fontSize: 15, color: "#F5C842", fontStyle: "italic", marginTop: 12 }}>&ldquo;{fields.tagline}&rdquo;</p>}
                 {fields.desc && <p style={{ fontSize: 13, color: "#cbd5e1", marginTop: 8 }}>{fields.desc}</p>}
+                {fields.address && <p style={{ fontSize: 12, color: "#94a3b8", marginTop: 6 }}>📍 {fields.address}</p>}
+                {fields.targetCustomer && <p style={{ fontSize: 12, color: "#94a3b8", marginTop: 6 }}>🎯 {fields.targetCustomer}</p>}
                 {fields.services.length > 0 && (
                   <div style={{ marginTop: 16 }}>
                     <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#64748b", marginBottom: 8 }}>Services</p>
@@ -436,26 +443,17 @@ function IntakeInner() {
                   </div>
                 )}
                 {fields.cta && <button style={{ marginTop: 16, background: "#F5C842", color: "#0d1a2e", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 14, fontWeight: 700 }}>{fields.cta}</button>}
-                {previewHtml && (
-                  <div style={{ marginTop: 20 }}>
-                    <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#64748b", marginBottom: 8 }}>Site Preview — {LOOK_OPTIONS.find((l) => l.id === fields.look)?.label}</p>
-                    <div style={{ background: "#374151", borderRadius: "8px 8px 0 0", padding: "6px 8px 0" }}>
-                      <div style={{ display: "flex", gap: 3, marginBottom: 4 }}>
-                        <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#ef4444" }} />
-                        <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#f59e0b" }} />
-                        <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e" }} />
-                      </div>
-                      <div style={{ background: "#fff", borderRadius: "3px 3px 0 0", height: 200, overflow: "hidden" }}>
-                        <iframe srcDoc={previewHtml} style={{ width: 1200, height: 800, border: "none", transform: "scale(0.3)", transformOrigin: "top left", pointerEvents: "none" }} title="Preview" />
-                      </div>
-                    </div>
-                  </div>
+                {fields.printSize && (
+                  <p style={{ fontSize: 12, color: "#94a3b8", marginTop: 16 }}>Print Size: <span style={{ color: "#F5C842", fontWeight: 600 }}>{fields.printSize}</span></p>
+                )}
+                {fields.qrType && fields.qrType !== "none" && (
+                  <p style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>QR: {fields.qrValue || "pending"}</p>
                 )}
               </>
             ) : (
               <div style={{ textAlign: "center", padding: "48px 0" }}>
-                <div style={{ fontSize: 48, opacity: 0.3, marginBottom: 16 }}>📋</div>
-                <p style={{ color: "#64748b" }}>Profile builds here as you answer.</p>
+                <div style={{ fontSize: 48, opacity: 0.3, marginBottom: 16 }}>🖨</div>
+                <p style={{ color: "#64748b" }}>Your campaign direction builds here as you answer.</p>
               </div>
             )}
           </div>

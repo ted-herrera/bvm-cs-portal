@@ -2,7 +2,7 @@
 // Generates HTML/CSS print ad layouts at exact pixel dimensions for BVM magazine sizes.
 // Preview at 150 DPI; print-ready export at 300 DPI with 0.125" bleed.
 
-export type PrintSize = "1/8" | "1/4" | "1/2" | "full" | "cover";
+export type PrintSize = "1/8" | "1/4" | "1/3" | "1/2" | "full" | "cover";
 export type PrintVariation = "clean_classic" | "bold_modern" | "premium_editorial";
 
 export interface PrintAdData {
@@ -19,6 +19,7 @@ export interface PrintAdData {
   size: PrintSize;
   variation: PrintVariation;
   subVariation?: number; // 0-3
+  qrValue?: string;
 }
 
 export interface SizeSpec {
@@ -37,6 +38,7 @@ const SAFE_INCHES = 0.25;
 const sizeInches: Record<PrintSize, { w: number; h: number }> = {
   "1/8": { w: 3.625, h: 2.375 },
   "1/4": { w: 3.625, h: 4.875 },
+  "1/3": { w: 3.625, h: 6.625 },
   "1/2": { w: 7.5, h: 4.875 },
   full: { w: 7.5, h: 10 },
   cover: { w: 8.5, h: 11 },
@@ -45,6 +47,7 @@ const sizeInches: Record<PrintSize, { w: number; h: number }> = {
 export const SIZE_LABELS: Record<PrintSize, string> = {
   "1/8": "Eighth Page",
   "1/4": "Quarter Page",
+  "1/3": "Third Page",
   "1/2": "Half Page",
   full: "Full Page",
   cover: "Featured Cover",
@@ -53,6 +56,7 @@ export const SIZE_LABELS: Record<PrintSize, string> = {
 export const SIZE_DESCRIPTIONS: Record<PrintSize, string> = {
   "1/8": "Business card style — perfect for compact placements",
   "1/4": "Most popular size — strong presence at great value",
+  "1/3": "Tall vertical format — premium magazine column",
   "1/2": "Bold landscape format — impossible to miss",
   full: "Full page premium real estate",
   cover: "Premium featured cover — the crown jewel",
@@ -324,6 +328,7 @@ export function normalizeSize(s: string | null | undefined): PrintSize {
   const k = s.toLowerCase().trim();
   if (k.includes("1/8") || k.includes("eighth")) return "1/8";
   if (k.includes("1/4") || k.includes("quarter")) return "1/4";
+  if (k.includes("1/3") || k.includes("third")) return "1/3";
   if (k.includes("1/2") || k.includes("half")) return "1/2";
   if (k.includes("cover") || k.includes("featured")) return "cover";
   if (k.includes("full")) return "full";

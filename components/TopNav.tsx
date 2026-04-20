@@ -3,13 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-type ActivePage = "dashboard" | "clients" | "intake" | "qa";
+type ActivePage = "dashboard" | "clients" | "intake" | "admin";
 
 const pills: { label: string; href: string; page: ActivePage }[] = [
   { label: "Dashboard", href: "/dashboard", page: "dashboard" },
   { label: "Clients", href: "/dashboard", page: "dashboard" },
   { label: "New Intake", href: "/intake", page: "intake" },
-  { label: "QA Engine", href: "/qa", page: "qa" },
 ];
 
 export default function TopNav({ activePage }: { activePage: ActivePage }) {
@@ -51,7 +50,7 @@ export default function TopNav({ activePage }: { activePage: ActivePage }) {
             whiteSpace: "nowrap",
           }}
         >
-          BVM DESIGN CENTER
+          BVM CLIENT SUCCESS PORTAL
         </span>
 
         {/* Center — pill nav */}
