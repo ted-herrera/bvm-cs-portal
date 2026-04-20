@@ -40,9 +40,9 @@ COLLECTION ORDER:
 7. Website URL for QR code — ask "What's your website URL? We'll add a QR code to your ad." Skip option available.
 8. Contact phone number for the ad
 9. Contact email for the ad
-10. Full business address for the ad (street, city, state, zip) — skip option available
+10. Full business address — IMPORTANT: You MUST explicitly ask "What's your full business address? Street, city, state, zip — this will appear on your ad. (or type skip to leave it off)" Do NOT skip this step. Do NOT combine it with any other question. Wait for the user's response before proceeding.
 
-When ALL fields collected confirm everything and say exactly: "BRIEF_COMPLETE" followed by a JSON block like:
+When ALL 10 fields have been collected (or skipped where allowed), confirm everything and say exactly: "BRIEF_COMPLETE" followed by a JSON block like:
 BRIEF_COMPLETE
 {"businessName":"...","category":"...","city":"...","zip":"...","services":"...","adSize":"...","tagline":"...","qrUrl":"...","contactPhone":"...","contactEmail":"...","contactAddress":"..."}
 
@@ -184,6 +184,17 @@ export default function CampaignIntake() {
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#C8922A", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: "#1B2A4A", fontSize: 14 }}>B</div>
           <span style={{ color: "white", fontWeight: 600, fontSize: 14 }}>Bruno</span>
           <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 12 }}>Campaign Intake</span>
+          <div style={{ flex: 1 }} />
+          <button onClick={() => {
+            const demo: Brief = { businessName: "Ted's Burger Shack", category: "Restaurant", city: "Tulsa", zip: "74103", services: "Premium burgers, craft shakes, local ingredients", adSize: "1/4 Page", tagline: "Tulsa's favorite burger.", qrUrl: "https://tedsburgershack.com", contactPhone: "(918) 555-0123", contactEmail: "hello@tedsburgershack.com", contactAddress: "123 Main St, Tulsa, OK 74103" };
+            setBrief(demo);
+            setMessages([...messages, { role: "assistant", content: "Running demo intake for Ted's Burger Shack..." }]);
+            setPhase("generating");
+            repId.current = "Karen Guirguis";
+            generateCampaign(demo);
+          }} style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 6, padding: "5px 12px", fontSize: 11, color: "rgba(255,255,255,0.6)", cursor: "pointer", fontWeight: 600 }}>
+            Demo Run →
+          </button>
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
           {messages.map((m, i) => (
