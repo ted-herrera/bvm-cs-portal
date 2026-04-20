@@ -254,9 +254,18 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!selectedClient?.city) { setClientWeather(""); setClientTz(""); return; }
     const cityClean = selectedClient.city.split(",")[0].trim();
-    fetch(`https://wttr.in/${encodeURIComponent(cityClean)}?format=3`)
-      .then((r) => r.text())
-      .then((t) => setClientWeather(t.trim()))
+    fetch(`https://wttr.in/${encodeURIComponent(cityClean)}?format=j1`)
+      .then((r) => r.json())
+      .then((j: { current_condition?: Array<{ temp_F?: string; weatherDesc?: Array<{ value?: string }> }> }) => {
+        const cur = j?.current_condition?.[0];
+        if (cur) {
+          const desc = cur.weatherDesc?.[0]?.value?.trim() || "";
+          const temp = cur.temp_F ? `${cur.temp_F}°F` : "";
+          setClientWeather([temp, desc].filter(Boolean).join(" · "));
+        } else {
+          setClientWeather("");
+        }
+      })
       .catch(() => setClientWeather(""));
     // Naive timezone from common US cities
     const tzMap: Record<string, string> = {
@@ -1405,7 +1414,23 @@ export default function DashboardPage() {
                     </div>
                     <div style={{ textAlign: "right" }}>
                       <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#7a8a9a", margin: "0 0 4px" }}>Weather</p>
-                      <p style={{ fontSize: 13, color: "#1a2332", margin: 0, fontWeight: 600 }}>{clientWeather || "Loading..."}</p>
+                      <p style={{ fontSize: 13, color: "#1a2332", margin: 0, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}>
+                        {clientWeather
+                          ? (() => {
+                              const clean = clientWeather.replace(/<[^>]*>/g, "").trim();
+                              const lower = clean.toLowerCase();
+                              const icon =
+                                lower.includes("sun") || lower.includes("clear") ? "☀️" :
+                                lower.includes("rain") || lower.includes("shower") ? "🌧️" :
+                                lower.includes("snow") ? "❄️" :
+                                lower.includes("storm") || lower.includes("thunder") ? "⛈️" :
+                                lower.includes("fog") || lower.includes("mist") ? "🌫️" :
+                                lower.includes("cloud") || lower.includes("overcast") ? "☁️" :
+                                "🌤️";
+                              return (<><span aria-hidden>{icon}</span><span>{clean}</span></>);
+                            })()
+                          : <span style={{ color: "#7a8a9a", fontWeight: 500 }}>Loading…</span>}
+                      </p>
                     </div>
                   </div>
                   <div><span style={{ color: "#7a8a9a" }}>Phone: </span><span style={{ color: "#1a2332", fontWeight: 600 }}>{selectedClient.phone || "—"}</span></div>
