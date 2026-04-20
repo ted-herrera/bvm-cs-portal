@@ -1,5 +1,5 @@
 import { classifyBusinessType, detectSubType } from "@/lib/business-classifier";
-import { getPhotoLibraryKey, getPhotoSourceList } from "@/lib/photo-library";
+import { getCampaignPhotos } from "@/lib/campaign-photos";
 
 export const maxDuration = 30;
 
@@ -11,21 +11,19 @@ const DIRECTIONS = [
 
 export async function POST(request: Request) {
   const { businessName, category, services } = (await request.json()) as {
-    businessName: string; category: string; city?: string; services: string;
-    adSize?: string; tagline?: string; sbrData?: unknown;
+    businessName: string; category: string; services: string;
+    city?: string; adSize?: string; tagline?: string; sbrData?: unknown;
   };
 
   const bizType = classifyBusinessType(businessName, `${category} ${services}`);
   const subType = detectSubType(businessName, `${category} ${services}`);
-  const photoKey = getPhotoLibraryKey(bizType, subType);
-  const sources = getPhotoSourceList(bizType, subType);
-  const unsplashPhotos = sources.filter(s => s.source === "unsplash").map(s => s.url);
+  const photos = getCampaignPhotos(bizType, subType);
 
   const directions = DIRECTIONS.map((dir, i) => ({
     name: dir.name,
-    imageUrl: unsplashPhotos[i % unsplashPhotos.length] || unsplashPhotos[0] || "",
+    imageUrl: photos[i % photos.length] || photos[0] || "",
     description: dir.description,
-    prompt: `${photoKey}/${bizType} — ${dir.name}`,
+    prompt: `${bizType}/${subType} — ${dir.name}`,
   }));
 
   return Response.json({ directions });
