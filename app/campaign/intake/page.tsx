@@ -334,74 +334,35 @@ export default function CampaignIntakePage() {
         void insertRes;
       }
 
-      // Fire SBR
-      fetch("/api/campaign/sbr", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          businessName: f.businessName,
-          category: f.category,
-          city: f.city,
-          zip: f.zip,
-        }),
-      })
-        .then((r) => r.json())
-        .then((sbrData) => {
-          // Update campaign_clients with SBR data
-          if (supabaseUrl && supabaseKey) {
-            fetch(
-              `${supabaseUrl}/rest/v1/campaign_clients?id=eq.${clientId}`,
-              {
-                method: "PATCH",
-                headers: {
-                  "Content-Type": "application/json",
-                  apikey: supabaseKey,
-                  Authorization: `Bearer ${supabaseKey}`,
-                },
-                body: JSON.stringify({ sbr_data: sbrData }),
-              },
-            ).catch(() => {});
-          }
-        })
-        .catch(() => {});
+      // Fire SBR + generate-image in parallel, AWAIT both before redirect
+      const [sbrRes, imgRes] = await Promise.allSettled([
+        fetch("/api/campaign/sbr", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ businessName: f.businessName, category: f.category, city: f.city, zip: f.zip }),
+        }).then(r => r.json()),
+        fetch("/api/campaign/generate-image", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ businessName: f.businessName, category: f.category, city: f.city, services: f.services, adSize: f.adSize, tagline: f.tagline }),
+        }).then(r => r.json()),
+      ]);
 
-      // Fire generate-image
-      fetch("/api/campaign/generate-image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          businessName: f.businessName,
-          category: f.category,
-          city: f.city,
-          services: f.services,
-          adSize: f.adSize,
-          tagline: f.tagline,
-        }),
-      })
-        .then((r) => r.json())
-        .then((imgData) => {
-          if (supabaseUrl && supabaseKey && imgData.directions) {
-            fetch(
-              `${supabaseUrl}/rest/v1/campaign_clients?id=eq.${clientId}`,
-              {
-                method: "PATCH",
-                headers: {
-                  "Content-Type": "application/json",
-                  apikey: supabaseKey,
-                  Authorization: `Bearer ${supabaseKey}`,
-                },
-                body: JSON.stringify({
-                  generated_directions: imgData.directions,
-                  stage: "tearsheet",
-                }),
-              },
-            ).catch(() => {});
-          }
-        })
-        .catch(() => {});
+      // Save SBR data
+      if (supabaseUrl && supabaseKey && sbrRes.status === "fulfilled") {
+        await fetch(`${supabaseUrl}/rest/v1/campaign_clients?id=eq.${clientId}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json", apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
+          body: JSON.stringify({ sbr_data: sbrRes.value }),
+        }).catch(() => {});
+      }
+
+      // Save generated directions
+      if (supabaseUrl && supabaseKey && imgRes.status === "fulfilled" && imgRes.value.directions) {
+        await fetch(`${supabaseUrl}/rest/v1/campaign_clients?id=eq.${clientId}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json", apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
+          body: JSON.stringify({ generated_directions: imgRes.value.directions, stage: "tearsheet" }),
+        }).catch(() => {});
+      }
 
       // Redirect to tearsheet
-      await new Promise((r) => setTimeout(r, 1200));
       window.location.href = `/campaign/tearsheet/${clientId}`;
     } catch {
       addMsg("bruno", "Saved your info but hit a snag. Redirecting...");

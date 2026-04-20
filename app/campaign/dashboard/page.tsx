@@ -514,7 +514,7 @@ export default function DashboardPage() {
     fetchCampaignClients(repId).then(setClients);
     fetch("/api/campaign/close-leads", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: CLOSE_USER_IDS[repId] ?? "" }),
+      body: JSON.stringify({ repName: repId }),
     }).then(r => r.json()).then(d => setCloseLeads(d.leads ?? [])).catch(() => {});
     fetchCSIntel(repId).then(setCsIntel);
   }, [user, demo]);
