@@ -2,12 +2,10 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 const PUBLIC_PATHS = [
-  "/marketing",
   "/login",
   "/api/",
-  "/qa-demo",
   "/client",
-  "/social",
+  "/tearsheet",
   "/campaign",
   "/_next",
   "/favicon.ico",
@@ -18,7 +16,7 @@ const PUBLIC_PATHS = [
   "/overview.mp4",
 ];
 
-function getRoleFromCookie(cookie: string): "rep" | "dev" | null {
+function getRoleFromCookie(cookie: string): "rep" | "admin" | null {
   try {
     const [encoded] = cookie.split(".");
     const payload = JSON.parse(Buffer.from(encoded, "base64url").toString("utf-8"));
@@ -36,16 +34,9 @@ export function proxy(request: NextRequest) {
   }
 
   if (pathname === "/") {
-    return NextResponse.redirect(new URL("/marketing", request.url));
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  // Redirect old /tearsheet/[id] URLs to /client/[id]
-  if (pathname.startsWith("/tearsheet/")) {
-    const clientId = pathname.replace("/tearsheet/", "");
-    return NextResponse.redirect(new URL(`/client/${clientId}`, request.url));
-  }
-
-  // Redirect old /profile and /clients routes to dashboard
   if (pathname.startsWith("/profile") || pathname.startsWith("/clients")) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
@@ -57,10 +48,7 @@ export function proxy(request: NextRequest) {
 
   const role = getRoleFromCookie(session);
 
-  if (role === "dev" && pathname.startsWith("/dashboard")) {
-    return NextResponse.redirect(new URL("/build-queue", request.url));
-  }
-  if (role === "rep" && pathname.startsWith("/build-queue")) {
+  if (role === "rep" && pathname.startsWith("/admin")) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
