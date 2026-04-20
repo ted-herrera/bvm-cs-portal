@@ -220,10 +220,12 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
                       <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(to top, rgba(0,0,0,0.85), transparent)", padding: "48px 16px 14px" }}>
                         <div style={{ fontSize: 18, fontWeight: 700, color: "#fff", fontFamily: "Georgia, serif", textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}>{client.business_name}</div>
                         {client.tagline && <div style={{ fontSize: 13, color: "rgba(255,255,255,0.9)", fontStyle: "italic", marginTop: 4 }}>&ldquo;{client.tagline}&rdquo;</div>}
-                        <div style={{ display: "flex", gap: 10, marginTop: 8, fontSize: 11, color: "rgba(255,255,255,0.8)", flexWrap: "wrap" }}>
-                          {(() => { const p = String((client as unknown as Record<string,unknown>).contact_phone || ""); return p ? <span>📞 {p}</span> : null; })()}
-                          {(() => { const e = String((client as unknown as Record<string,unknown>).contact_email || ""); return e ? <span>📧 {e}</span> : null; })()}
-                          {(() => { const a = String((client as unknown as Record<string,unknown>).contact_address || ""); return a ? <span>📍 {a}</span> : null; })()}
+                        <div style={{ marginTop: 8, fontSize: 11, color: "rgba(255,255,255,0.8)" }}>
+                          {[
+                            String((client as unknown as Record<string,unknown>).contact_phone || ""),
+                            String((client as unknown as Record<string,unknown>).contact_email || ""),
+                            String((client as unknown as Record<string,unknown>).contact_address || ""),
+                          ].filter(Boolean).join(" · ")}
                         </div>
                       </div>
                       {qrDataUrl && <img src={qrDataUrl} alt="QR" style={{ position: "absolute", bottom: 14, right: 14, width: 56, height: 56, borderRadius: 4, border: "2px solid #fff", boxShadow: "0 2px 8px rgba(0,0,0,0.4)" }} />}
