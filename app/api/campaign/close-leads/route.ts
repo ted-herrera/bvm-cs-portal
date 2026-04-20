@@ -43,66 +43,66 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Close API key not configured" }, { status: 500 });
     }
 
+    const authHeader = `Basic ${Buffer.from(`${apiKey}:`).toString("base64")}`;
     const allLeads: Array<Record<string, unknown>> = [];
     let hasMore = true;
-    let skip = 0;
-    const limit = 100;
-    const maxPages = 50;
-    let page = 0;
+    let cursor: string | null = null;
+    let pageCount = 0;
 
-    while (hasMore && page < maxPages) {
-      const url = new URL("https://api.close.com/api/v1/lead/");
-      url.searchParams.set("query", `user_id:${userId}`);
-      url.searchParams.set("_skip", String(skip));
-      url.searchParams.set("_limit", String(limit));
+    while (hasMore && pageCount < 50) {
+      let url = `https://api.close.com/api/v1/lead/?query=custom.CSS%3A%22${userId}%22&_fields=id,display_name,status_label,contacts,custom,opportunities,html_url&_limit=100`;
+      if (cursor) url += `&_cursor=${encodeURIComponent(cursor)}`;
 
-      const res = await fetch(url.toString(), {
-        headers: {
-          Authorization: `Basic ${Buffer.from(`${apiKey}:`).toString("base64")}`,
-          "Content-Type": "application/json",
-        },
+      const res = await fetch(url, {
+        headers: { Authorization: authHeader, "Content-Type": "application/json" },
       });
 
       if (!res.ok) {
         const err = await res.text();
-        return NextResponse.json({ error: `Close API error: ${err}` }, { status: 502 });
+        console.error("[close-leads] API error:", res.status, err);
+        break;
       }
 
-      const body: CloseApiResponse = await res.json();
+      const body = await res.json();
+      const data = body.data || [];
 
       // Filter out cancelled/lost leads
-      const filtered = body.data.filter(
-        (lead) =>
+      const filtered = data.filter(
+        (lead: CloseLead) =>
           lead.status_label?.toLowerCase() !== "cancelled" &&
           lead.status_label?.toLowerCase() !== "lost",
       );
 
       for (const lead of filtered) {
-        const custom = lead.custom || {};
+        const custom = (lead as Record<string, unknown>).custom as Record<string, unknown> || {};
         allLeads.push({
           id: lead.id,
-          name: lead.display_name,
+          businessName: lead.display_name,
           status: lead.status_label,
-          contacts: lead.contacts,
-          agreementNumber: custom["Agreement #"] ?? null,
-          adTypes: custom["Ad Type(s)"] ?? null,
-          cadence: custom["Cadence"] ?? null,
-          monthly: custom["Monthly"] ?? null,
-          firstEdition: custom["First Edition"] ?? null,
-          lastEdition: custom["Last Edition"] ?? null,
-          renewStatus: custom["Renew Status"] ?? null,
-          publications: custom["Publications"] ?? null,
-          region: custom["Region"] ?? null,
-          dvl: custom["DVL"] ?? null,
-          saleItems: custom["Sale Items"] ?? null,
-          saleDate: custom["Sale Date"] ?? null,
-          soldBy: custom["Sold By"] ?? null,
+          contactName: lead.contacts?.[0]?.name || "",
+          phone: lead.contacts?.[0]?.phones?.[0]?.phone || "",
+          email: lead.contacts?.[0]?.emails?.[0]?.email || "",
+          agreementNumber: custom["Agreement #"] ?? "",
+          adType: custom["Ad Type(s)"] ?? "",
+          cadence: custom["Cadence"] ?? "",
+          monthly: custom["Monthly"] ?? "",
+          firstEdition: custom["First Edition"] ?? "",
+          lastEdition: custom["Last Edition"] ?? "",
+          renewStatus: custom["Renew Status"] ?? "",
+          publications: custom["Publications"] ?? "",
+          region: custom["Region"] ?? "",
+          dvl: custom["DVL"] ?? "",
+          saleItems: custom["Sale Items"] ?? "",
+          saleDate: custom["Sale Date"] ?? "",
+          soldBy: custom["Sold By"] ?? "",
+          closeUrl: (lead as Record<string, unknown>).html_url ?? "",
         });
       }
 
-      hasMore = body.has_more;
-      skip += limit;
-      page++;
+      hasMore = body.has_more === true;
+      cursor = body.cursor || null;
+      pageCount++;
+      if (!hasMore || !cursor) break;
     }
 
     return NextResponse.json({ leads: allLeads, total: allLeads.length });

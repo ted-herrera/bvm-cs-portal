@@ -31,7 +31,7 @@ export default function CampaignLoginPage() {
         if (data.role === "admin") {
           window.location.href = "/campaign/admin";
         } else {
-          window.location.href = "/campaign/intake";
+          window.location.href = "/campaign/dashboard";
         }
       } else {
         setError(data.error || "Invalid credentials");

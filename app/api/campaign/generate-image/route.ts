@@ -17,8 +17,9 @@ export async function POST(request: NextRequest) {
     const subType = detectSubType(businessName, category);
     const photoKey = getPhotoLibraryKey(businessType, subType);
     const sources = getPhotoSourceList(businessType, subType);
-
     const unsplashPhotos = sources.filter((s) => s.source === "unsplash");
+
+    console.log(`[generate-image] ${businessName}: type=${businessType}, sub=${subType}, key=${photoKey}, photos=${unsplashPhotos.length}, url0=${unsplashPhotos[0]?.url?.substring(0, 60) || "NONE"}`);
 
     const directions = [
       {
