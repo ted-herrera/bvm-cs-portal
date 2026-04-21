@@ -257,12 +257,15 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
     setGenerating(false);
   }
 
-  // Keep Surprise Me responsive even when AI is offline: clicking cycles the
-  // Unsplash photo library for the subtype, one step per click.
+  // Keep Surprise Me responsive on every click. When AI is available, pass a
+  // fresh random integer seed 1–9999 so the OpenAI result is different each
+  // time. When AI is offline, cycle Unsplash photos for the subtype. Both
+  // paths produce a visually different ad on every click — no error surfaces.
   function surpriseMe() {
     if (!client) return;
     if (aiAvailable) {
-      generateImage(Math.random().toString(36).slice(2, 10));
+      const seed = Math.floor(Math.random() * 9999) + 1;
+      generateImage(seed);
       return;
     }
     const nextIdx = photoCycleIdx + 1;

@@ -400,6 +400,31 @@ export default function ClientPortalPage() {
             </div>
           </div>
         </div>
+
+        {/* Campaign preview — always visible on the client portal */}
+        <div style={{ maxWidth: 1000, margin: "0 auto", padding: "0 24px 40px" }}>
+          <section style={{ background: NAVY, color: "#fff", borderRadius: 14, padding: 24 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", color: GOLD, textTransform: "uppercase", margin: 0 }}>Full Campaign Preview</p>
+            <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 26, margin: "6px 0 14px" }}>Print · Website · Digital</h3>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+              <div style={{ background: PANEL_DARK, color: TEXT, borderRadius: 10, padding: 14 }}>
+                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", color: GOLD, textTransform: "uppercase", margin: 0 }}>Print</p>
+                <p style={{ fontSize: 13, fontWeight: 700, margin: "4px 0 0", color: TEXT }}>{client.business_name}</p>
+              </div>
+              <div style={{ background: PANEL_DARK, color: TEXT, borderRadius: 10, padding: 14 }}>
+                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", color: GOLD, textTransform: "uppercase", margin: 0 }}>Website</p>
+                <div style={{ background: "#f1f5f9", borderRadius: 6, height: 60, marginTop: 4 }} />
+              </div>
+              <div style={{ background: PANEL_DARK, color: TEXT, borderRadius: 10, padding: 14 }}>
+                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", color: GOLD, textTransform: "uppercase", margin: 0 }}>Digital</p>
+                <div style={{ background: "#f1f5f9", borderRadius: 6, height: 60, marginTop: 4 }} />
+              </div>
+            </div>
+            <p style={{ marginTop: 16, fontSize: 13, fontStyle: "italic", color: "#cbd5e1" }}>
+              One approval from you starts your full campaign across print, web, and digital.
+            </p>
+          </section>
+        </div>
       </div>
     );
   }
