@@ -17,6 +17,84 @@ function daysSince(d: string): number {
   return Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
 }
 
+// Initials from a business name: first letter of first word + first letter of
+// last word. Single-word names return a single initial. Always uppercase.
+function getInitials(name: string | null | undefined): string {
+  const words = (name || "").trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "—";
+  if (words.length === 1) return (words[0][0] || "—").toUpperCase();
+  const first = words[0][0] || "";
+  const last = words[words.length - 1][0] || "";
+  return (first + last).toUpperCase();
+}
+
+// Revenue-per-month estimate from intake print size.
+function clientMRR(c: ClientProfile): number {
+  const intake = (c.intakeAnswers || {}) as Record<string, string>;
+  const size = (intake.q5 || intake.printSize || "").toLowerCase();
+  if (size.includes("cover")) return 2400;
+  if (size.includes("full")) return 1800;
+  if (size.includes("half") || size.includes("1/2")) return 1200;
+  if (size.includes("third") || size.includes("1/3")) return 900;
+  if (size.includes("quarter") || size.includes("1/4")) return 700;
+  if (size.includes("eighth") || size.includes("1/8")) return 450;
+  return 550;
+}
+
+// Potential revenue if this client were upgraded to the next natural product.
+function clientUpsidePotential(c: ClientProfile): number {
+  const intake = (c.intakeAnswers || {}) as Record<string, string>;
+  const size = (intake.q5 || intake.printSize || "").toLowerCase();
+  const currentMRR = clientMRR(c);
+  let sizeUpgrade = 0;
+  if (size.includes("eighth") || size.includes("1/8")) sizeUpgrade = 700 - currentMRR;
+  else if (size.includes("quarter") || size.includes("1/4")) sizeUpgrade = 1200 - currentMRR;
+  else if (size.includes("third") || size.includes("1/3")) sizeUpgrade = 1800 - currentMRR;
+  else if (size.includes("half") || size.includes("1/2")) sizeUpgrade = 1800 - currentMRR;
+  else if (size.includes("full")) sizeUpgrade = 2400 - currentMRR;
+  sizeUpgrade = Math.max(0, sizeUpgrade);
+  const interests = (c.interests || {}) as Record<string, unknown>;
+  const digital = interests["digital-ads"] ? 0 : 800;
+  const website = interests["website"] ? 0 : 500;
+  return sizeUpgrade + digital + website;
+}
+
+// Client health: higher = healthier.
+function clientHealthScore(c: ClientProfile): number {
+  const d = daysSince(lastStageDate(c));
+  let score = 70;
+  if (c.stage === "live") score = 95;
+  else if (c.stage === "delivered") score = 85;
+  else if (c.stage === "building" || c.stage === "qa" || c.stage === "review") score = 75;
+  else if (c.stage === "tear-sheet") score = Math.max(35, 65 - d * 3);
+  else if (c.stage === "intake") score = Math.max(30, 60 - d * 2);
+  if (c.stage === "revision-requested") score -= 12;
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+// Decode the dc_session cookie on the client to get the logged-in rep username.
+function getSessionUsername(): string {
+  if (typeof document === "undefined") return "";
+  const m = document.cookie.match(/dc_session=([^;]+)/);
+  if (!m) return "";
+  try {
+    const encoded = decodeURIComponent(m[1]).split(".")[0];
+    const normalized = encoded.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized + "===".slice((normalized.length + 3) % 4);
+    const json = atob(padded);
+    const payload = JSON.parse(json);
+    return (payload.username || "").toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+function prettyUpsell(kind: "size-upgrade" | "digital-ads" | "website"): string {
+  if (kind === "size-upgrade") return "Size upgrade";
+  if (kind === "digital-ads") return "Digital advertising";
+  return "Website";
+}
+
 function lastStageDate(c: ClientProfile): string {
   return c.buildLog[c.buildLog.length - 1]?.timestamp || c.created_at;
 }
@@ -392,11 +470,112 @@ export default function DashboardPage() {
   const [interestsOpen, setInterestsOpen] = useState(true);
 
   // ── Left panel: selected client info ────────────────────────────────────────
-  const leftInitials = selectedClient
-    ? selectedClient.business_name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
-    : "";
+  const leftInitials = selectedClient ? getInitials(selectedClient.business_name) : "";
   const leftName = selectedClient ? selectedClient.business_name : "";
   const leftSub = selectedClient ? `${selectedClient.city}${selectedClient.zip ? `, ${selectedClient.zip}` : ""}` : "";
+
+  // ── Logged-in rep: filter the full client list to just this rep's book ─────
+  const [repUsername, setRepUsername] = useState<string>("");
+  useEffect(() => { setRepUsername(getSessionUsername()); }, []);
+  const myClients = repUsername
+    ? clients.filter((c) => (c.assigned_rep || "").toLowerCase() === repUsername)
+    : clients;
+
+  // ── Book of Business metrics ────────────────────────────────────────────────
+  const bookMRR = myClients.reduce((sum, c) => sum + clientMRR(c), 0);
+  const declinedClients = myClients.filter((c) => (c.buildNotes || []).some((n) => /declin|cancel|lost|churn/i.test(n)));
+  const declinedRevenue = declinedClients.reduce((sum, c) => sum + clientMRR(c), 0);
+  const riskClients = myClients.filter((c) => c.stage === "intake" || c.stage === "tear-sheet" || c.stage === "revision-requested");
+  const riskPct = myClients.length > 0 ? Math.round((riskClients.length / myClients.length) * 100) : 0;
+  const avgHealth = myClients.length > 0
+    ? Math.round(myClients.reduce((sum, c) => sum + clientHealthScore(c), 0) / myClients.length)
+    : 0;
+  const activeClients = myClients.filter((c) => c.stage !== "intake" && !(c.buildNotes || []).some((n) => /cancel|lost|churn/i.test(n))).length;
+  const pendingApprovals = myClients.filter((c) => c.stage === "tear-sheet").length;
+
+  // ── Bruno coaching directive (live) ────────────────────────────────────────
+  const overduePending = myClients
+    .filter((c) => c.stage === "tear-sheet" && daysSince(lastStageDate(c)) >= 5)
+    .sort((a, b) => clientMRR(b) - clientMRR(a));
+  const stalledIntakes = myClients
+    .filter((c) => c.stage === "intake" && daysSince(lastStageDate(c)) >= 3)
+    .sort((a, b) => clientMRR(b) - clientMRR(a));
+  const featuredRequests = myClients.filter((c) => c.interests?.featured_placement);
+  let brunoDirective = "";
+  if (featuredRequests.length > 0) {
+    brunoDirective = `${featuredRequests.length} Featured Placement request${featuredRequests.length > 1 ? "s" : ""} waiting. Call ${featuredRequests[0].business_name} first.`;
+  } else if (overduePending.length > 0) {
+    brunoDirective = `You have ${overduePending.length} client${overduePending.length > 1 ? "s" : ""} pending approval over 5 days. Start with ${overduePending[0].business_name}.`;
+  } else if (stalledIntakes.length > 0) {
+    brunoDirective = `${stalledIntakes.length} intake${stalledIntakes.length > 1 ? "s" : ""} stalled for 3+ days. Nudge ${stalledIntakes[0].business_name} today.`;
+  } else if (pendingApprovals > 0) {
+    brunoDirective = `${pendingApprovals} tearsheet${pendingApprovals > 1 ? "s" : ""} awaiting client review. Send reminders.`;
+  } else if (myClients.length === 0) {
+    brunoDirective = "No clients in your book yet. Start an intake to seed your pipeline.";
+  } else {
+    brunoDirective = `Book is healthy at ${avgHealth}. Focus on the top upsell candidate in your hot list.`;
+  }
+
+  // ── Hot list: top 5 clients to reach out to today ─────────────────────────
+  function hotListReason(c: ClientProfile): string {
+    if (c.interests?.featured_placement) return "Featured Placement requested — time-sensitive call";
+    if (c.stage === "revision-requested") return "Client replied to a revision request";
+    if (c.stage === "tear-sheet" && daysSince(lastStageDate(c)) >= 5) return "Tearsheet pending > 5 days — push for approval";
+    if (c.stage === "intake" && daysSince(lastStageDate(c)) >= 3) return "Intake stalled — nudge to finish";
+    if (clientUpsidePotential(c) >= 2000) return "High upgrade potential — proactive outreach";
+    if (c.stage === "live" && daysSince(lastStageDate(c)) >= 30) return "Live 30+ days — check satisfaction + renewal";
+    return "Revenue opportunity worth a touch today";
+  }
+  function hotListOpType(c: ClientProfile): string {
+    if (c.interests?.featured_placement) return "Featured Placement";
+    if (c.stage === "tear-sheet") return "Close approval";
+    if (c.stage === "revision-requested") return "Revision reply";
+    if (c.stage === "live") return "Renewal / upsell";
+    return "Upsell";
+  }
+  const hotList = [...myClients]
+    .map((c) => ({ c, value: clientUpsidePotential(c), reason: hotListReason(c), op: hotListOpType(c) }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 5);
+
+  // ── Upsell opportunities ────────────────────────────────────────────────
+  function sizeUpgradeCandidates(): ClientProfile[] {
+    return [...myClients]
+      .filter((c) => {
+        const intake = (c.intakeAnswers || {}) as Record<string, string>;
+        const size = (intake.q5 || intake.printSize || "").toLowerCase();
+        return !size.includes("cover") && !size.includes("full");
+      })
+      .sort((a, b) => clientUpsidePotential(b) - clientUpsidePotential(a))
+      .slice(0, 5);
+  }
+  function digitalCandidates(): ClientProfile[] {
+    return [...myClients]
+      .filter((c) => !(c.interests || {})["digital-ads"])
+      .sort((a, b) => clientMRR(b) - clientMRR(a))
+      .slice(0, 5);
+  }
+  function websiteCandidates(): ClientProfile[] {
+    return [...myClients]
+      .filter((c) => !(c.interests || {})["website"])
+      .sort((a, b) => clientMRR(b) - clientMRR(a))
+      .slice(0, 5);
+  }
+  const sizeUpgrades = sizeUpgradeCandidates();
+  const digitalOps = digitalCandidates();
+  const websiteOps = websiteCandidates();
+
+  function currentProductLabel(c: ClientProfile): string {
+    const intake = (c.intakeAnswers || {}) as Record<string, string>;
+    const size = (intake.q5 || intake.printSize || "").toLowerCase();
+    if (size.includes("cover")) return "Cover";
+    if (size.includes("full")) return "Full";
+    if (size.includes("half") || size.includes("1/2")) return "Half";
+    if (size.includes("third") || size.includes("1/3")) return "Third";
+    if (size.includes("quarter") || size.includes("1/4")) return "Quarter";
+    if (size.includes("eighth") || size.includes("1/8")) return "Eighth";
+    return "Print";
+  }
 
   // ── Communications: merge real messages + mock dev/client messages ─────────
   const ROLE_COLORS: Record<string, string> = { rep: "#2d3e50", dev: "#7c3aed", client: "#0891b2" };
@@ -814,6 +993,107 @@ export default function DashboardPage() {
             </div>
           )}
 
+          {/* ── BOOK OF BUSINESS ────────────────────────────────────────────── */}
+          <div style={{ padding: "20px 24px 6px", background: "#1B2A4A", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}>
+              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", color: "#F5C842", textTransform: "uppercase", margin: 0 }}>Book of Business</p>
+              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", margin: 0 }}>{myClients.length} client{myClients.length === 1 ? "" : "s"}{repUsername ? ` · ${repUsername}` : ""}</p>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10 }}>
+              {[
+                { label: "MRR", value: `$${bookMRR.toLocaleString()}`, color: "#F5C842" },
+                { label: "Declined", value: `$${declinedRevenue.toLocaleString()}`, color: "#fca5a5" },
+                { label: "Risk", value: `${riskPct}%`, color: riskPct >= 40 ? "#f87171" : "#fbbf24" },
+                { label: "Health", value: `${avgHealth}`, color: avgHealth >= 70 ? "#34d399" : avgHealth >= 50 ? "#fbbf24" : "#f87171" },
+                { label: "Active", value: `${activeClients}`, color: "#fff" },
+                { label: "Pending", value: `${pendingApprovals}`, color: pendingApprovals > 0 ? "#fbbf24" : "#fff" },
+              ].map((tile) => (
+                <div key={tile.label} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "10px 12px" }}>
+                  <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", color: "rgba(255,255,255,0.6)", textTransform: "uppercase", margin: 0 }}>{tile.label}</p>
+                  <p style={{ fontSize: 20, fontWeight: 800, color: tile.color, margin: "4px 0 0" }}>{tile.value}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Bruno directive */}
+            <div style={{ marginTop: 14, background: "rgba(245,200,66,0.12)", border: "1px solid rgba(245,200,66,0.35)", borderRadius: 8, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 24, height: 24, borderRadius: "50%", background: "#F5C842", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: "#1B2A4A", flexShrink: 0 }}>B</div>
+              <p style={{ fontSize: 13, color: "#fff", margin: 0, fontWeight: 500 }}>{brunoDirective}</p>
+            </div>
+          </div>
+
+          {/* ── HOT LIST ────────────────────────────────────────────────────── */}
+          {hotList.length > 0 && (
+            <div style={{ padding: "16px 24px", background: "#1B2A4A", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 }}>
+                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", color: "#F5C842", textTransform: "uppercase", margin: 0 }}>Hot List — Call today</p>
+                <p style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", margin: 0 }}>Top 5 by opportunity</p>
+              </div>
+              <div style={{ background: "#fff", borderRadius: 8, overflow: "hidden" }}>
+                {hotList.map((row, i) => (
+                  <div
+                    key={row.c.id}
+                    onClick={() => { setSelectedClient(row.c); setSlideOutOpen(true); setDrawerTab("overview"); }}
+                    style={{ display: "grid", gridTemplateColumns: "36px 1.6fr 1fr 0.8fr 2fr", gap: 12, alignItems: "center", padding: "10px 14px", cursor: "pointer", borderTop: i === 0 ? "none" : "1px solid #e5e9ef" }}
+                  >
+                    <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#1B2A4A", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800 }}>{getInitials(row.c.business_name)}</div>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "#1a2332" }}>{row.c.business_name}</span>
+                    <span style={{ fontSize: 12, color: "#475569" }}>{row.op}</span>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: "#1B2A4A" }}>${row.value.toLocaleString()}</span>
+                    <span style={{ fontSize: 11, color: "#7a8a9a" }}>{row.reason}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── UPSELL OPPORTUNITIES ────────────────────────────────────────── */}
+          {(sizeUpgrades.length > 0 || digitalOps.length > 0 || websiteOps.length > 0) && (
+            <div style={{ padding: "16px 24px", background: "#1B2A4A", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", color: "#F5C842", textTransform: "uppercase", margin: "0 0 10px" }}>Upsell opportunities</p>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+                {[
+                  { title: "Size upgrade", list: sizeUpgrades, kind: "size-upgrade" as const },
+                  { title: "Digital advertising", list: digitalOps, kind: "digital-ads" as const },
+                  { title: "Website", list: websiteOps, kind: "website" as const },
+                ].map((col) => (
+                  <div key={col.title} style={{ background: "#fff", borderRadius: 8, padding: "12px 14px" }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: "#1a2332", margin: "0 0 8px" }}>{col.title}</p>
+                    {col.list.length === 0 ? (
+                      <p style={{ fontSize: 11, color: "#94a3b8", margin: 0 }}>No candidates right now.</p>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {col.list.map((c) => {
+                          const potential = col.kind === "size-upgrade"
+                            ? Math.max(0, clientMRR(c) * 1.6 - clientMRR(c))
+                            : col.kind === "digital-ads" ? 800 : 500;
+                          const reason = col.kind === "size-upgrade"
+                            ? `Currently ${currentProductLabel(c)} — room to grow`
+                            : col.kind === "digital-ads"
+                              ? `${c.city || "Local"} has room for geo-targeted digital`
+                              : `No site yet — capture traffic from the print ad`;
+                          return (
+                            <div
+                              key={`${col.kind}-${c.id}`}
+                              onClick={() => { setSelectedClient(c); setSlideOutOpen(true); setDrawerTab("overview"); }}
+                              style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 6, padding: "6px 8px", borderRadius: 6, cursor: "pointer", background: "#f8fafc" }}
+                            >
+                              <div style={{ minWidth: 0 }}>
+                                <p style={{ fontSize: 12, fontWeight: 700, color: "#1a2332", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.business_name}</p>
+                                <p style={{ fontSize: 10, color: "#7a8a9a", margin: "1px 0 0" }}>{prettyUpsell(col.kind)} · {reason}</p>
+                              </div>
+                              <span style={{ fontSize: 11, fontWeight: 800, color: "#1B2A4A", whiteSpace: "nowrap" }}>+${Math.round(potential).toLocaleString()}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Tab row */}
           <div style={{
             display: "flex", borderBottom: "2px solid #e5e9ef",
@@ -870,7 +1150,7 @@ export default function DashboardPage() {
                         onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; }}
                       >
                         <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#2d3e50", flexShrink: 0 }}>
-                          {c.business_name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
+                          {getInitials(c.business_name)}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <p style={{ fontSize: 14, fontWeight: 700, color: "#1a2332", margin: 0 }}>{c.business_name}</p>
