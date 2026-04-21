@@ -37,6 +37,26 @@ async function fetchClient(id: string): Promise<ClientProfile | null> {
   }
 }
 
+function extractSbrContext(client: ClientProfile): PrintAdData["sbr"] {
+  const sbr = (client.sbrData || {}) as Record<string, unknown>;
+  const demographics = (sbr.demographics || {}) as Record<string, unknown>;
+  const medianIncomeRaw = (demographics.medianIncome ?? sbr.medianIncome ?? "") as string | number;
+  const income = typeof medianIncomeRaw === "number"
+    ? medianIncomeRaw
+    : parseInt(String(medianIncomeRaw || "").replace(/[^0-9]/g, ""), 10) || undefined;
+  const competitors = Array.isArray(sbr.competitors) ? (sbr.competitors as unknown[]).length : undefined;
+  const opportunityScore = (sbr.opportunityScore as number | string | undefined);
+  const incomeTier: "low" | "middle" | "premium" | undefined = income
+    ? (income >= 120000 ? "premium" : income < 55000 ? "low" : "middle")
+    : undefined;
+  return {
+    medianIncome: income,
+    opportunityScore,
+    competitorDensity: competitors,
+    incomeTier,
+  };
+}
+
 function pickDefaultPhoto(client: ClientProfile): string {
   const intake = (client.intakeAnswers || {}) as Record<string, string>;
   if (intake.photoUrl) return intake.photoUrl;
@@ -44,8 +64,14 @@ function pickDefaultPhoto(client: ClientProfile): string {
     const description = intake.q2 || intake.desc || "";
     const subType = detectSubType(client.business_name, description);
     const sources = getPhotoSourceList(subType, subType);
-    const firstUnsplash = sources.find((s) => s.source === "unsplash");
-    if (firstUnsplash?.url) return firstUnsplash.url;
+    // SBR-influenced photo ordering: premium income tier takes first option (curated lifestyle);
+    // low income tier skips the most "premium" first and picks later. Middle = default first.
+    const tier = extractSbrContext(client)?.incomeTier;
+    const unsplash = sources.filter((s) => s.source === "unsplash").map((s) => s.url);
+    if (unsplash.length === 0) return FALLBACK_PHOTO;
+    if (tier === "premium") return unsplash[0];
+    if (tier === "low") return unsplash[Math.min(unsplash.length - 1, 3)];
+    return unsplash[0];
   } catch {
     /* fall through */
   }
@@ -71,6 +97,7 @@ function buildAdData(client: ClientProfile, variation: PrintVariation, sub: numb
     address: addressRaw || undefined,
     photoUrl: overridePhoto || pickDefaultPhoto(client),
     logoUrl: client.logoUrl || intake.logoUrl || undefined,
+    sbr: extractSbrContext(client),
     brandColors: { primary: NAVY, secondary: "#475569", accent: GOLD },
     size,
     variation,
@@ -112,6 +139,7 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
   const [aiModalOpen, setAiModalOpen] = useState(false);
   const [aiImage, setAiImage] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string>("");
 
   useEffect(() => {
     fetchClient(id).then((c) => { setClient(c); setLoading(false); });
@@ -159,16 +187,36 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
     setAiModalOpen(true);
     setAiLoading(true);
     setAiImage(null);
+    setAiError("");
     try {
+      const intake = (client.intakeAnswers || {}) as Record<string, string>;
+      const services = (intake.q3 || "").split(",").map((s) => s.trim()).filter(Boolean);
       const res = await fetch("/api/image/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId: client.id, prompt: "" }),
+        body: JSON.stringify({
+          clientId: client.id,
+          businessName: client.business_name,
+          services,
+          prompt: "",
+        }),
       });
       const data = await res.json().catch(() => null);
-      if (data?.imageUrl) setAiImage(data.imageUrl);
-    } catch {
-      /* ignore */
+      if (!res.ok) {
+        setAiError(`HTTP ${res.status}: ${data?.error || "unknown error"}`);
+      } else if (data?.error) {
+        setAiError(
+          data.error === "not configured"
+            ? "OPENAI_API_KEY is not set on the server. Add it in Vercel env vars."
+            : String(data.error),
+        );
+      } else if (data?.imageUrl) {
+        setAiImage(data.imageUrl);
+      } else {
+        setAiError("No imageUrl returned by the API.");
+      }
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : "Network error");
     }
     setAiLoading(false);
   }
@@ -371,10 +419,16 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               <div>
                 <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", color: GOLD, textTransform: "uppercase", margin: "0 0 8px" }}>AI Generated</p>
-                <div style={{ background: "#f1f5f9", borderRadius: 10, aspectRatio: "1/1", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                <div style={{ background: "#f1f5f9", borderRadius: 10, aspectRatio: "1/1", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", padding: 16, textAlign: "center" }}>
                   {aiLoading && <p style={{ fontSize: 12, color: TEXT2 }}>Generating…</p>}
-                  {aiImage && <img src={aiImage} alt="AI generated" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
-                  {!aiLoading && !aiImage && <p style={{ fontSize: 12, color: TEXT2 }}>No image returned</p>}
+                  {!aiLoading && aiImage && <img src={aiImage} alt="AI generated" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+                  {!aiLoading && !aiImage && !aiError && <p style={{ fontSize: 12, color: TEXT2 }}>No image returned</p>}
+                  {!aiLoading && !aiImage && aiError && (
+                    <div style={{ color: "#dc2626" }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, margin: "0 0 6px" }}>AI call failed</p>
+                      <p style={{ fontSize: 11, margin: 0, fontFamily: "ui-monospace, monospace", lineHeight: 1.4 }}>{aiError}</p>
+                    </div>
+                  )}
                 </div>
               </div>
               <div>

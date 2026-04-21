@@ -247,10 +247,34 @@ function IntakeInner() {
             photoUrl: f.photoUrl,
             phone: f.phone,
           },
-          sbrData: {
-            ...(sbrData || {}),
-            services: f.services.map((s) => ({ name: s, description: `${s} — proudly serving ${f.city}.` })),
-          },
+          sbrData: (() => {
+            const raw = (sbrData || {}) as Record<string, unknown>;
+            const demo = (raw.demographics || {}) as Record<string, unknown>;
+            const incomeRaw = (demo.medianIncome ?? raw.medianIncome ?? "") as string | number;
+            const incomeNum = typeof incomeRaw === "number"
+              ? incomeRaw
+              : parseInt(String(incomeRaw || "").replace(/[^0-9]/g, ""), 10) || 0;
+            const incomeTier = incomeNum >= 120000 ? "premium" : incomeNum > 0 && incomeNum < 55000 ? "low" : "middle";
+            const competitors = Array.isArray(raw.competitors) ? (raw.competitors as unknown[]).length : 0;
+            const compTier = competitors >= 7 ? "high" : competitors <= 3 ? "low" : "medium";
+            // Opportunity score heuristic when SBR doesn't provide one:
+            // high income + lower competitor count = higher opportunity.
+            let oppScore = raw.opportunityScore as number | undefined;
+            if (!oppScore) {
+              const incomeScore = incomeNum >= 120000 ? 40 : incomeNum >= 80000 ? 28 : incomeNum >= 55000 ? 18 : 10;
+              const compScore = 40 - Math.min(40, competitors * 4);
+              oppScore = Math.min(100, incomeScore + compScore + 25);
+            }
+            return {
+              ...raw,
+              services: f.services.map((s) => ({ name: s, description: `${s} — proudly serving ${f.city}.` })),
+              medianIncome: incomeNum || undefined,
+              incomeTier,
+              competitorDensity: compTier,
+              competitorCount: competitors,
+              opportunityScore: oppScore,
+            };
+          })(),
           rep: isMagic ? "magic-link" : "ted",
         }),
       });

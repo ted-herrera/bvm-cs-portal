@@ -21,6 +21,67 @@ export interface PrintAdData {
   variation: PrintVariation;
   subVariation?: number; // 0-3
   qrValue?: string;
+  sbr?: SbrContext;
+}
+
+// Optional SBR context used to modulate copy tone and urgency on the ad.
+// High opportunity score → aspirational language; high competitor density → urgency tag.
+export interface SbrContext {
+  medianIncome?: number | string;
+  opportunityScore?: number | string;
+  competitorDensity?: number | string; // "low" | "medium" | "high" or numeric
+  incomeTier?: "low" | "middle" | "premium";
+}
+
+const FONT_STACK_BODY = "'Inter', system-ui, -apple-system, sans-serif";
+const FONT_STACK_HEAD = "'Playfair Display', Georgia, serif";
+const FONT_STACK_MONO = "'DM Mono', ui-monospace, SFMono-Regular, Menlo, monospace";
+const FONT_IMPORT_CSS = `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap');`;
+
+function incomeTier(sbr?: SbrContext): "low" | "middle" | "premium" {
+  if (!sbr) return "middle";
+  if (sbr.incomeTier) return sbr.incomeTier;
+  const raw = sbr.medianIncome;
+  const num = typeof raw === "number" ? raw : parseInt(String(raw || "").replace(/[^0-9]/g, ""), 10);
+  if (!num || isNaN(num)) return "middle";
+  if (num >= 120000) return "premium";
+  if (num < 55000) return "low";
+  return "middle";
+}
+
+function competitorLevel(sbr?: SbrContext): "low" | "medium" | "high" {
+  if (!sbr) return "medium";
+  const raw = sbr.competitorDensity;
+  if (typeof raw === "string") {
+    const s = raw.toLowerCase();
+    if (s.includes("high")) return "high";
+    if (s.includes("low")) return "low";
+    return "medium";
+  }
+  if (typeof raw === "number") {
+    if (raw >= 7) return "high";
+    if (raw <= 3) return "low";
+    return "medium";
+  }
+  return "medium";
+}
+
+function opportunityLevel(sbr?: SbrContext): "low" | "medium" | "high" {
+  if (!sbr) return "medium";
+  const raw = sbr.opportunityScore;
+  const num = typeof raw === "number" ? raw : parseFloat(String(raw || "").replace(/[^0-9.]/g, ""));
+  if (!num || isNaN(num)) return "medium";
+  if (num >= 70) return "high";
+  if (num <= 35) return "low";
+  return "medium";
+}
+
+// Returns a CTA string optionally enriched by SBR urgency cues.
+function ctaWithUrgency(cta: string, sbr?: SbrContext): string {
+  if (!cta) return "Contact Us";
+  const comp = competitorLevel(sbr);
+  if (comp === "high" && !/today|now|limited/i.test(cta)) return `${cta} Today`;
+  return cta;
 }
 
 export interface SizeSpec {
@@ -164,6 +225,7 @@ export function renderPrintAd(data: PrintAdData, opts: RenderOptions = {}): stri
     : "";
 
   return `<div style="position:relative;width:${bleedW}px;height:${bleedH}px;overflow:hidden;background:#fff;">
+    <style>${FONT_IMPORT_CSS}</style>
     <div style="position:absolute;left:${bleedOffsetX}px;top:${bleedOffsetY}px;width:${trimW}px;height:${trimH}px;overflow:hidden;">
       ${inner}
     </div>
@@ -208,150 +270,207 @@ function fontScale(w: number, h: number): number {
   return Math.max(0.45, Math.min(2.4, cur / ref));
 }
 
+// ─── Locked 3-zone grid renderer ─────────────────────────────────────────
+// Top 35%: business name + tagline + eyebrow/logo zone
+// Middle 40%: hero photo or color block + services list
+// Bottom 25%: CTA button + phone + address + city
+// All 12 variation+sub combinations honor this grid.
+
+interface ZoneSizes {
+  topH: number;
+  midH: number;
+  botH: number;
+  padding: number;
+}
+
+function zones(w: number, h: number, s: number): ZoneSizes {
+  const topH = Math.round(h * 0.35);
+  const midH = Math.round(h * 0.40);
+  const botH = h - topH - midH;
+  const padding = Math.max(10, Math.round(18 * s));
+  return { topH, midH, botH, padding };
+}
+
+// ──── Typography size scaler ────
+// Caller passes the reference px (e.g. 30 for business name at 1/4 reference).
+// Scaled proportionally for larger/smaller ads via fontScale(w,h).
+function px(base: number, s: number): number {
+  return Math.max(8, Math.round(base * s));
+}
+
+// Shared content blocks — used by all three variations. Receives `p` for palette
+// and `onDark` for text contrast on dark photos.
+function topBlock(d: PrintAdData, p: SubPalette, s: number, accentBg: string, textColor: string, dividerColor: string): string {
+  const nameSize = px(30, s);
+  const taglineSize = px(15, s);
+  const eyebrow = `<div style="font-family:${FONT_STACK_MONO};font-size:${px(10, s)}px;letter-spacing:0.22em;text-transform:uppercase;color:${accentBg};font-weight:500;margin:0 0 ${px(6, s)}px;">${escape(d.city || "Local")}</div>`;
+  const name = `<h1 style="font-family:${FONT_STACK_HEAD};font-size:${nameSize}px;line-height:1.02;margin:0;font-weight:700;letter-spacing:-0.01em;color:${textColor};">${escape(d.businessName || "Your Business")}</h1>`;
+  const tagline = d.tagline && d.tagline.trim()
+    ? `<p style="font-family:${FONT_STACK_HEAD};font-size:${taglineSize}px;font-style:italic;line-height:1.3;margin:${px(6, s)}px 0 0;color:${dividerColor};font-weight:400;max-width:100%;">${escape(d.tagline)}</p>`
+    : "";
+  return `${eyebrow}${name}${tagline}`;
+}
+
+function servicesBlock(d: PrintAdData, s: number, textColor: string, accentColor: string): string {
+  if (!d.services || d.services.length === 0) return "";
+  const size = px(12, s);
+  const items = d.services.slice(0, 3).map((sv) => escape(sv)).join(
+    ` <span style="color:${accentColor};font-weight:700;">·</span> `,
+  );
+  return `<div style="font-family:${FONT_STACK_BODY};font-weight:500;font-size:${size}px;color:${textColor};letter-spacing:0.01em;line-height:1.5;">${items}</div>`;
+}
+
+function bottomBlock(d: PrintAdData, p: SubPalette, s: number, ctaBg: string, ctaText: string, monoColor: string, dividerColor: string): string {
+  const ctaSize = px(13, s);
+  const phoneSize = px(11, s);
+  const addrSize = px(10, s);
+  const citySize = px(10, s);
+  const ctaLabel = escape(ctaWithUrgency(d.cta || "Contact Us", d.sbr));
+  const ctaBtn = `<span style="font-family:${FONT_STACK_BODY};display:inline-block;background:${ctaBg};color:${ctaText};padding:${px(8, s)}px ${px(16, s)}px;font-size:${ctaSize}px;font-weight:900;text-transform:uppercase;letter-spacing:0.08em;border-radius:${Math.max(3, Math.round(4 * s))}px;line-height:1;white-space:nowrap;">${ctaLabel} →</span>`;
+  const phoneLine = d.phone
+    ? `<div style="font-family:${FONT_STACK_MONO};font-size:${phoneSize}px;color:${monoColor};margin-top:${px(6, s)}px;letter-spacing:0.02em;">${escape(d.phone)}${d.website ? ` · ${escape(d.website)}` : ""}</div>`
+    : "";
+  const addrLine = d.address && d.address.trim()
+    ? `<div style="font-family:${FONT_STACK_MONO};font-size:${addrSize}px;color:${monoColor};margin-top:${px(2, s)}px;letter-spacing:0.02em;">${escape(d.address)}</div>`
+    : "";
+  const cityLine = d.city
+    ? `<div style="font-family:${FONT_STACK_MONO};font-size:${citySize}px;color:${dividerColor};margin-top:${px(2, s)}px;letter-spacing:0.08em;text-transform:uppercase;">${escape(d.city)}</div>`
+    : "";
+  return `<div>${ctaBtn}${phoneLine}${addrLine}${cityLine}</div>`;
+}
+
+function photoOrBlock(d: PrintAdData): string {
+  return d.photoUrl
+    ? `url('${d.photoUrl}') center/cover`
+    : `linear-gradient(135deg, ${d.brandColors.primary}, ${d.brandColors.accent})`;
+}
+
 function renderCleanClassic(d: PrintAdData, p: SubPalette, w: number, h: number): string {
   const s = fontScale(w, h);
   const sub = (((d.subVariation ?? 0) % 4) + 4) % 4;
-  const isLandscape = w > h * 1.2;
-  const padding = Math.max(12, Math.round(20 * s));
+  const { topH, midH, botH, padding } = zones(w, h, s);
+  const photoBg = photoOrBlock(d);
 
-  // Layout varies per sub — photo position / size / reverse
-  // sub 0: photo leading (left in landscape, top in portrait)
-  // sub 1: reversed — photo trailing, with thin gold frame
-  // sub 2: photo as thin banner (top/left band), content dominant
-  // sub 3: photo bottom (portrait) or right (landscape), oversized headline
-  const photoBg = d.photoUrl
-    ? `url('${d.photoUrl}') center/cover`
-    : `linear-gradient(135deg, ${d.brandColors.primary}, ${d.brandColors.accent})`;
+  // Sub variations vary photo framing in the middle zone — grid remains locked.
+  const midPadding = Math.max(8, Math.round(12 * s));
+  let middleZone = "";
+  if (sub === 0) {
+    // Photo left, services right
+    middleZone = `<div style="display:flex;height:100%;gap:${midPadding}px;">
+      <div style="flex:0 0 55%;height:100%;background:${photoBg};border-radius:${Math.max(2, Math.round(3 * s))}px;"></div>
+      <div style="flex:1;display:flex;flex-direction:column;justify-content:center;">${servicesBlock(d, s, p.text, p.accent)}</div>
+    </div>`;
+  } else if (sub === 1) {
+    // Photo right, services left with gold frame
+    middleZone = `<div style="display:flex;height:100%;gap:${midPadding}px;">
+      <div style="flex:1;display:flex;flex-direction:column;justify-content:center;">${servicesBlock(d, s, p.text, p.accent)}</div>
+      <div style="flex:0 0 55%;height:100%;background:${photoBg};border:${Math.max(2, Math.round(3 * s))}px solid ${p.accent};box-sizing:border-box;"></div>
+    </div>`;
+  } else if (sub === 2) {
+    // Photo as top banner, services below
+    middleZone = `<div style="display:flex;flex-direction:column;height:100%;gap:${midPadding}px;">
+      <div style="flex:0 0 62%;background:${photoBg};border-radius:${Math.max(2, Math.round(3 * s))}px;"></div>
+      <div style="flex:1;display:flex;align-items:center;">${servicesBlock(d, s, p.text, p.accent)}</div>
+    </div>`;
+  } else {
+    // Photo bottom band, services top
+    middleZone = `<div style="display:flex;flex-direction:column;height:100%;gap:${midPadding}px;">
+      <div style="flex:1;display:flex;align-items:flex-start;">${servicesBlock(d, s, p.text, p.accent)}</div>
+      <div style="flex:0 0 62%;background:${photoBg};border-radius:${Math.max(2, Math.round(3 * s))}px;"></div>
+    </div>`;
+  }
 
-  const direction = isLandscape ? "row" : "column";
-  const reverse = sub === 1 || sub === 3;
-  const flexDir = `${direction}${reverse ? "-reverse" : ""}`;
-
-  const photoRatio = sub === 2 ? 0.22 : sub === 3 ? 0.55 : 0.42;
-  const photoH = isLandscape ? "100%" : `${Math.round(h * photoRatio)}px`;
-  const photoW = isLandscape ? `${Math.round(w * photoRatio)}px` : "100%";
-  const photoBorder = sub === 1 ? `border:${Math.max(3, Math.round(4 * s))}px solid ${p.accent};box-sizing:border-box;` : "";
-  const headlineSize = sub === 3 ? 34 : sub === 2 ? 24 : 26;
-
-  return `<div style="width:${w}px;height:${h}px;background:${p.bg};display:flex;flex-direction:${flexDir};font-family:${p.fontFamily};color:${p.text};">
-    <div style="width:${photoW};height:${photoH};background:${photoBg};flex-shrink:0;${photoBorder}"></div>
-    <div style="flex:1;padding:${padding}px;display:flex;flex-direction:column;justify-content:space-between;min-width:0;">
-      <div>
-        <div style="font-size:${Math.round(9 * s)}px;letter-spacing:0.18em;text-transform:uppercase;color:${p.accent};font-weight:700;margin-bottom:${Math.round(6 * s)}px;">${escape(d.city || "")}</div>
-        <h2 style="font-family:${p.headlineFont};font-size:${Math.round(headlineSize * s)}px;line-height:1.05;margin:0 0 ${Math.round(8 * s)}px;font-weight:700;color:${p.text};">${escape(d.businessName)}</h2>
-        ${d.tagline ? `<p style="font-size:${Math.round(13 * s)}px;line-height:1.35;margin:0 0 ${Math.round(10 * s)}px;font-style:italic;color:${p.secondary};">${escape(d.tagline)}</p>` : ""}
-        ${d.services.length ? `<ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:${Math.round(3 * s)}px;">${d.services.slice(0, 3).map((sv) => `<li style="font-size:${Math.round(11 * s)}px;color:${p.text};display:flex;align-items:center;gap:${Math.round(6 * s)}px;"><span style="width:${Math.round(4 * s)}px;height:${Math.round(4 * s)}px;background:${p.accent};border-radius:50%;flex-shrink:0;"></span>${escape(sv)}</li>`).join("")}</ul>` : ""}
-      </div>
-      <div style="border-top:1px solid ${p.accent};padding-top:${Math.round(8 * s)}px;margin-top:${Math.round(10 * s)}px;">
-        <div style="font-size:${Math.round(13 * s)}px;font-weight:700;color:${p.accent};margin-bottom:${Math.round(3 * s)}px;">${escape(d.cta)}</div>
-        <div style="font-size:${Math.round(11 * s)}px;color:${p.secondary};">${escape(d.phone)}${d.website ? ` · ${escape(d.website)}` : ""}</div>
-        ${d.address && d.address.trim() ? `<div style="font-size:${Math.round(9 * s)}px;color:${p.secondary};margin-top:${Math.round(2 * s)}px;letter-spacing:0.02em;">${escape(d.address)}</div>` : ""}
-      </div>
-    </div>
+  return `<div style="width:${w}px;height:${h}px;background:${p.bg};color:${p.text};font-family:${FONT_STACK_BODY};box-sizing:border-box;display:flex;flex-direction:column;padding:${padding}px;">
+    <div style="height:${topH - padding}px;flex-shrink:0;">${topBlock(d, p, s, p.accent, p.text, p.secondary)}</div>
+    <div style="height:${midH}px;flex-shrink:0;">${middleZone}</div>
+    <div style="height:${botH - padding}px;flex-shrink:0;border-top:1px solid ${p.accent};padding-top:${Math.max(6, Math.round(8 * s))}px;margin-top:${Math.max(6, Math.round(8 * s))}px;">${bottomBlock(d, p, s, p.accent, p.bg, p.text, p.secondary)}</div>
   </div>`;
 }
 
 function renderBoldModern(d: PrintAdData, p: SubPalette, w: number, h: number): string {
   const s = fontScale(w, h);
   const sub = (((d.subVariation ?? 0) % 4) + 4) % 4;
-  const padding = Math.max(14, Math.round(24 * s));
-  const isLandscape = w > h * 1.2;
-  const isCover = h > w * 1.15 && h > 1300;
-  const photoBg = d.photoUrl
-    ? `url('${d.photoUrl}') center/cover`
-    : `linear-gradient(135deg, ${d.brandColors.primary}, ${d.brandColors.accent})`;
+  const { topH, midH, botH, padding } = zones(w, h, s);
+  const photoBg = photoOrBlock(d);
+  const onDarkText = "#FFFFFF";
+  const mono = "rgba(255,255,255,0.75)";
 
-  // Per-sub photo placement for visible layout variance:
-  // sub 0: photo top-right diagonal (default)
-  // sub 1: photo top-left mirrored diagonal
-  // sub 2: photo covers entire background with heavy overlay tint
-  // sub 3: photo as thin bottom band across full width
-  let photoBlock = "";
+  // Middle zone: dark block with photo insert or photo dominant with tint
+  let middleZone = "";
   if (sub === 0) {
-    photoBlock = `<div style="position:absolute;top:0;right:0;width:${Math.round(w * (isLandscape ? 0.45 : 0.55))}px;height:${Math.round(h * (isLandscape ? 1 : 0.5))}px;background:${photoBg};opacity:${isCover ? 0.95 : 0.85};mix-blend-mode:${p.bg.startsWith("#0") ? "screen" : "normal"};${isLandscape ? "" : "clip-path:polygon(20% 0, 100% 0, 100% 100%, 0% 100%);"}"></div>`;
+    middleZone = `<div style="display:flex;height:100%;gap:${Math.round(12 * s)}px;">
+      <div style="flex:1;display:flex;align-items:center;">${servicesBlock(d, s, onDarkText, p.accent)}</div>
+      <div style="flex:0 0 58%;height:100%;background:${photoBg};border-radius:${Math.max(2, Math.round(3 * s))}px;"></div>
+    </div>`;
   } else if (sub === 1) {
-    photoBlock = `<div style="position:absolute;top:0;left:0;width:${Math.round(w * (isLandscape ? 0.45 : 0.55))}px;height:${Math.round(h * (isLandscape ? 1 : 0.5))}px;background:${photoBg};opacity:0.85;${isLandscape ? "" : "clip-path:polygon(0 0, 80% 0, 100% 100%, 0 100%);"}"></div>`;
+    middleZone = `<div style="display:flex;height:100%;gap:${Math.round(12 * s)}px;">
+      <div style="flex:0 0 58%;height:100%;background:${photoBg};border-radius:${Math.max(2, Math.round(3 * s))}px;"></div>
+      <div style="flex:1;display:flex;align-items:center;">${servicesBlock(d, s, onDarkText, p.accent)}</div>
+    </div>`;
   } else if (sub === 2) {
-    photoBlock = `<div style="position:absolute;inset:0;background:${photoBg};opacity:0.45;"></div><div style="position:absolute;inset:0;background:${p.bg};opacity:0.78;"></div>`;
+    // Photo tiled across full middle with overlay tint
+    middleZone = `<div style="position:relative;height:100%;border-radius:${Math.max(2, Math.round(3 * s))}px;overflow:hidden;">
+      <div style="position:absolute;inset:0;background:${photoBg};"></div>
+      <div style="position:absolute;inset:0;background:${p.bg};opacity:0.55;"></div>
+      <div style="position:relative;z-index:2;padding:${Math.round(16 * s)}px;height:100%;box-sizing:border-box;display:flex;align-items:flex-end;">${servicesBlock(d, s, onDarkText, p.accent)}</div>
+    </div>`;
   } else {
-    photoBlock = `<div style="position:absolute;bottom:0;left:0;right:0;height:${Math.round(h * 0.32)}px;background:${photoBg};opacity:0.9;"></div>`;
+    // Split top/bottom: photo top 60%, services bottom strip
+    middleZone = `<div style="display:flex;flex-direction:column;height:100%;gap:${Math.round(10 * s)}px;">
+      <div style="flex:0 0 62%;background:${photoBg};border-radius:${Math.max(2, Math.round(3 * s))}px;"></div>
+      <div style="flex:1;display:flex;align-items:center;">${servicesBlock(d, s, onDarkText, p.accent)}</div>
+    </div>`;
   }
 
-  return `<div style="width:${w}px;height:${h}px;background:${p.bg};display:flex;flex-direction:column;justify-content:space-between;padding:${padding}px;font-family:${p.fontFamily};color:${p.text};position:relative;overflow:hidden;">
-    ${photoBlock}
-    <div style="position:relative;z-index:2;max-width:${Math.round(w * 0.72)}px;">
-      <div style="display:inline-block;font-size:${Math.round(10 * s)}px;font-weight:800;letter-spacing:0.22em;text-transform:uppercase;color:${p.accent};border-bottom:${Math.round(3 * s)}px solid ${p.accent};padding-bottom:${Math.round(3 * s)}px;margin-bottom:${Math.round(10 * s)}px;">${escape(d.city || "Local")}</div>
-      <h1 style="font-family:${p.headlineFont};font-size:${Math.round(38 * s)}px;line-height:0.95;margin:0 0 ${Math.round(10 * s)}px;font-weight:900;letter-spacing:-0.02em;color:${p.text};">${escape(d.businessName)}</h1>
-      ${d.tagline ? `<p style="font-size:${Math.round(15 * s)}px;line-height:1.25;margin:0 0 ${Math.round(14 * s)}px;color:${p.secondary};font-weight:500;">${escape(d.tagline)}</p>` : ""}
-    </div>
-    <div style="position:relative;z-index:2;">
-      ${d.services.length ? `<div style="display:flex;flex-wrap:wrap;gap:${Math.round(6 * s)}px;margin-bottom:${Math.round(12 * s)}px;">${d.services.slice(0, 4).map((sv) => `<span style="font-size:${Math.round(10 * s)}px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;background:${p.accent};color:${p.bg.startsWith("#0") || p.bg.startsWith("#1") || p.bg.startsWith("rgb") ? "#0C2340" : "#FFFFFF"};padding:${Math.round(4 * s)}px ${Math.round(10 * s)}px;border-radius:${Math.round(2 * s)}px;">${escape(sv)}</span>`).join("")}</div>` : ""}
-      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:${Math.round(12 * s)}px;border-top:${Math.round(2 * s)}px solid ${p.accent};padding-top:${Math.round(10 * s)}px;">
-        <div>
-          <div style="font-size:${Math.round(20 * s)}px;font-weight:900;color:${p.accent};line-height:1;text-transform:uppercase;letter-spacing:-0.01em;">${escape(d.cta)} →</div>
-          <div style="font-size:${Math.round(11 * s)}px;color:${p.secondary};margin-top:${Math.round(4 * s)}px;">${escape(d.phone)}${d.website ? ` · ${escape(d.website)}` : ""}</div>
-          ${d.address && d.address.trim() ? `<div style="font-size:${Math.round(9 * s)}px;color:${p.secondary};margin-top:${Math.round(2 * s)}px;letter-spacing:0.02em;">${escape(d.address)}</div>` : ""}
-        </div>
-      </div>
-    </div>
+  return `<div style="width:${w}px;height:${h}px;background:${p.bg};color:${onDarkText};font-family:${FONT_STACK_BODY};box-sizing:border-box;display:flex;flex-direction:column;padding:${padding}px;">
+    <div style="height:${topH - padding}px;flex-shrink:0;">${topBlock(d, p, s, p.accent, onDarkText, mono)}</div>
+    <div style="height:${midH}px;flex-shrink:0;">${middleZone}</div>
+    <div style="height:${botH - padding}px;flex-shrink:0;border-top:${Math.max(1, Math.round(2 * s))}px solid ${p.accent};padding-top:${Math.max(6, Math.round(8 * s))}px;margin-top:${Math.max(6, Math.round(8 * s))}px;">${bottomBlock(d, p, s, p.accent, "#0C2340", mono, "rgba(255,255,255,0.55)")}</div>
   </div>`;
 }
 
 function renderPremiumEditorial(d: PrintAdData, p: SubPalette, w: number, h: number): string {
   const s = fontScale(w, h);
-  const padding = Math.max(16, Math.round(28 * s));
   const sub = (((d.subVariation ?? 0) % 4) + 4) % 4;
-  const photoBg = d.photoUrl
-    ? `url('${d.photoUrl}') center/cover`
-    : `linear-gradient(135deg, ${d.brandColors.primary}, ${d.brandColors.accent})`;
+  const { topH, midH, botH, padding } = zones(w, h, s);
+  const photoBg = photoOrBlock(d);
+  const onDarkText = "#FFFFFF";
+  const mono = "rgba(255,255,255,0.8)";
 
-  if (sub === 2) {
-    // Split — photo left, solid right
-    return `<div style="width:${w}px;height:${h}px;display:flex;font-family:${p.fontFamily};">
-      <div style="width:50%;height:100%;background:${photoBg};"></div>
-      <div style="width:50%;height:100%;background:${p.bg};color:${p.text};padding:${padding}px;display:flex;flex-direction:column;justify-content:center;">
-        <div style="font-size:${Math.round(10 * s)}px;letter-spacing:0.22em;text-transform:uppercase;color:${p.accent};font-weight:700;margin-bottom:${Math.round(8 * s)}px;">${escape(d.city || "Featured")}</div>
-        <h1 style="font-family:${p.headlineFont};font-size:${Math.round(34 * s)}px;line-height:1;margin:0 0 ${Math.round(12 * s)}px;font-weight:700;font-style:italic;color:${p.text};">${escape(d.businessName)}</h1>
-        ${d.tagline ? `<p style="font-size:${Math.round(13 * s)}px;line-height:1.4;margin:0 0 ${Math.round(14 * s)}px;color:${p.secondary};">${escape(d.tagline)}</p>` : ""}
-        <div style="border-top:1px solid ${p.accent};padding-top:${Math.round(10 * s)}px;">
-          <div style="font-size:${Math.round(14 * s)}px;font-weight:700;color:${p.accent};margin-bottom:${Math.round(4 * s)}px;">${escape(d.cta)}</div>
-          <div style="font-size:${Math.round(11 * s)}px;color:${p.secondary};">${escape(d.phone)}</div>
-          ${d.address && d.address.trim() ? `<div style="font-size:${Math.round(9 * s)}px;color:${p.secondary};margin-top:${Math.round(2 * s)}px;letter-spacing:0.02em;">${escape(d.address)}</div>` : ""}
-        </div>
-      </div>
-    </div>`;
+  // Photo fills full ad; content sits in translucent zones over photo.
+  // Sub variations change the overlay treatment + panel positions, grid stays 35/40/25.
+  let topOverlay = "", midOverlay = "", botOverlay = "";
+  if (sub === 0) {
+    // Dark tint across photo, content stacked center
+    topOverlay = `background:linear-gradient(180deg, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.35) 100%);`;
+    midOverlay = `background:rgba(0,0,0,0.22);`;
+    botOverlay = `background:linear-gradient(0deg, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.45) 100%);`;
+  } else if (sub === 1) {
+    // Soft gradient bottom, lighter top
+    topOverlay = `background:linear-gradient(180deg, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.15) 100%);`;
+    midOverlay = `background:transparent;`;
+    botOverlay = `background:linear-gradient(0deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.25) 100%);`;
+  } else if (sub === 2) {
+    // Brand-color wash with photo peeking in middle
+    topOverlay = `background:${p.bg};opacity:0.9;`;
+    midOverlay = `background:rgba(0,0,0,0.08);`;
+    botOverlay = `background:${p.bg};opacity:0.9;`;
+  } else {
+    // Frosted panels on photo
+    topOverlay = `background:rgba(12,35,64,0.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);`;
+    midOverlay = `background:rgba(0,0,0,0.20);`;
+    botOverlay = `background:rgba(12,35,64,0.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);`;
   }
 
-  if (sub === 3) {
-    // Frosted glass overlay
-    return `<div style="width:${w}px;height:${h}px;background:${photoBg};position:relative;font-family:${p.fontFamily};color:${p.text};">
-      <div style="position:absolute;inset:0;background:rgba(0,0,0,0.25);"></div>
-      <div style="position:absolute;left:${padding}px;right:${padding}px;bottom:${padding}px;background:${p.bg};backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.25);border-radius:${Math.round(6 * s)}px;padding:${Math.round(20 * s)}px;">
-        <div style="font-size:${Math.round(10 * s)}px;letter-spacing:0.22em;text-transform:uppercase;color:${p.accent};font-weight:700;margin-bottom:${Math.round(6 * s)}px;">${escape(d.city || "Featured")}</div>
-        <h1 style="font-family:${p.headlineFont};font-size:${Math.round(28 * s)}px;line-height:1;margin:0 0 ${Math.round(8 * s)}px;font-weight:700;font-style:italic;">${escape(d.businessName)}</h1>
-        ${d.tagline ? `<p style="font-size:${Math.round(12 * s)}px;line-height:1.35;margin:0 0 ${Math.round(10 * s)}px;color:${p.secondary};">${escape(d.tagline)}</p>` : ""}
-        <div style="display:flex;justify-content:space-between;align-items:flex-end;border-top:1px solid ${p.accent};padding-top:${Math.round(8 * s)}px;">
-          <div style="font-size:${Math.round(13 * s)}px;font-weight:700;color:${p.accent};">${escape(d.cta)} →</div>
-          <div style="font-size:${Math.round(10 * s)}px;color:${p.secondary};text-align:right;">${escape(d.phone)}${d.address && d.address.trim() ? `<div style='font-size:${Math.round(8 * s)}px;margin-top:${Math.round(2 * s)}px;'>${escape(d.address)}</div>` : ""}</div>
-        </div>
-      </div>
-    </div>`;
-  }
-
-  // sub 0/1: full-bleed photo with overlay or gradient
-  const overlay = sub === 1 ? p.bg : "rgba(0,0,0,0.55)";
-  const justify = sub === 1 ? "flex-end" : "center";
-  return `<div style="width:${w}px;height:${h}px;background:${photoBg};position:relative;font-family:${p.fontFamily};color:${p.text};">
-    <div style="position:absolute;inset:0;background:${overlay};"></div>
-    <div style="position:relative;z-index:2;height:100%;display:flex;flex-direction:column;justify-content:${justify};padding:${padding}px;">
-      <div>
-        <div style="font-size:${Math.round(10 * s)}px;letter-spacing:0.22em;text-transform:uppercase;color:${p.accent};font-weight:700;margin-bottom:${Math.round(8 * s)}px;">${escape(d.city || "Featured")}</div>
-        <h1 style="font-family:${p.headlineFont};font-size:${Math.round(36 * s)}px;line-height:1;margin:0 0 ${Math.round(10 * s)}px;font-weight:700;font-style:italic;text-shadow:0 2px 12px rgba(0,0,0,0.4);">${escape(d.businessName)}</h1>
-        ${d.tagline ? `<p style="font-size:${Math.round(14 * s)}px;line-height:1.35;margin:0 0 ${Math.round(14 * s)}px;color:${p.secondary};max-width:${Math.round(w * 0.7)}px;">${escape(d.tagline)}</p>` : ""}
-        <div style="display:inline-block;background:${p.accent};color:#0C2340;padding:${Math.round(8 * s)}px ${Math.round(16 * s)}px;font-size:${Math.round(12 * s)}px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;border-radius:${Math.round(2 * s)}px;">${escape(d.cta)}</div>
-        <div style="font-size:${Math.round(11 * s)}px;color:${p.secondary};margin-top:${Math.round(10 * s)}px;">${escape(d.phone)}${d.website ? ` · ${escape(d.website)}` : ""}</div>
-        ${d.address && d.address.trim() ? `<div style="font-size:${Math.round(9 * s)}px;color:${p.secondary};margin-top:${Math.round(3 * s)}px;letter-spacing:0.02em;">${escape(d.address)}</div>` : ""}
-      </div>
+  return `<div style="width:${w}px;height:${h}px;background:${photoBg};color:${onDarkText};font-family:${FONT_STACK_BODY};position:relative;box-sizing:border-box;display:flex;flex-direction:column;">
+    <div style="height:${topH}px;flex-shrink:0;${topOverlay}padding:${padding}px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:flex-end;">
+      ${topBlock(d, p, s, p.accent, onDarkText, mono)}
+    </div>
+    <div style="height:${midH}px;flex-shrink:0;${midOverlay}padding:${padding}px;box-sizing:border-box;display:flex;align-items:center;">
+      ${servicesBlock(d, s, onDarkText, p.accent)}
+    </div>
+    <div style="height:${botH}px;flex-shrink:0;${botOverlay}padding:${padding}px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;">
+      ${bottomBlock(d, p, s, p.accent, "#0C2340", mono, "rgba(255,255,255,0.6)")}
     </div>
   </div>`;
 }
