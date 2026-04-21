@@ -304,69 +304,44 @@ function fontScale(w: number, h: number): number {
   return Math.max(0.45, Math.min(2.4, cur / ref));
 }
 
-// ─── Locked 3-zone grid renderer ─────────────────────────────────────────
-// Top 35%: business name + tagline + eyebrow/logo zone
-// Middle 40%: hero photo or color block + services list
-// Bottom 25%: CTA button + phone + address + city
-// All 12 variation+sub combinations honor this grid.
+// ─── Award-level ad design system ───────────────────────────────────────
+// Rules enforced across all three variations:
+//  • One dominant element (photo OR business name) — never both competing
+//  • Minimum 12px margin from trim edge, ~15% breathing room
+//  • Strict typography hierarchy: name 100%, tagline 45%, services 30%,
+//    CTA 35% (high contrast), phone/address 20%
+//
+// clean_classic     → photo hero (right 55%), name top-left, CTA pill bottom-right
+// bold_modern       → name hero, centered massive over tinted full-bleed photo
+// premium_editorial → photo hero, full-bleed + overlaid lower-third name, dark bottom strip
 
-interface ZoneSizes {
-  topH: number;
-  midH: number;
-  botH: number;
-  padding: number;
+interface TypeSizes {
+  name: number;
+  tagline: number;
+  services: number;
+  cta: number;
+  phone: number;
+  eyebrow: number;
 }
 
-function zones(w: number, h: number, s: number): ZoneSizes {
-  const topH = Math.round(h * 0.35);
-  const midH = Math.round(h * 0.40);
-  const botH = h - topH - midH;
-  const padding = Math.max(10, Math.round(18 * s));
-  return { topH, midH, botH, padding };
-}
+// Base business-name pixel size per variation (at 1/4 reference).
+// Other sizes derive from this ratio (hierarchy is enforced).
+const NAME_BASE: Record<PrintVariation, number> = {
+  clean_classic: 36,
+  bold_modern: 60,
+  premium_editorial: 52,
+};
 
-// ──── Typography size scaler ────
-// Caller passes the reference px (e.g. 30 for business name at 1/4 reference).
-// Scaled proportionally for larger/smaller ads via fontScale(w,h).
-function px(base: number, s: number): number {
-  return Math.max(8, Math.round(base * s));
-}
-
-// Shared content blocks — used by all three variations. Receives `p` for palette
-// and `onDark` for text contrast on dark photos.
-function topBlock(d: PrintAdData, p: SubPalette, s: number, accentBg: string, textColor: string, dividerColor: string): string {
-  const nameSize = px(30, s);
-  const taglineSize = px(15, s);
-  const eyebrow = `<div style="font-family:${FONT_STACK_MONO};font-size:${px(10, s)}px;letter-spacing:0.22em;text-transform:uppercase;color:${accentBg};font-weight:500;margin:0 0 ${px(6, s)}px;">${escape(d.city || "Local")}</div>`;
-  const name = `<h1 style="font-family:${FONT_STACK_HEAD};font-size:${nameSize}px;line-height:1.02;margin:0;font-weight:700;letter-spacing:-0.01em;color:${textColor};">${escape(d.businessName || "Your Business")}</h1>`;
-  const tagline = d.tagline && d.tagline.trim()
-    ? `<p style="font-family:${FONT_STACK_HEAD};font-size:${taglineSize}px;font-style:italic;line-height:1.3;margin:${px(6, s)}px 0 0;color:${dividerColor};font-weight:400;max-width:100%;">${escape(d.tagline)}</p>`
-    : "";
-  return `${eyebrow}${name}${tagline}`;
-}
-
-function servicesBlock(d: PrintAdData, s: number, textColor: string, accentColor: string): string {
-  if (!d.services || d.services.length === 0) return "";
-  const size = px(12, s);
-  const items = d.services.slice(0, 3).map((sv) => escape(sv)).join(
-    ` <span style="color:${accentColor};font-weight:700;">·</span> `,
-  );
-  return `<div style="font-family:${FONT_STACK_BODY};font-weight:500;font-size:${size}px;color:${textColor};letter-spacing:0.01em;line-height:1.5;">${items}</div>`;
-}
-
-function bottomBlock(d: PrintAdData, _p: SubPalette, s: number, ctaBg: string, ctaText: string, monoColor: string, _dividerColor: string): string {
-  const ctaSize = px(13, s);
-  const phoneSize = px(11, s);
-  const addrSize = px(10, s);
-  const ctaLabel = escape(ctaWithUrgency(d.cta || "Contact Us", d.sbr));
-  const ctaBtn = `<span style="font-family:${FONT_STACK_BODY};display:inline-block;background:${ctaBg};color:${ctaText};padding:${px(8, s)}px ${px(16, s)}px;font-size:${ctaSize}px;font-weight:900;text-transform:uppercase;letter-spacing:0.08em;border-radius:${Math.max(3, Math.round(4 * s))}px;line-height:1;white-space:nowrap;">${ctaLabel} →</span>`;
-  const phoneLine = d.phone && d.phone.trim()
-    ? `<div style="font-family:${FONT_STACK_MONO};font-size:${phoneSize}px;color:${monoColor};margin-top:${px(6, s)}px;letter-spacing:0.02em;">${escape(d.phone)}${d.website ? ` · ${escape(d.website)}` : ""}</div>`
-    : "";
-  const addrLine = d.address && d.address.trim()
-    ? `<div style="font-family:${FONT_STACK_MONO};font-size:${addrSize}px;color:${monoColor};margin-top:${px(2, s)}px;letter-spacing:0.02em;">${escape(d.address)}</div>`
-    : "";
-  return `<div>${ctaBtn}${phoneLine}${addrLine}</div>`;
+function ratios(nameBase: number, s: number): TypeSizes {
+  const name = Math.max(18, Math.round(nameBase * s));
+  return {
+    name,
+    tagline: Math.max(13, Math.round(name * 0.45)),
+    services: Math.max(10, Math.round(name * 0.30)),
+    cta: Math.max(11, Math.round(name * 0.35)),
+    phone: Math.max(9, Math.round(name * 0.20)),
+    eyebrow: Math.max(9, Math.round(name * 0.22)),
+  };
 }
 
 function photoOrBlock(d: PrintAdData): string {
@@ -375,78 +350,143 @@ function photoOrBlock(d: PrintAdData): string {
     : `linear-gradient(135deg, ${d.brandColors.primary}, ${d.brandColors.accent})`;
 }
 
-// ─── Single canonical layout per variation ─────────────────────────────
-// No sub-variations. Services always render BELOW the photo in the middle zone.
-// Bottom zone always shows CTA pill + phone + address (if exists).
+// Inner margin inside trim — minimum 12px, scales up gracefully for large ads.
+function insetPadding(s: number): number {
+  return Math.max(12, Math.round(20 * s));
+}
 
+function ctaLabel(d: PrintAdData): string {
+  return escape(ctaWithUrgency(d.cta || "Contact Us", d.sbr));
+}
+
+function ctaPill(d: PrintAdData, t: TypeSizes, s: number, bg: string, fg: string): string {
+  return `<span style="font-family:${FONT_STACK_BODY};display:inline-block;background:${bg};color:${fg};padding:${Math.round(t.cta * 0.75)}px ${Math.round(t.cta * 1.5)}px;font-size:${t.cta}px;font-weight:900;text-transform:uppercase;letter-spacing:0.09em;border-radius:${Math.max(3, Math.round(4 * s))}px;line-height:1;white-space:nowrap;">${ctaLabel(d)} →</span>`;
+}
+
+function servicesLine(d: PrintAdData, t: TypeSizes, color: string, accent: string, upper = false): string {
+  if (!d.services || d.services.length === 0) return "";
+  const items = d.services.slice(0, 3).map((sv) => escape(sv)).join(
+    ` <span style="color:${accent};font-weight:700;">·</span> `,
+  );
+  return `<div style="font-family:${FONT_STACK_BODY};font-weight:500;font-size:${t.services}px;color:${color};line-height:1.5;${upper ? "letter-spacing:0.16em;text-transform:uppercase;" : "letter-spacing:0.01em;"}">${items}</div>`;
+}
+
+function phoneAddressMono(d: PrintAdData, t: TypeSizes, color: string): string {
+  const phoneLine = d.phone && d.phone.trim()
+    ? `<div style="font-family:${FONT_STACK_MONO};font-size:${t.phone}px;color:${color};letter-spacing:0.02em;line-height:1.4;">${escape(d.phone)}${d.website ? ` · ${escape(d.website)}` : ""}</div>`
+    : "";
+  const addrLine = d.address && d.address.trim()
+    ? `<div style="font-family:${FONT_STACK_MONO};font-size:${Math.max(9, t.phone - 1)}px;color:${color};letter-spacing:0.02em;line-height:1.4;margin-top:${Math.round(t.phone * 0.2)}px;">${escape(d.address)}</div>`
+    : "";
+  return `${phoneLine}${addrLine}`;
+}
+
+// ─── clean_classic ───────────────────────────────────────────────────
+// Photo is the hero (right 55%, full height). Business name top-left, tagline
+// beneath. Services + contact stacked bottom-left. CTA pill bottom-right.
 function renderCleanClassic(d: PrintAdData, p: SubPalette, w: number, h: number): string {
   const s = fontScale(w, h);
-  const { topH, midH, botH, padding } = zones(w, h, s);
+  const t = ratios(NAME_BASE.clean_classic, s);
+  const pad = insetPadding(s);
   const photoBg = photoOrBlock(d);
-  const midPadding = Math.max(8, Math.round(10 * s));
-  const radius = Math.max(2, Math.round(3 * s));
+  const leftW = Math.round(w * 0.45 - pad * 1.5);
+  const photoW = w - leftW - pad * 3; // pad left, pad gutter, pad right
 
-  return `<div style="width:${w}px;height:${h}px;background:${p.bg};color:${p.text};font-family:${FONT_STACK_BODY};box-sizing:border-box;display:flex;flex-direction:column;padding:${padding}px;">
-    <div style="height:${topH - padding}px;flex-shrink:0;">${topBlock(d, p, s, p.accent, p.text, p.secondary)}</div>
-    <div style="height:${midH}px;flex-shrink:0;display:flex;flex-direction:column;gap:${midPadding}px;">
-      <div style="flex:1;background:${photoBg};border-radius:${radius}px;min-height:0;"></div>
-      <div style="flex-shrink:0;">${servicesBlock(d, s, p.text, p.accent)}</div>
+  const eyebrow = `<div style="font-family:${FONT_STACK_MONO};font-size:${t.eyebrow}px;letter-spacing:0.24em;text-transform:uppercase;color:${p.accent};font-weight:500;margin:0 0 ${Math.round(t.name * 0.22)}px;">${escape(d.city || "Local")}</div>`;
+  const name = `<h1 style="font-family:${FONT_STACK_HEAD};font-size:${t.name}px;line-height:0.98;margin:0;font-weight:700;letter-spacing:-0.015em;color:${p.text};">${escape(d.businessName || "Your Business")}</h1>`;
+  const tagline = d.tagline && d.tagline.trim()
+    ? `<p style="font-family:${FONT_STACK_HEAD};font-size:${t.tagline}px;font-style:italic;line-height:1.35;margin:${Math.round(t.name * 0.22)}px 0 0;color:${p.secondary};font-weight:400;">${escape(d.tagline)}</p>`
+    : "";
+
+  return `<div style="width:${w}px;height:${h}px;background:${p.bg};color:${p.text};font-family:${FONT_STACK_BODY};box-sizing:border-box;position:relative;display:flex;padding:${pad}px;gap:${pad}px;">
+    <div style="width:${leftW}px;flex-shrink:0;display:flex;flex-direction:column;justify-content:space-between;">
+      <div>
+        ${eyebrow}
+        ${name}
+        ${tagline}
+      </div>
+      <div style="padding-bottom:${Math.round(t.cta * 1.8)}px;">
+        ${servicesLine(d, t, p.text, p.accent)}
+        <div style="margin-top:${Math.round(t.services * 0.9)}px;">${phoneAddressMono(d, t, p.secondary)}</div>
+      </div>
     </div>
-    <div style="height:${botH - padding}px;flex-shrink:0;border-top:1px solid ${p.accent};padding-top:${Math.max(6, Math.round(8 * s))}px;margin-top:${Math.max(6, Math.round(8 * s))}px;">${bottomBlock(d, p, s, p.accent, p.bg, p.text, p.secondary)}</div>
+    <div style="width:${photoW}px;height:100%;background:${photoBg};border-radius:${Math.max(2, Math.round(4 * s))}px;flex-shrink:0;box-shadow:0 0 0 1px rgba(12,35,64,0.06);"></div>
+    <div style="position:absolute;right:${pad}px;bottom:${pad}px;">${ctaPill(d, t, s, p.accent, p.bg)}</div>
   </div>`;
 }
 
+// ─── bold_modern ─────────────────────────────────────────────────────
+// Business name is the hero. Full-bleed dark bg with 40% dark-overlaid photo.
+// Centered stack: name → gold rule → tagline → services gold small caps →
+// CTA gold pill → phone DM Mono white at very bottom.
 function renderBoldModern(d: PrintAdData, p: SubPalette, w: number, h: number): string {
   const s = fontScale(w, h);
-  const { topH, midH, botH, padding } = zones(w, h, s);
+  const t = ratios(NAME_BASE.bold_modern, s);
+  const pad = insetPadding(s);
   const photoBg = photoOrBlock(d);
-  const onDarkText = "#FFFFFF";
-  const mono = "rgba(255,255,255,0.78)";
-  const midPadding = Math.max(8, Math.round(10 * s));
-  const radius = Math.max(2, Math.round(3 * s));
+  const bgColor = p.bg.startsWith("#") || p.bg.startsWith("rgb") ? p.bg : "#0C2340";
 
-  return `<div style="width:${w}px;height:${h}px;background:${p.bg};color:${onDarkText};font-family:${FONT_STACK_BODY};box-sizing:border-box;display:flex;flex-direction:column;padding:${padding}px;">
-    <div style="height:${topH - padding}px;flex-shrink:0;">${topBlock(d, p, s, p.accent, onDarkText, mono)}</div>
-    <div style="height:${midH}px;flex-shrink:0;display:flex;flex-direction:column;gap:${midPadding}px;">
-      <div style="flex:1;background:${photoBg};border-radius:${radius}px;min-height:0;"></div>
-      <div style="flex-shrink:0;">${servicesBlock(d, s, onDarkText, p.accent)}</div>
+  const eyebrow = `<div style="font-family:${FONT_STACK_MONO};font-size:${t.eyebrow}px;letter-spacing:0.28em;text-transform:uppercase;color:${p.accent};font-weight:600;margin-bottom:${Math.round(t.name * 0.25)}px;">${escape(d.city || "Local")}</div>`;
+  const name = `<h1 style="font-family:${FONT_STACK_HEAD};font-size:${t.name}px;line-height:0.96;margin:0;font-weight:700;letter-spacing:-0.02em;color:#ffffff;">${escape(d.businessName || "Your Business")}</h1>`;
+  const rule = `<div style="width:${Math.max(40, Math.round(t.name * 1.6))}px;height:${Math.max(2, Math.round(2 * s))}px;background:${p.accent};margin:${Math.round(t.name * 0.35)}px auto;border-radius:2px;"></div>`;
+  const tagline = d.tagline && d.tagline.trim()
+    ? `<p style="font-family:${FONT_STACK_HEAD};font-size:${t.tagline}px;font-style:italic;line-height:1.35;margin:0 0 ${Math.round(t.name * 0.4)}px;color:rgba(255,255,255,0.88);font-weight:400;max-width:85%;">${escape(d.tagline)}</p>`
+    : "";
+
+  return `<div style="width:${w}px;height:${h}px;background:${bgColor};color:#ffffff;font-family:${FONT_STACK_BODY};position:relative;overflow:hidden;box-sizing:border-box;">
+    <div style="position:absolute;inset:0;background:${photoBg};opacity:0.6;"></div>
+    <div style="position:absolute;inset:0;background:${bgColor};opacity:0.55;"></div>
+    <div style="position:relative;z-index:2;height:100%;padding:${pad}px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;text-align:center;">
+      <div style="padding-top:${Math.round(h * 0.06)}px;">
+        ${eyebrow}
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+        ${name}
+        ${rule}
+        ${tagline}
+        ${servicesLine(d, t, p.accent, "#ffffff", true)}
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:${Math.round(t.cta * 0.7)}px;padding-bottom:${Math.round(pad * 0.2)}px;">
+        ${ctaPill(d, t, s, p.accent, "#0C2340")}
+        <div style="color:rgba(255,255,255,0.75);text-align:center;">${phoneAddressMono(d, t, "rgba(255,255,255,0.85)")}</div>
+      </div>
     </div>
-    <div style="height:${botH - padding}px;flex-shrink:0;border-top:${Math.max(1, Math.round(2 * s))}px solid ${p.accent};padding-top:${Math.max(6, Math.round(8 * s))}px;margin-top:${Math.max(6, Math.round(8 * s))}px;">${bottomBlock(d, p, s, p.accent, "#0C2340", mono, "rgba(255,255,255,0.55)")}</div>
   </div>`;
 }
 
+// ─── premium_editorial ───────────────────────────────────────────────
+// Full-bleed photo is the hero. Top 20% gradient for eyebrow legibility.
+// Centered lower-third: large white name → white rule → italic tagline.
+// Dark semi-transparent bottom strip for CTA + services + phone.
 function renderPremiumEditorial(d: PrintAdData, p: SubPalette, w: number, h: number): string {
   const s = fontScale(w, h);
-  const { topH, midH, botH, padding } = zones(w, h, s);
+  const t = ratios(NAME_BASE.premium_editorial, s);
+  const pad = insetPadding(s);
   const photoBg = photoOrBlock(d);
-  const onDarkText = "#FFFFFF";
-  const mono = "rgba(255,255,255,0.8)";
-  const midPadding = Math.max(8, Math.round(10 * s));
-  const radius = Math.max(2, Math.round(3 * s));
+  const topH = Math.round(h * 0.2);
+  const stripH = Math.round(h * 0.22);
 
-  // Dark overlay on top + bottom zones for contrast. Middle zone shows the photo
-  // prominently with services rendered below it on an inset card.
-  const topOverlay = `background:linear-gradient(180deg, rgba(12,35,64,0.88) 0%, rgba(12,35,64,0.55) 100%);`;
-  const botOverlay = `background:linear-gradient(0deg, rgba(12,35,64,0.92) 0%, rgba(12,35,64,0.60) 100%);`;
+  const eyebrow = `<div style="font-family:${FONT_STACK_MONO};font-size:${t.eyebrow}px;letter-spacing:0.28em;text-transform:uppercase;color:rgba(255,255,255,0.95);font-weight:600;">${escape(d.city || "Featured")}</div>`;
+  const name = `<h1 style="font-family:${FONT_STACK_HEAD};font-size:${t.name}px;line-height:0.96;margin:0;font-weight:700;letter-spacing:-0.015em;color:#ffffff;text-shadow:0 2px 16px rgba(0,0,0,0.35);">${escape(d.businessName || "Your Business")}</h1>`;
+  const rule = `<div style="width:${Math.max(36, Math.round(t.name * 1.4))}px;height:1px;background:rgba(255,255,255,0.85);margin:${Math.round(t.name * 0.35)}px auto;"></div>`;
+  const tagline = d.tagline && d.tagline.trim()
+    ? `<p style="font-family:${FONT_STACK_HEAD};font-size:${t.tagline}px;font-style:italic;line-height:1.35;margin:0;color:rgba(255,255,255,0.92);font-weight:400;max-width:80%;text-shadow:0 1px 8px rgba(0,0,0,0.3);">${escape(d.tagline)}</p>`
+    : "";
 
-  return `<div style="width:${w}px;height:${h}px;background:${p.bg};color:${onDarkText};font-family:${FONT_STACK_BODY};position:relative;box-sizing:border-box;display:flex;flex-direction:column;">
-    <div style="height:${topH}px;flex-shrink:0;position:relative;overflow:hidden;">
-      <div style="position:absolute;inset:0;background:${photoBg};"></div>
-      <div style="position:absolute;inset:0;${topOverlay}"></div>
-      <div style="position:relative;z-index:2;padding:${padding}px;height:100%;box-sizing:border-box;display:flex;flex-direction:column;justify-content:flex-end;">
-        ${topBlock(d, p, s, p.accent, onDarkText, mono)}
-      </div>
+  return `<div style="width:${w}px;height:${h}px;background:${photoBg};color:#ffffff;font-family:${FONT_STACK_BODY};position:relative;overflow:hidden;box-sizing:border-box;">
+    <div style="position:absolute;left:0;right:0;top:0;height:${topH}px;background:linear-gradient(180deg, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0) 100%);"></div>
+    <div style="position:absolute;left:${pad}px;right:${pad}px;top:${pad}px;z-index:3;">${eyebrow}</div>
+    <div style="position:absolute;left:0;right:0;top:52%;transform:translateY(-50%);z-index:3;display:flex;flex-direction:column;align-items:center;text-align:center;padding:0 ${pad}px;">
+      ${name}
+      ${rule}
+      ${tagline}
     </div>
-    <div style="height:${midH}px;flex-shrink:0;display:flex;flex-direction:column;gap:${midPadding}px;padding:${padding}px;box-sizing:border-box;background:${p.bg};">
-      <div style="flex:1;background:${photoBg};border-radius:${radius}px;min-height:0;border:1px solid rgba(255,255,255,0.1);"></div>
-      <div style="flex-shrink:0;">${servicesBlock(d, s, onDarkText, p.accent)}</div>
-    </div>
-    <div style="height:${botH}px;flex-shrink:0;position:relative;overflow:hidden;">
-      <div style="position:absolute;inset:0;background:${photoBg};"></div>
-      <div style="position:absolute;inset:0;${botOverlay}"></div>
-      <div style="position:relative;z-index:2;padding:${padding}px;height:100%;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;">
-        ${bottomBlock(d, p, s, p.accent, "#0C2340", mono, "rgba(255,255,255,0.65)")}
+    <div style="position:absolute;left:0;right:0;bottom:0;min-height:${stripH}px;z-index:3;background:rgba(12,35,64,0.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);padding:${pad}px;box-sizing:border-box;display:flex;justify-content:space-between;align-items:flex-end;gap:${pad}px;">
+      <div style="min-width:0;flex:1;">
+        ${servicesLine(d, t, "rgba(255,255,255,0.95)", p.accent)}
+        <div style="margin-top:${Math.round(t.services * 0.6)}px;">${phoneAddressMono(d, t, "rgba(255,255,255,0.85)")}</div>
       </div>
+      <div style="flex-shrink:0;">${ctaPill(d, t, s, p.accent, "#0C2340")}</div>
     </div>
   </div>`;
 }

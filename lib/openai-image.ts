@@ -139,11 +139,16 @@ function buildPrompt(inp: PromptInputs): string {
   const bizType = inp.businessType || "local business";
   const variation = (inp.variation || "clean_classic").toString();
 
-  // Per-variation photography style
+  // Per-variation photography composition + style
+  // These are tuned to the visual system: clean_classic puts the photo on the
+  // right 55% of the ad, so it needs right-weighted composition with left
+  // negative space. bold_modern uses a centered hero subject over a dark
+  // tinted full-bleed bg. premium_editorial needs a full-frame image that
+  // holds the whole ad.
   const styleByVariation: Record<string, string> = {
-    premium_editorial: `editorial lifestyle photography, shallow depth of field, warm natural light, sophisticated, ${city ? `${city} local business` : "local business"}`,
-    bold_modern: `bold hero product shot, vibrant colors, tight crop, commercial photography${svcList[0] ? `, ${svcList[0]} close-up` : ""}`,
-    clean_classic: `clean professional photography, bright and inviting, ${bizType} team or location, approachable and trustworthy`,
+    clean_classic: `subject positioned right side of frame, left side negative space, ${bizType} photography, bright natural light, approachable, editorial`,
+    bold_modern: `centered hero subject, dark moody background, dramatic lighting, ${bizType}, cinematic contrast, commercial-grade`,
+    premium_editorial: `full frame immersive ${bizType} photography, cinematic, rich color, no negative space needed, editorial lifestyle`,
   };
   const style = styleByVariation[variation] || styleByVariation.clean_classic;
 
