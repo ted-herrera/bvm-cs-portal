@@ -540,6 +540,160 @@ const PHOTO_LIBRARY: Record<string, string[]> = {
     U("1519671482749-fd09be7ccebf"),
     U("1414235077428-338989a2e8c0"),
   ],
+  bookstore: [
+    U("1507842217343-583bb7270b66"),
+    U("1532012197267-da84d127e765"),
+    U("1519682337058-a94d519337bc"),
+    U("1481627834876-b7833e8f5570"),
+    U("1541963463532-d68292c34b19"),
+    U("1507676184212-d03ab07a01bf"),
+    U("1544947950-fa07a98d237f"),
+    U("1528208079124-a32cbcfa9b49"),
+    U("1529473814998-077b4fec6770"),
+    U("1495640388908-05fa85288e61"),
+    U("1524578271613-d550eacf6090"),
+    U("1497633762265-9d179a990aa6"),
+  ],
+  florist: [
+    U("1508610048659-a06b669e3321"),
+    U("1490750967868-a8bbb3021c4b"),
+    U("1525310072745-f49212b0ed8b"),
+    U("1528848010935-fb92dfdb9641"),
+    U("1487530811176-3780de880c2d"),
+    U("1509961204206-aaeed7bd61c2"),
+    U("1490578474895-699cd4e2cf59"),
+    U("1556821840-3a63f95609a7"),
+    U("1524598171353-ce84a640fa4f"),
+    U("1458539311900-df02dd9f4aae"),
+    U("1519378058457-4c29a0a2efac"),
+    U("1563241527-3004b7be0ffd"),
+  ],
+  jewelry: [
+    U("1515562141207-7a88fb7ce338"),
+    U("1605100804763-247f67b3557e"),
+    U("1573408301185-9146fe634ad0"),
+    U("1599643478518-a784e5dc4c8f"),
+    U("1608042314453-ae338d80c427"),
+    U("1535632787350-4e68ef0ac584"),
+    U("1576022162028-1d2d5b8d0c1b"),
+    U("1572635196237-14b3f281503f"),
+    U("1617038260897-41a1f14a8ca0"),
+    U("1518002171953-a080ee817e1f"),
+    U("1587467510133-a19b2c80bf1e"),
+    U("1611085583191-a3b181a88401"),
+  ],
+  brewery: [
+    U("1510812431401-41d2bd2722f3"),
+    U("1436076863939-06870fe779c2"),
+    U("1514361892635-6b07e31e75f9"),
+    U("1543007630-9710e4a00a20"),
+    U("1562653262-1ade54d6c7f4"),
+    U("1600788886242-5c96aabe3757"),
+    U("1584225064785-c62a8b43d148"),
+    U("1586993451228-09818021e309"),
+    U("1559526324-c1f275fbfa32"),
+    U("1569266981574-5b6b8f9a8f9e"),
+    U("1566633806327-68e152aaf26d"),
+    U("1535958636474-b021ee887b13"),
+  ],
+  wine: [
+    U("1510172951991-856a654063f9"),
+    U("1474722883778-792e7990302f"),
+    U("1506377247377-2a5b3b417ebb"),
+    U("1508213541908-5b82c5cd21f8"),
+    U("1528823872057-9c018a7a7553"),
+    U("1543418219-44e30b057fea"),
+    U("1566824022-b7d06ba537c5"),
+    U("1567072379573-7e40c4d2c6ad"),
+    U("1558682612-9d4c9a2dcff4"),
+    U("1553361371-9b22f78e8b1d"),
+    U("1561461056-6bb6de7e3d52"),
+    U("1566995541428-47d1bb2c0a1b"),
+  ],
+  hotel: [
+    U("1566073771259-6a8506099945"),
+    U("1551882547-ff40c63fe5fa"),
+    U("1542314831-068cd1dbfeeb"),
+    U("1564501049412-61c2a3083791"),
+    U("1445019980597-93ea3d4b5ae2"),
+    U("1520250497591-112f2f40a3f4"),
+    U("1582719508461-905c673771fd"),
+    U("1455587734955-081b22074882"),
+    U("1535827841776-24afc1e255ac"),
+    U("1578898886225-c0dd0a1e9d90"),
+    U("1590490360182-c33d57733427"),
+    U("1618773928121-c32242e63f39"),
+  ],
+  photography_studio: [
+    U("1452587925148-ce544e77e70d"),
+    U("1516035069371-29a1b244cc32"),
+    U("1502920917128-1aa500764cbd"),
+    U("1554048612-b6ebae92138f"),
+    U("1500051638674-ff996a0ec29e"),
+    U("1452827073306-6e6e661baf57"),
+    U("1542038784456-1ea8e935640e"),
+    U("1544716278-ca5e3f4abd8c"),
+    U("1581090464833-0b72d25e5e9e"),
+    U("1519638831568-d9897f54ed69"),
+    U("1533702960-30d5a6a9ab99"),
+    U("1554048612-b6ebae92138f"),
+  ],
+  hardware: [
+    U("1504148455328-c376907d081c"),
+    U("1586864387789-628af9feed72"),
+    U("1609205264511-b0e99bf0b6e5"),
+    U("1504917595217-d4dc5ebe6122"),
+    U("1530124566582-a618bc2615dc"),
+    U("1572295727728-3f33bd57ec9e"),
+    U("1567502077025-c1e5566b48e8"),
+    U("1583947581924-560e4c04b93f"),
+    U("1558618666-fcd25c85cd64"),
+    U("1556909114-f6e7ad7d3136"),
+    U("1581094288338-2314dddb7ece"),
+    U("1581094794329-c8112a89af12"),
+  ],
+  grocery: [
+    U("1542838132-92c53300491e"),
+    U("1516594798947-e65505dbb29d"),
+    U("1578916171728-46686eac8d58"),
+    U("1604719312566-8912e9227c6a"),
+    U("1506617564039-2f3b650b7010"),
+    U("1550989460-0adf9ea622e2"),
+    U("1601599963565-5c32a0b83e9a"),
+    U("1583911812781-1dbc30ea6127"),
+    U("1563630423918-b58f07336ac5"),
+    U("1488459716781-31db52582fe9"),
+    U("1498579397066-22750a3cb424"),
+    U("1550989460-0adf9ea622e2"),
+  ],
+  moving: [
+    U("1600518464081-57bef7d08e36"),
+    U("1534008757030-27299c4371b6"),
+    U("1605538883669-825200433431"),
+    U("1591544458137-ffa98b84e1b4"),
+    U("1583344336850-ef571a3aa7d5"),
+    U("1600585152220-90363fe7e115"),
+    U("1559752714-ba2f1ffe0d60"),
+    U("1558403194-611308249627"),
+    U("1600566752355-35792bedcfea"),
+    U("1611078489935-0cb964de46d6"),
+    U("1600607687939-ce8a6c25118c"),
+    U("1558618666-fcd25c85cd64"),
+  ],
+  nonprofit: [
+    U("1593113630400-ea4288922497"),
+    U("1544027993-37dbfe43562a"),
+    U("1593113598332-cd288d649433"),
+    U("1559027615-cd4628902d4a"),
+    U("1608096275113-45a6bf7bb60a"),
+    U("1560252829-804f1aedf1be"),
+    U("1518109330461-b4e2bb59a39e"),
+    U("1567427361984-0cbe7396fc6c"),
+    U("1559027615-cd4628902d4a"),
+    U("1543269865-cbf427effbad"),
+    U("1582213782179-e0d4d3cce33a"),
+    U("1559027615-cd4628902d4a"),
+  ],
   // Legacy keys kept for compatibility with existing classifier / callers
   martialarts: [
     U("1555597673-b21d5c935865"),
@@ -631,6 +785,17 @@ const PHOTO_LIBRARY: Record<string, string[]> = {
 const CATEGORY_SEARCH_TERMS: Record<string, string[]> = {
   restaurant: ["restaurant", "food", "dining"],
   bakery: ["bakery", "pastries", "bread"],
+  bookstore: ["bookstore", "books", "library"],
+  florist: ["florist", "flowers", "bouquet"],
+  jewelry: ["jewelry", "rings", "diamonds"],
+  brewery: ["brewery", "craft beer", "taproom"],
+  wine: ["winery", "wine", "vineyard"],
+  hotel: ["hotel", "luxury hotel", "lobby"],
+  photography_studio: ["photographer", "photo studio", "camera"],
+  hardware: ["hardware store", "tools", "lumber"],
+  grocery: ["grocery", "produce", "supermarket"],
+  moving: ["moving", "boxes", "movers"],
+  nonprofit: ["nonprofit", "volunteer", "community"],
   pizza: ["pizza", "pizzeria", "italian food"],
   taco_mexican: ["tacos", "mexican food", "burrito"],
   bbq: ["bbq", "barbecue", "grill"],
@@ -723,10 +888,25 @@ export function getPhotoLibraryKey(businessType: string, subType?: string): stri
     if (s.match(/paint/)) return "painting";
     if (s.match(/floor/)) return "flooring";
     if (s.match(/remodel|renovat/)) return "remodeling";
-    if (s.match(/photograph/)) return "photography";
+    if (s.match(/photography_studio|photograph/)) return "photography_studio";
     if (s.match(/cater/)) return "catering";
     if (s.match(/law|legal|attorney/)) return "law";
     if (s.match(/real.*estate|realtor/)) return "real_estate";
+    if (s.match(/bookstore|book/)) return "bookstore";
+    if (s.match(/florist|flower/)) return "florist";
+    if (s.match(/jewelry|jeweler|ring/)) return "jewelry";
+    if (s.match(/brewery|brewpub|craft beer/)) return "brewery";
+    if (s.match(/distillery|distill|whiskey/)) return "brewery";
+    if (s.match(/wine|winery|vineyard/)) return "wine";
+    if (s.match(/hotel|motel|resort|inn|lodge/)) return "hotel";
+    if (s.match(/hardware|lumber|home improvement/)) return "hardware";
+    if (s.match(/grocery|grocer|supermarket/)) return "grocery";
+    if (s.match(/moving|mover|relocation|storage/)) return "moving";
+    if (s.match(/nonprofit|charity|foundation/)) return "nonprofit";
+    if (s.match(/printing|print shop|copy shop|sign shop/)) return "business";
+    if (s.match(/staffing|recruit|staffing agency/)) return "business";
+    if (s.match(/accounting|accountant|cpa|bookkeep/)) return "financial";
+    if (s.match(/marketing|advertising|branding|agency/)) return "business";
   }
   if (businessType === "hvac") return "hvac";
   if (businessType === "homeservices" || businessType === "home_services") return "home_services";
@@ -736,6 +916,17 @@ export function getPhotoLibraryKey(businessType: string, subType?: string): stri
   if (businessType === "beauty") return "salon_barber";
   if (businessType === "martialarts") return "martial_arts";
   if (businessType === "pet") return "pet_services";
+  if (businessType === "bookstore") return "bookstore";
+  if (businessType === "florist") return "florist";
+  if (businessType === "jewelry") return "jewelry";
+  if (businessType === "brewery" || businessType === "distillery") return "brewery";
+  if (businessType === "wine") return "wine";
+  if (businessType === "hotel") return "hotel";
+  if (businessType === "photography_studio" || businessType === "photography") return "photography_studio";
+  if (businessType === "hardware") return "hardware";
+  if (businessType === "grocery") return "grocery";
+  if (businessType === "moving" || businessType === "storage") return "moving";
+  if (businessType === "nonprofit") return "nonprofit";
   return PHOTO_LIBRARY[businessType] ? businessType : "business";
 }
 

@@ -37,36 +37,98 @@ export function detectSubType(businessName: string, description: string): string
 
 function _detectSubTypeImpl(businessName: string, description: string): string {
   const a = `${businessName} ${description}`.toLowerCase();
+
+  // — fitness / movement —
   if (a.match(/karate|martial art|taekwondo|judo|mma|kickboxing|bjj|jiu.?jitsu|dojo|kung fu|aikido|self.?defense/)) return "martialarts";
   if (a.match(/yoga|meditation|mindful/)) return "yoga";
   if (a.match(/crossfit/)) return "crossfit";
-  if (a.match(/dance|ballet|zumba/)) return "dance";
+  if (a.match(/dance|ballet|zumba|ballroom/)) return "dance";
   if (a.match(/pilates|barre/)) return "pilates";
-  if (a.match(/taco|tacos|mexican|burrito|tex.?mex/)) return "mexican";
-  if (a.match(/pizza|italian/)) return "pizza";
-  if (a.match(/burger|hamburger/)) return "burger";
+  if (a.match(/\bgym\b|weightlifting|strength train|powerlifting/)) return "gym";
+  if (a.match(/fitness|personal train|workout|bootcamp/)) return "fitness";
+
+  // — food & beverage —
+  if (a.match(/taco|tacos|mexican|burrito|tex.?mex|quesadilla|enchilada/)) return "mexican";
+  if (a.match(/pizza|pizzeria|italian/)) return "pizza";
+  if (a.match(/burger|hamburger|cheeseburger|smash/)) return "burger";
   if (a.match(/bakery|bakeries|baked.?goods|baker\b|pastry|pastries|bread|breads|cake|cakes|cupcake|cupcakes|donut|doughnut|chocolate|chocolatier|sweets|sweet.?shop|confection|confectioner|macaron|croissant|scone|muffin/)) return "bakery";
-  if (a.match(/cafe|coffee|espresso|brew(?!ery)/)) return "cafe";
-  if (a.match(/sushi|ramen|japanese/)) return "japanese";
-  if (a.match(/bar|pub|tavern|brewery|brew(?!ery)|grill|gastropub|saloon|lounge|nightclub|club/)) return "bar";
-  if (a.match(/bbq|barbecue|smokehouse/)) return "bbq";
-  if (a.match(/salon|barber|stylist/)) return "salon";
-  if (a.match(/spa|massage|facial/)) return "spa";
-  if (a.match(/vet|veterinar/)) return "veterinary";
-  if (a.match(/pharma|drugstore/)) return "pharmacy";
-  if (a.match(/optom|optical|eyewear|glasses/)) return "optical";
+  if (a.match(/coffee|cafe|espresso|latte|roaster/)) return "cafe";
+  if (a.match(/sushi|ramen|japanese|udon|teriyaki/)) return "japanese";
+  if (a.match(/bbq|barbecue|smokehouse|bar-b-que/)) return "bbq";
+  if (a.match(/wine|winery|vineyard|cellar/)) return "wine";
+  if (a.match(/brewery|brewing|brewpub|craft beer/)) return "brewery";
+  if (a.match(/distillery|distill|whiskey|bourbon|vodka|gin distill|rum distill/)) return "distillery";
+  if (a.match(/bar\b|pub|tavern|gastropub|saloon|lounge|nightclub|cocktail/)) return "bar";
+  if (a.match(/cater/)) return "catering";
+  if (a.match(/grocery|grocer|supermarket|corner store|market\b|produce|butcher/)) return "grocery";
+  if (a.match(/restaurant|diner|bistro|eatery|food|cuisine|kitchen|deli|sandwich|wing|steak|seafood|noodle|pho|thai|chinese|indian/)) return "restaurant";
+
+  // — health & medical —
+  if (a.match(/dental|dentist|orthodont|teeth|smile|oral surgery/)) return "dental";
+  if (a.match(/veterinar|\bvet\b|animal hospital/)) return "veterinary";
+  if (a.match(/pharma|drugstore|prescription/)) return "pharmacy";
+  if (a.match(/optom|optical|eyewear|glasses|eye.?doctor/)) return "optical";
   if (a.match(/chiro/)) return "chiropractic";
-  if (a.match(/physical.*therapy|rehab/)) return "physical_therapy";
-  if (a.match(/childcare|daycare|preschool/)) return "childcare";
-  if (a.match(/pet.*groom|dog.*walk/)) return "pet_services";
+  if (a.match(/physical.*therapy|rehab|\bpt\b/)) return "physical_therapy";
+  if (a.match(/medical|doctor|physician|clinic|urgent care|health|family medicine|pediatric|nurse/)) return "medical";
+
+  // — personal care —
+  if (a.match(/barber|barbershop/)) return "salon";
+  if (a.match(/salon|stylist|hair\b|haircut|nail|lash|brow|waxing|makeup|cosmet/)) return "salon";
+  if (a.match(/spa|massage|facial|aesthetic/)) return "spa";
+  if (a.match(/beauty/)) return "beauty";
+
+  // — professional services —
+  if (a.match(/law\b|lawyer|attorney|legal|counsel|esquire/)) return "law";
+  if (a.match(/accounting|accountant|\bcpa\b|bookkeep|tax prep/)) return "accounting";
+  if (a.match(/insurance|insurer|underwriter/)) return "insurance";
+  if (a.match(/financial|finance|wealth|investment|advisor|bank|credit union|mortgage lender/)) return "financial";
+  if (a.match(/real estate|realtor|realty/)) return "real_estate";
+  if (a.match(/marketing|advertising|branding|digital agency|pr agency/)) return "marketing";
+  if (a.match(/staffing|recruit|staffing agency|hr consult/)) return "staffing";
+  if (a.match(/nonprofit|non.?profit|charity|foundation|ngo/)) return "nonprofit";
+
+  // — home services —
+  if (a.match(/hvac|heating|cooling|air condition|furnace/)) return "hvac";
   if (a.match(/plumb/)) return "plumbing";
   if (a.match(/electric/)) return "electrical";
   if (a.match(/paint/)) return "painting";
   if (a.match(/floor/)) return "flooring";
   if (a.match(/remodel|renovat/)) return "remodeling";
-  if (a.match(/photograph/)) return "photography";
-  if (a.match(/cater/)) return "catering";
+  if (a.match(/roof|gutter|siding/)) return "roofing";
+  if (a.match(/landscap|lawn|garden(?!.*center)/)) return "landscaping";
+  if (a.match(/cleaning|maid|janitorial|housekeeping/)) return "cleaning";
+  if (a.match(/moving|mover|relocation/)) return "moving";
+  if (a.match(/storage|self.?storage|warehousing/)) return "storage";
+  if (a.match(/handyman|contractor|construction/)) return "remodeling";
+
+  // — auto —
+  if (a.match(/auto.*repair|mechanic|oil.?change|tire|body shop|collision|transmission|muffler/)) return "auto_repair";
+  if (a.match(/auto|\bcar\b|vehicle|dealership/)) return "auto_repair";
+
+  // — pet —
+  if (a.match(/pet.*groom|dog.*walk|dog.*board|kennel/)) return "pet_services";
+  if (a.match(/\bpet\b|animal|dog\b|cat\b/)) return "pet_services";
+
+  // — education —
   if (a.match(/tutor/)) return "tutoring";
+  if (a.match(/childcare|daycare|preschool/)) return "childcare";
+
+  // — retail & specialty —
+  if (a.match(/bookstore|book.?store|books?\b|library|used books|rare books/)) return "bookstore";
+  if (a.match(/florist|flower shop|bouquet|floral/)) return "florist";
+  if (a.match(/jewelry|jeweler|diamond|engagement ring|fine gold/)) return "jewelry";
+  if (a.match(/hardware|lumber|home improvement|building supply/)) return "hardware";
+  if (a.match(/hotel|resort|inn\b|boutique hotel|bed.?and.?breakfast|b&b/)) return "hotel";
+  if (a.match(/motel|lodge/)) return "hotel";
+  if (a.match(/boutique|clothing|apparel|fashion|shoe/)) return "retail";
+  if (a.match(/retail|shop\b|store\b|wholesale/)) return "retail";
+
+  // — creative / media services —
+  if (a.match(/photograph/)) return "photography_studio";
+  if (a.match(/printing|printer|print shop|copy shop|sign shop/)) return "printing";
+
+  // Final fallback: classifier's top-level type, then generic.
   return classifyBusinessType(businessName, description);
 }
 
@@ -103,6 +165,39 @@ const SUBTYPE_SERVICES: Record<string, string[]> = {
   photography: ["Portrait Sessions", "Events & Weddings", "Commercial Work"],
   catering: ["Corporate Catering", "Weddings & Events", "Drop-Off Service"],
   tutoring: ["One-on-One", "Group Sessions", "Test Prep"],
+  bookstore: ["New & Used Books", "Author Events & Readings", "Special Orders"],
+  florist: ["Bouquets & Arrangements", "Weddings & Events", "Same-Day Delivery"],
+  jewelry: ["Custom Design", "Repairs & Resizing", "Fine Watches & Gifts"],
+  brewery: ["Taproom Pours", "Growler Fills", "Private Events"],
+  wine: ["Tastings & Flights", "Curated Wine Club", "Private Events"],
+  distillery: ["Tastings", "Bottle Shop", "Private Tours"],
+  hotel: ["Room Bookings", "Events & Meetings", "Weekend Packages"],
+  grocery: ["Fresh Produce & Meat", "Prepared Meals", "Local Delivery"],
+  hardware: ["Tools & Supplies", "Lumber & Building", "Expert Advice"],
+  florist_weddings: ["Wedding Flowers", "Arrangements", "Delivery"],
+  moving: ["Local Moves", "Long-Distance", "Packing Service"],
+  storage: ["Climate-Controlled Units", "Short-Term Rental", "Vehicle Storage"],
+  printing: ["Business Printing", "Signage & Banners", "Rush Orders"],
+  staffing: ["Temp & Temp-to-Hire", "Direct Placement", "Executive Search"],
+  accounting: ["Tax Preparation", "Bookkeeping", "Advisory Services"],
+  marketing: ["Strategy & Branding", "Campaign Execution", "Analytics & Reporting"],
+  nonprofit: ["Donate", "Volunteer", "Upcoming Events"],
+  photography_studio: ["Portrait Sessions", "Events & Weddings", "Commercial Work"],
+  gym: ["Memberships", "Group Classes", "Personal Training"],
+  real_estate: ["Buy", "Sell", "Market Analysis"],
+  law: ["Free Consultation", "Case Representation", "Document Review"],
+  dental: ["General Dentistry", "Cosmetic Dentistry", "Emergency Care"],
+  medical: ["Primary Care", "Preventive Wellness", "Urgent Care Visits"],
+  roofing: ["Roof Replacement", "Storm Damage Repair", "Free Inspections"],
+  landscaping: ["Lawn Maintenance", "Design & Install", "Seasonal Cleanup"],
+  cleaning: ["One-Time Clean", "Recurring Service", "Deep & Move-Out"],
+  fitness: ["Personal Training", "Group Classes", "Nutrition Coaching"],
+  hvac: ["AC Installation & Repair", "Heating & Furnace Service", "Preventive Maintenance"],
+  beauty: ["Haircut & Styling", "Color & Highlights", "Special Occasion Packages"],
+  insurance: ["Auto & Home", "Business Insurance", "Life & Health"],
+  financial: ["Financial Planning", "Insurance Review", "Tax Strategy"],
+  restaurant: ["Dine-In", "Takeout & Delivery", "Catering & Events"],
+  auto_repair: ["Oil Change & Tune-Up", "Brake Service", "Full Diagnostics"],
 };
 
 const SERVICE_MAP: Record<string, string[]> = {
