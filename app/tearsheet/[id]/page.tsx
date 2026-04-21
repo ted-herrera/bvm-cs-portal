@@ -38,13 +38,14 @@ function pickDefaultPhoto(intake: Record<string, string> | null | undefined): st
   return "https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=1200&auto=format&fit=crop";
 }
 
-function buildAdData(client: ClientProfile, variation: PrintVariation, sub: number, realSize = true): PrintAdData {
+function buildAdData(client: ClientProfile, variation: PrintVariation, sub: number, realSize = true, overridePhoto?: string): PrintAdData {
   const intake = (client.intakeAnswers || {}) as Record<string, string>;
   const size: PrintSize = realSize ? normalizeSize(intake.q5 || intake.printSize) : "1/4";
   const services = (intake.q3 || "").split(",").map((s) => s.trim()).filter(Boolean).slice(0, 3);
   const tagline = intake.q8 || (client.sbrData as { tagline?: string } | null)?.tagline || "";
   const qrType = intake.q6 === "yes" ? "url" : (intake.qrType || "none");
   const qrValue = intake.q7 || intake.qrValue || "";
+  const addressRaw = (intake.address || "").trim();
 
   return {
     businessName: client.business_name,
@@ -53,7 +54,8 @@ function buildAdData(client: ClientProfile, variation: PrintVariation, sub: numb
     services,
     cta: intake.q4 || "Contact Us",
     phone: client.phone || intake.phone || "",
-    photoUrl: pickDefaultPhoto(intake),
+    address: addressRaw || undefined,
+    photoUrl: overridePhoto || pickDefaultPhoto(intake),
     logoUrl: client.logoUrl || intake.logoUrl || undefined,
     brandColors: { primary: NAVY, secondary: "#475569", accent: GOLD },
     size,
@@ -68,7 +70,11 @@ function PrintPreview({ data, scale = 1 }: { data: PrintAdData; scale?: number }
   const html = useMemo(() => renderPrintAd(data, { dpi: 150 }), [data]);
   return (
     <div style={{ width: spec.bleedPx150.w * scale, height: spec.bleedPx150.h * scale, position: "relative" }}>
-      <div style={{ width: spec.bleedPx150.w, height: spec.bleedPx150.h, transform: `scale(${scale})`, transformOrigin: "top left" }} dangerouslySetInnerHTML={{ __html: html }} />
+      <div
+        key={`${data.variation}-${data.subVariation}`}
+        style={{ width: spec.bleedPx150.w, height: spec.bleedPx150.h, transform: `scale(${scale})`, transformOrigin: "top left" }}
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
     </div>
   );
 }
@@ -88,25 +94,32 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
   const [showCampaignInterest, setShowCampaignInterest] = useState(false);
   const [qaScore, setQaScore] = useState<number | null>(null);
 
+  const [aiAvailable, setAiAvailable] = useState(false);
+  const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [aiImage, setAiImage] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+
   useEffect(() => {
     fetchClient(id).then((c) => { setClient(c); setLoading(false); });
   }, [id]);
 
   useEffect(() => {
+    fetch("/api/image/generate")
+      .then((r) => r.json())
+      .then((d) => setAiAvailable(!!d?.configured))
+      .catch(() => setAiAvailable(false));
+  }, []);
+
+  useEffect(() => {
     if (!client) return;
-    // Post-flight QA (4 passes — just compute lightweight checks client-side)
     const intake = (client.intakeAnswers || {}) as Record<string, string>;
     let pass = 0, total = 0;
-    // Pass 1: fields
     const fieldsPass = !!client.business_name && !!client.city && !!intake.q4;
     total++; if (fieldsPass) pass++;
-    // Pass 2: brand
     const brandPass = !!intake.brandVibe || !!client.logoUrl;
     total++; if (brandPass) pass++;
-    // Pass 3: print readiness
     const sizePass = !!intake.q5;
     total++; if (sizePass) pass++;
-    // Pass 4: content accuracy
     const contentPass = !!intake.q3 && !!intake.q8;
     total++; if (contentPass) pass++;
     setQaScore(Math.round((pass / total) * 100));
@@ -119,9 +132,31 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
     if (subVariation < 3) {
       setSubVariation((s) => s + 1);
     } else {
+      const nextV = VARIATIONS[(vIdx + 1) % VARIATIONS.length];
+      setVariation(nextV);
       setSubVariation(0);
-      setVariation(VARIATIONS[(vIdx + 1) % VARIATIONS.length]);
     }
+  }
+
+  async function handleAiTest() {
+    if (!client) return;
+    const pw = typeof window !== "undefined" ? window.prompt("Enter password") : "";
+    if (pw !== "bvmtest") return;
+    setAiModalOpen(true);
+    setAiLoading(true);
+    setAiImage(null);
+    try {
+      const res = await fetch("/api/image/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: client.id, prompt: "" }),
+      });
+      const data = await res.json().catch(() => null);
+      if (data?.imageUrl) setAiImage(data.imageUrl);
+    } catch {
+      /* ignore */
+    }
+    setAiLoading(false);
   }
 
   async function handleApprove() {
@@ -166,11 +201,13 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
     || ((client.sbrData || {}) as { summary?: string }).summary
     || `${client.city} is a growing market with strong engagement on print + digital.`;
 
+  const stockPhoto = pickDefaultPhoto((client.intakeAnswers || {}) as Record<string, string>);
+
   if (approved) {
     return (
       <div style={{ minHeight: "100vh", background: NAVY, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column" }}>
         <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 56, color: "#fff", margin: 0 }}>Campaign Direction Approved ✓</h1>
-        <p style={{ color: GOLD, fontSize: 18, marginTop: 16 }}>We'll take it from here.</p>
+        <p style={{ color: GOLD, fontSize: 18, marginTop: 16 }}>We&apos;ll take it from here.</p>
         <button onClick={() => router.push(`/client/${id}`)} style={{ marginTop: 24, background: GOLD, color: NAVY, border: "none", borderRadius: 10, padding: "14px 28px", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>See Your Dashboard →</button>
       </div>
     );
@@ -196,12 +233,19 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
           <div style={{ display: "flex", gap: 10 }}>
             <button onClick={() => setRealSize((s) => !s)} style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", color: TEXT }}>{realSize ? "Fit to screen" : "Real size"}</button>
             {hasQrFromIntake && <button onClick={() => setShowQR((s) => !s)} style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", color: TEXT }}>{showQR ? "Hide QR" : "Show QR"}</button>}
-            <button onClick={cycleAutomagic} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>⚡ Automagic</button>
           </div>
         </div>
 
         <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 16, padding: 32, display: "flex", justifyContent: "center", alignItems: "center", minHeight: 520 }}>
           <PrintPreview data={adData} scale={viewportScale} />
+        </div>
+
+        {/* Automagic + AI test — directly below preview, centered */}
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 12, marginTop: 22 }}>
+          <button onClick={cycleAutomagic} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 10, padding: "14px 32px", fontSize: 15, fontWeight: 800, cursor: "pointer", letterSpacing: "0.04em", boxShadow: "0 4px 14px rgba(212,168,67,0.35)" }}>⚡ Automagic — next variation</button>
+          {aiAvailable && (
+            <button onClick={handleAiTest} style={{ background: "#fff", color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "10px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>🤖 Test AI Art</button>
+          )}
         </div>
       </div>
 
@@ -233,7 +277,7 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
       {/* Web+Print+Digital reveal */}
       <div style={{ background: NAVY, color: "#fff", padding: "48px 24px" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.2em", color: GOLD, textTransform: "uppercase", margin: 0 }}>When you're ready for more</p>
+          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.2em", color: GOLD, textTransform: "uppercase", margin: 0 }}>When you&apos;re ready for more</p>
           <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 36, margin: "8px 0 24px" }}>Print · Website · Digital — in one campaign</h2>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20 }}>
             <div style={{ background: "#fff", color: TEXT, borderRadius: 12, padding: 20, minHeight: 180 }}>
@@ -252,14 +296,46 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
               <div style={{ fontSize: 11, color: TEXT2, marginTop: 8 }}>Targeted reach across platforms.</div>
             </div>
           </div>
-          <p style={{ marginTop: 24, fontSize: 14, color: "#cbd5e1", fontStyle: "italic" }}>Bruno's market note: {sbrMarket}</p>
+          <p style={{ marginTop: 24, fontSize: 14, color: "#cbd5e1", fontStyle: "italic" }}>Bruno&apos;s market note: {sbrMarket}</p>
           {!showCampaignInterest ? (
             <button onClick={registerCampaignInterest} style={{ marginTop: 16, background: GOLD, color: NAVY, border: "none", borderRadius: 10, padding: "12px 22px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Talk to your rep about going full campaign →</button>
           ) : (
-            <p style={{ marginTop: 16, color: GOLD, fontWeight: 600 }}>✓ Rep notified — they'll be in touch.</p>
+            <p style={{ marginTop: 16, color: GOLD, fontWeight: 600 }}>✓ Rep notified — they&apos;ll be in touch.</p>
           )}
         </div>
       </div>
+
+      {/* AI Test Modal */}
+      {aiModalOpen && (
+        <div role="dialog" style={{ position: "fixed", inset: 0, background: "rgba(12,35,64,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 24 }}>
+          <div style={{ background: "#fff", borderRadius: 14, maxWidth: 960, width: "100%", padding: 24 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, fontWeight: 700, color: TEXT, margin: 0 }}>AI Art Test — for rep comparison only</h3>
+              <button onClick={() => setAiModalOpen(false)} style={{ background: "transparent", border: "none", color: TEXT2, fontSize: 22, cursor: "pointer", lineHeight: 1 }}>×</button>
+            </div>
+            <p style={{ fontSize: 12, color: TEXT2, margin: "0 0 16px" }}>This is a rep-facing comparison tool. Nothing auto-applies.</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", color: GOLD, textTransform: "uppercase", margin: "0 0 8px" }}>AI Generated</p>
+                <div style={{ background: "#f1f5f9", borderRadius: 10, aspectRatio: "1/1", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                  {aiLoading && <p style={{ fontSize: 12, color: TEXT2 }}>Generating…</p>}
+                  {aiImage && <img src={aiImage} alt="AI generated" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+                  {!aiLoading && !aiImage && <p style={{ fontSize: 12, color: TEXT2 }}>No image returned</p>}
+                </div>
+              </div>
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", color: GOLD, textTransform: "uppercase", margin: "0 0 8px" }}>Current Stock Photo</p>
+                <div style={{ background: "#f1f5f9", borderRadius: 10, aspectRatio: "1/1", overflow: "hidden" }}>
+                  <img src={stockPhoto} alt="Current stock" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                </div>
+              </div>
+            </div>
+            <div style={{ textAlign: "right", marginTop: 16 }}>
+              <button onClick={() => setAiModalOpen(false)} style={{ background: NAVY, color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

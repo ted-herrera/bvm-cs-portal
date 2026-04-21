@@ -38,30 +38,36 @@ const PRINT_SIZES = [
   { id: "cover", label: "Cover", desc: "Featured cover" },
 ];
 
-const SYSTEM_PROMPT = `You are Bruno, the print campaign intake assistant for BVM Client Success. Your job is to collect the details needed to build a print ad campaign direction. Be warm, conversational, and natural — like a smart friend helping a business owner.
+const SYSTEM_PROMPT = `You are Bruno, the print campaign intake assistant for BVM Client Success. Be warm, conversational, natural.
 
-Collect in this order (but flex if the user answers out of order):
+CONVERSATION RULES — STRICT:
+- ONE question at a time. Never stack questions.
+- Maximum 2 sentences per Bruno message. Ever.
+- NO bullet lists inside messages. Ever.
+- NO "Perfect!" more than once in the entire conversation. Use varied acknowledgments: "Got it.", "Nice.", "Love that.", "Okay.", "Alright." Keep acks brief.
+- BANNED PHRASE: Never ask "What makes your [X] stand out?" or any variation of it.
+- After the client answers, give ONE short natural acknowledgment (max one short sentence), then ONE next question.
+- Skip is always allowed. If the user says "skip", "pass", "I don't have one", or similar, acknowledge briefly and move to the next question.
+
+COLLECT IN THIS ORDER (ask one at a time, flex if user volunteers something):
 1. Business name + city (bizName, city — also capture zip if mentioned)
 2. What the business does in one sentence (desc)
-3. Street address for the ad (address)
+3. Street address for the ad — use these EXACT words: "What's the street address you'd like on the ad?" (address — optional, skip accepted)
 4. Target customer (targetCustomer)
 5. Top 3 services or products (services as array)
-6. Call-to-action (cta) — "Order Now", "Book Today", "Call Us", etc.
-7. Brand vibe — colors, energy, feel (brandVibe, free text)
-8. Logo — ask if they have one. They can upload or skip. (logoUrl set by UI; you just note it)
-9. Photo — ask if they have a photo of the business/team. Upload or skip (stock photo used if skip). (photoUrl set by UI)
-10. Print size (printSize) — one of: eighth, quarter, third, half, full, cover. Describe each briefly.
-11. Tagline (tagline) — SUGGEST one based on what you know. Client accepts, edits, or skips. Even if skipped, keep a soft internal tagline in the JSON.
-12. QR code (qrType + qrValue). Ask if they want one. If yes, ask: website URL or email? If "something else", respond that their rep will follow up — don't block. If no, mark qrType as "none" and the QR is hidden entirely.
+6. Call-to-action (cta)
+7. Brand vibe — colors, energy, feel (brandVibe)
+8. Logo — ask if they have one, they can upload or skip
+9. Photo — ask if they have a photo, upload or skip (stock used if skip)
+10. Print size (printSize) — one of: eighth, quarter, third, half, full, cover
+11. Tagline — generate a tagline based on what you know, then say exactly: I'd suggest '[generated tagline]' — want to use that, tweak it, or skip? (tagline)
+12. QR code — ask: "Would you like a QR code on your ad?" If yes: ask "What should it link to — your website or email?" If user says something else (not url/email): reply "Got it, I'll flag that for your rep." and move on with qrType "other". If no: qrType "none".
 
-ABSOLUTE RULES — DO NOT VIOLATE:
-1. Before asking any question, check the ALREADY COLLECTED list. Never ask for a field already set.
-2. Extract any new fields from user input; merge into state; ask only for what's still missing.
-3. Skip is always allowed. If the user says "skip", "pass", "I don't have one", or similar, move gracefully to the next question.
-4. Never break flow. Handle anything gracefully.
-5. Never ask rigid scripted questions — converse naturally.
-6. Your text response MUST be plain prose (no JSON inside it). The JSON block goes at the very end.
-7. After the final question, when all required items are collected OR acknowledged as skipped, your confirmation message MUST be EXACTLY: "I have everything I need to build your campaign direction." followed by a short 3-line summary, then set complete: true.
+OTHER RULES:
+- Before asking any question, check the ALREADY COLLECTED list. Never re-ask a field already set.
+- Extract any new fields from user input; merge them; ask only for what's still missing.
+- Your text MUST be plain prose. No JSON inside it. No bullet lists. No multi-question paragraphs.
+- After the final question, when all items are collected or skipped, your confirmation MUST be EXACTLY: "I have everything I need to build your campaign direction." followed by a short 3-line summary, then set complete: true.
 
 CRITICAL OUTPUT FORMAT: Every response ends with a JSON block on its own line:
 ###FIELDS###
@@ -285,60 +291,64 @@ function IntakeInner() {
     addMsg("user", `${demo.bizName} in ${demo.city} ${demo.zip}`);
     await w(d);
     setFields((p) => ({ ...p, bizName: demo.bizName, city: demo.city, zip: demo.zip }));
-    addMsg("bruno", `${demo.bizName} in ${demo.city} — love it. What does the business do in one sentence?`);
+    addMsg("bruno", `Love that. What does ${demo.bizName} do in one sentence?`);
     await w(d);
     addMsg("user", demo.desc);
     setFields((p) => ({ ...p, desc: demo.desc }));
     await w(d);
-    addMsg("bruno", "Perfect. What's the street address for the ad?");
+    addMsg("bruno", "Got it. What's the street address you'd like on the ad?");
     await w(d);
     addMsg("user", demo.address);
     setFields((p) => ({ ...p, address: demo.address }));
     await w(d);
-    addMsg("bruno", "Got it. Who's your target customer?");
+    addMsg("bruno", "Nice. Who's your target customer?");
     await w(d);
     addMsg("user", demo.targetCustomer);
     setFields((p) => ({ ...p, targetCustomer: demo.targetCustomer }));
     await w(d);
-    addMsg("bruno", "Top 3 services or products?");
+    addMsg("bruno", "Okay. Give me your top three services or products.");
     await w(d);
     addMsg("user", demo.services.join(", "));
     setFields((p) => ({ ...p, services: demo.services }));
     await w(d);
-    addMsg("bruno", "What should the CTA say?");
+    addMsg("bruno", "Alright. What should the call-to-action say?");
     await w(d);
     addMsg("user", demo.cta);
     setFields((p) => ({ ...p, cta: demo.cta }));
     await w(d);
-    addMsg("bruno", "Describe your brand vibe — colors, energy, feel.");
+    addMsg("bruno", "Got it. Describe the brand vibe — colors, energy, feel.");
     await w(d);
     addMsg("user", demo.brandVibe);
     setFields((p) => ({ ...p, brandVibe: demo.brandVibe }));
     await w(d);
-    addMsg("bruno", "Do you have a logo? (Upload or skip)");
+    addMsg("bruno", "Nice. Do you have a logo to upload, or skip for now?");
     await w(d);
     addMsg("user", "skip");
     await w(d);
-    addMsg("bruno", "Photo of the business? (Upload or skip — we'll use stock if skipped)");
+    addMsg("bruno", "No problem. A photo of the business or team? Upload or skip.");
     await w(d);
     addMsg("user", "skip");
     await w(d);
-    addMsg("bruno", "What print size? Eighth, quarter, third, half, full, or cover?");
+    addMsg("bruno", "Alright. What print size — eighth, quarter, third, half, full, or cover?");
     await w(d);
     addMsg("user", "Quarter — most popular");
     setFields((p) => ({ ...p, printSize: demo.printSize }));
     await w(d);
-    addMsg("bruno", `Here's a tagline I wrote: "${demo.tagline}". Good, want to tweak, or skip?`);
+    addMsg("bruno", `I'd suggest '${demo.tagline}' — want to use that, tweak it, or skip?`);
     await w(d);
-    addMsg("user", "Perfect — use it.");
+    addMsg("user", "Use it.");
     setFields((p) => ({ ...p, tagline: demo.tagline }));
     await w(d);
-    addMsg("bruno", "QR code? Want one? (URL or email, or skip)");
+    addMsg("bruno", "Would you like a QR code on your ad?");
     await w(d);
-    addMsg("user", `Yes — ${demo.qrValue}`);
+    addMsg("user", "Yes");
+    await w(d);
+    addMsg("bruno", "What should it link to — your website or email?");
+    await w(d);
+    addMsg("user", demo.qrValue);
     setFields((p) => ({ ...p, qrType: demo.qrType, qrValue: demo.qrValue, phone: demo.phone }));
     await w(d);
-    addMsg("bruno", "I have everything I need to build your campaign direction.\n\n• " + demo.bizName + " — " + demo.city + "\n• " + demo.cta + " · Quarter page\n• QR: " + demo.qrValue);
+    addMsg("bruno", "I have everything I need to build your campaign direction.\n" + demo.bizName + " — " + demo.city + "\n" + demo.cta + " · Quarter page\nQR: " + demo.qrValue);
 
     setFinished(true);
     await doFinish({ ...demo, logoUrl: "", photoUrl: "" });

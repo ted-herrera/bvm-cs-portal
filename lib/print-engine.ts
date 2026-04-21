@@ -12,6 +12,7 @@ export interface PrintAdData {
   services: string[];
   cta: string;
   phone: string;
+  address?: string;
   website?: string;
   logoUrl?: string;
   photoUrl: string;
@@ -226,6 +227,7 @@ function renderCleanClassic(d: PrintAdData, p: SubPalette, w: number, h: number)
       <div style="border-top:1px solid ${p.accent};padding-top:${Math.round(8 * s)}px;margin-top:${Math.round(10 * s)}px;">
         <div style="font-size:${Math.round(13 * s)}px;font-weight:700;color:${p.accent};margin-bottom:${Math.round(3 * s)}px;">${escape(d.cta)}</div>
         <div style="font-size:${Math.round(11 * s)}px;color:${p.secondary};">${escape(d.phone)}${d.website ? ` · ${escape(d.website)}` : ""}</div>
+        ${d.address && d.address.trim() ? `<div style="font-size:${Math.round(9 * s)}px;color:${p.secondary};margin-top:${Math.round(2 * s)}px;letter-spacing:0.02em;">${escape(d.address)}</div>` : ""}
       </div>
     </div>
   </div>`;
@@ -250,6 +252,7 @@ function renderBoldModern(d: PrintAdData, p: SubPalette, w: number, h: number): 
         <div>
           <div style="font-size:${Math.round(20 * s)}px;font-weight:900;color:${p.accent};line-height:1;text-transform:uppercase;letter-spacing:-0.01em;">${escape(d.cta)} →</div>
           <div style="font-size:${Math.round(11 * s)}px;color:${p.secondary};margin-top:${Math.round(4 * s)}px;">${escape(d.phone)}${d.website ? ` · ${escape(d.website)}` : ""}</div>
+          ${d.address && d.address.trim() ? `<div style="font-size:${Math.round(9 * s)}px;color:${p.secondary};margin-top:${Math.round(2 * s)}px;letter-spacing:0.02em;">${escape(d.address)}</div>` : ""}
         </div>
       </div>
     </div>
@@ -275,6 +278,7 @@ function renderPremiumEditorial(d: PrintAdData, p: SubPalette, w: number, h: num
         <div style="border-top:1px solid ${p.accent};padding-top:${Math.round(10 * s)}px;">
           <div style="font-size:${Math.round(14 * s)}px;font-weight:700;color:${p.accent};margin-bottom:${Math.round(4 * s)}px;">${escape(d.cta)}</div>
           <div style="font-size:${Math.round(11 * s)}px;color:${p.secondary};">${escape(d.phone)}</div>
+          ${d.address && d.address.trim() ? `<div style="font-size:${Math.round(9 * s)}px;color:${p.secondary};margin-top:${Math.round(2 * s)}px;letter-spacing:0.02em;">${escape(d.address)}</div>` : ""}
         </div>
       </div>
     </div>`;
@@ -290,7 +294,7 @@ function renderPremiumEditorial(d: PrintAdData, p: SubPalette, w: number, h: num
         ${d.tagline ? `<p style="font-size:${Math.round(12 * s)}px;line-height:1.35;margin:0 0 ${Math.round(10 * s)}px;color:${p.secondary};">${escape(d.tagline)}</p>` : ""}
         <div style="display:flex;justify-content:space-between;align-items:flex-end;border-top:1px solid ${p.accent};padding-top:${Math.round(8 * s)}px;">
           <div style="font-size:${Math.round(13 * s)}px;font-weight:700;color:${p.accent};">${escape(d.cta)} →</div>
-          <div style="font-size:${Math.round(10 * s)}px;color:${p.secondary};">${escape(d.phone)}</div>
+          <div style="font-size:${Math.round(10 * s)}px;color:${p.secondary};text-align:right;">${escape(d.phone)}${d.address && d.address.trim() ? `<div style='font-size:${Math.round(8 * s)}px;margin-top:${Math.round(2 * s)}px;'>${escape(d.address)}</div>` : ""}</div>
         </div>
       </div>
     </div>`;
@@ -308,6 +312,7 @@ function renderPremiumEditorial(d: PrintAdData, p: SubPalette, w: number, h: num
         ${d.tagline ? `<p style="font-size:${Math.round(14 * s)}px;line-height:1.35;margin:0 0 ${Math.round(14 * s)}px;color:${p.secondary};max-width:${Math.round(w * 0.7)}px;">${escape(d.tagline)}</p>` : ""}
         <div style="display:inline-block;background:${p.accent};color:#0C2340;padding:${Math.round(8 * s)}px ${Math.round(16 * s)}px;font-size:${Math.round(12 * s)}px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;border-radius:${Math.round(2 * s)}px;">${escape(d.cta)}</div>
         <div style="font-size:${Math.round(11 * s)}px;color:${p.secondary};margin-top:${Math.round(10 * s)}px;">${escape(d.phone)}${d.website ? ` · ${escape(d.website)}` : ""}</div>
+        ${d.address && d.address.trim() ? `<div style="font-size:${Math.round(9 * s)}px;color:${p.secondary};margin-top:${Math.round(3 * s)}px;letter-spacing:0.02em;">${escape(d.address)}</div>` : ""}
       </div>
     </div>
   </div>`;
