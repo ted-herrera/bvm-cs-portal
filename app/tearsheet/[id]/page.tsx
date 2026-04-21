@@ -274,25 +274,65 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
         )}
       </div>
 
-      {/* Web+Print+Digital reveal */}
+      {/* Web+Print+Digital campaign preview — visible below approval gate */}
       <div style={{ background: NAVY, color: "#fff", padding: "48px 24px" }}>
-        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.2em", color: GOLD, textTransform: "uppercase", margin: 0 }}>When you&apos;re ready for more</p>
+        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.2em", color: GOLD, textTransform: "uppercase", margin: 0 }}>Full Campaign Preview</p>
           <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 36, margin: "8px 0 24px" }}>Print · Website · Digital — in one campaign</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20 }}>
-            <div style={{ background: "#fff", color: TEXT, borderRadius: 12, padding: 20, minHeight: 180 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20, alignItems: "stretch" }}>
+            {/* Print ad preview (left) */}
+            <div style={{ background: "#fff", color: TEXT, borderRadius: 12, padding: 18, display: "flex", flexDirection: "column" }}>
               <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", color: GOLD, textTransform: "uppercase", margin: 0 }}>Print</p>
-              <h3 style={{ fontSize: 16, fontWeight: 700, margin: "6px 0", color: TEXT }}>{client.business_name}</h3>
-              <div style={{ fontSize: 11, color: TEXT2 }}>Your approved tearsheet — ready to print.</div>
+              <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9", borderRadius: 8, marginTop: 8, padding: 12, minHeight: 220 }}>
+                {(() => {
+                  const previewSpec = getSizeSpec(adData.size);
+                  const thumbScale = Math.min(1, 240 / previewSpec.bleedPx150.w, 220 / previewSpec.bleedPx150.h);
+                  return (
+                    <div style={{ width: previewSpec.bleedPx150.w * thumbScale, height: previewSpec.bleedPx150.h * thumbScale }}>
+                      <div
+                        key={`preview-${variation}-${subVariation}`}
+                        style={{ width: previewSpec.bleedPx150.w, height: previewSpec.bleedPx150.h, transform: `scale(${thumbScale})`, transformOrigin: "top left" }}
+                        dangerouslySetInnerHTML={{ __html: renderPrintAd(adData, { dpi: 150 }) }}
+                      />
+                    </div>
+                  );
+                })()}
+              </div>
+              <div style={{ fontSize: 11, color: TEXT2, marginTop: 8 }}>Your approved tearsheet, ready to print.</div>
             </div>
-            <div style={{ background: "#fff", color: TEXT, borderRadius: 12, padding: 20, minHeight: 180 }}>
+
+            {/* Generic website mockup (center) */}
+            <div style={{ background: "#fff", color: TEXT, borderRadius: 12, padding: 18, display: "flex", flexDirection: "column" }}>
               <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", color: GOLD, textTransform: "uppercase", margin: 0 }}>Website</p>
-              <div style={{ background: "#f1f5f9", borderRadius: 8, height: 100, marginTop: 8 }} />
+              <div style={{ flex: 1, marginTop: 8, background: "#e2e8f0", borderRadius: 8, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 220 }}>
+                <div style={{ background: "#cbd5e1", padding: "6px 10px", display: "flex", gap: 4 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#ef4444" }} />
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#f59e0b" }} />
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#22c55e" }} />
+                </div>
+                <div style={{ flex: 1, background: "#fff", padding: 14 }}>
+                  <div style={{ height: 10, background: NAVY, borderRadius: 3, width: "45%" }} />
+                  <div style={{ height: 22, background: "#1f2937", borderRadius: 4, width: "80%", marginTop: 8 }} />
+                  <div style={{ height: 10, background: "#cbd5e1", borderRadius: 3, width: "100%", marginTop: 10 }} />
+                  <div style={{ height: 10, background: "#cbd5e1", borderRadius: 3, width: "92%", marginTop: 6 }} />
+                  <div style={{ background: "#f1f5f9", borderRadius: 6, height: 60, marginTop: 10 }} />
+                  <div style={{ display: "inline-block", background: GOLD, color: NAVY, fontSize: 10, fontWeight: 800, padding: "4px 10px", borderRadius: 4, marginTop: 10 }}>{((client.intakeAnswers || {}) as Record<string, string>).q4 || "Contact"} →</div>
+                </div>
+              </div>
               <div style={{ fontSize: 11, color: TEXT2, marginTop: 8 }}>Responsive, conversion-optimized.</div>
             </div>
-            <div style={{ background: "#fff", color: TEXT, borderRadius: 12, padding: 20, minHeight: 180 }}>
+
+            {/* Digital ad frame (right) */}
+            <div style={{ background: "#fff", color: TEXT, borderRadius: 12, padding: 18, display: "flex", flexDirection: "column" }}>
               <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", color: GOLD, textTransform: "uppercase", margin: 0 }}>Digital Ad</p>
-              <div style={{ background: "#f1f5f9", borderRadius: 8, height: 100, marginTop: 8 }} />
+              <div style={{ flex: 1, marginTop: 8, background: NAVY, borderRadius: 8, padding: 16, minHeight: 220, display: "flex", flexDirection: "column", justifyContent: "space-between", color: "#fff" }}>
+                <div>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.18em", color: GOLD, textTransform: "uppercase" }}>Sponsored · Local</div>
+                  <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, fontWeight: 700, marginTop: 6, lineHeight: 1.1 }}>{client.business_name}</div>
+                  {adData.tagline && <div style={{ fontSize: 10, color: "#cbd5e1", marginTop: 4, fontStyle: "italic" }}>{adData.tagline}</div>}
+                </div>
+                <div style={{ display: "inline-block", alignSelf: "flex-start", background: GOLD, color: NAVY, fontSize: 10, fontWeight: 800, padding: "4px 10px", borderRadius: 3 }}>{((client.intakeAnswers || {}) as Record<string, string>).q4 || "Learn More"} →</div>
+              </div>
               <div style={{ fontSize: 11, color: TEXT2, marginTop: 8 }}>Targeted reach across platforms.</div>
             </div>
           </div>

@@ -116,7 +116,7 @@ function paletteFor(variation: PrintVariation, sub: number, brand: PrintAdData["
       { bg: "#0C2340", text: "#FFFFFF", accent: "#D4A843", secondary: "#94A3B8", fontFamily: "'Inter', system-ui, sans-serif", headlineFont: "'Inter', system-ui, sans-serif" },
       { bg: "#0A0A0A", text: "#FFFFFF", accent: "#DC2626", secondary: "#A1A1AA", fontFamily: "'Inter', system-ui, sans-serif", headlineFont: "'Inter', system-ui, sans-serif" },
       { bg: brand.primary || "#185FA5", text: "#FFFFFF", accent: brand.accent || "#D4A843", secondary: "rgba(255,255,255,0.7)", fontFamily: "'Inter', system-ui, sans-serif", headlineFont: "'Inter', system-ui, sans-serif" },
-      { bg: "#FFFFFF", text: brand.primary || "#0C2340", accent: brand.accent || "#D4A843", secondary: brand.secondary || "#475569", fontFamily: "'Inter', system-ui, sans-serif", headlineFont: "'Inter', system-ui, sans-serif" },
+      { bg: "#1F2937", text: "#FFFFFF", accent: "#22D3EE", secondary: "#CBD5E1", fontFamily: "'Inter', system-ui, sans-serif", headlineFont: "'Inter', system-ui, sans-serif" },
     ][idx];
   }
   // premium_editorial
@@ -210,17 +210,35 @@ function fontScale(w: number, h: number): number {
 
 function renderCleanClassic(d: PrintAdData, p: SubPalette, w: number, h: number): string {
   const s = fontScale(w, h);
+  const sub = (((d.subVariation ?? 0) % 4) + 4) % 4;
   const isLandscape = w > h * 1.2;
-  const photoH = isLandscape ? "100%" : `${Math.round(h * 0.42)}px`;
-  const photoW = isLandscape ? `${Math.round(w * 0.42)}px` : "100%";
   const padding = Math.max(12, Math.round(20 * s));
 
-  return `<div style="width:${w}px;height:${h}px;background:${p.bg};display:flex;flex-direction:${isLandscape ? "row" : "column"};font-family:${p.fontFamily};color:${p.text};">
-    <div style="width:${photoW};height:${photoH};background:${d.photoUrl ? `url('${d.photoUrl}') center/cover` : `linear-gradient(135deg, ${d.brandColors.primary}, ${d.brandColors.accent})`};flex-shrink:0;"></div>
+  // Layout varies per sub — photo position / size / reverse
+  // sub 0: photo leading (left in landscape, top in portrait)
+  // sub 1: reversed — photo trailing, with thin gold frame
+  // sub 2: photo as thin banner (top/left band), content dominant
+  // sub 3: photo bottom (portrait) or right (landscape), oversized headline
+  const photoBg = d.photoUrl
+    ? `url('${d.photoUrl}') center/cover`
+    : `linear-gradient(135deg, ${d.brandColors.primary}, ${d.brandColors.accent})`;
+
+  const direction = isLandscape ? "row" : "column";
+  const reverse = sub === 1 || sub === 3;
+  const flexDir = `${direction}${reverse ? "-reverse" : ""}`;
+
+  const photoRatio = sub === 2 ? 0.22 : sub === 3 ? 0.55 : 0.42;
+  const photoH = isLandscape ? "100%" : `${Math.round(h * photoRatio)}px`;
+  const photoW = isLandscape ? `${Math.round(w * photoRatio)}px` : "100%";
+  const photoBorder = sub === 1 ? `border:${Math.max(3, Math.round(4 * s))}px solid ${p.accent};box-sizing:border-box;` : "";
+  const headlineSize = sub === 3 ? 34 : sub === 2 ? 24 : 26;
+
+  return `<div style="width:${w}px;height:${h}px;background:${p.bg};display:flex;flex-direction:${flexDir};font-family:${p.fontFamily};color:${p.text};">
+    <div style="width:${photoW};height:${photoH};background:${photoBg};flex-shrink:0;${photoBorder}"></div>
     <div style="flex:1;padding:${padding}px;display:flex;flex-direction:column;justify-content:space-between;min-width:0;">
       <div>
         <div style="font-size:${Math.round(9 * s)}px;letter-spacing:0.18em;text-transform:uppercase;color:${p.accent};font-weight:700;margin-bottom:${Math.round(6 * s)}px;">${escape(d.city || "")}</div>
-        <h2 style="font-family:${p.headlineFont};font-size:${Math.round(26 * s)}px;line-height:1.05;margin:0 0 ${Math.round(8 * s)}px;font-weight:700;color:${p.text};">${escape(d.businessName)}</h2>
+        <h2 style="font-family:${p.headlineFont};font-size:${Math.round(headlineSize * s)}px;line-height:1.05;margin:0 0 ${Math.round(8 * s)}px;font-weight:700;color:${p.text};">${escape(d.businessName)}</h2>
         ${d.tagline ? `<p style="font-size:${Math.round(13 * s)}px;line-height:1.35;margin:0 0 ${Math.round(10 * s)}px;font-style:italic;color:${p.secondary};">${escape(d.tagline)}</p>` : ""}
         ${d.services.length ? `<ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:${Math.round(3 * s)}px;">${d.services.slice(0, 3).map((sv) => `<li style="font-size:${Math.round(11 * s)}px;color:${p.text};display:flex;align-items:center;gap:${Math.round(6 * s)}px;"><span style="width:${Math.round(4 * s)}px;height:${Math.round(4 * s)}px;background:${p.accent};border-radius:50%;flex-shrink:0;"></span>${escape(sv)}</li>`).join("")}</ul>` : ""}
       </div>
@@ -235,12 +253,32 @@ function renderCleanClassic(d: PrintAdData, p: SubPalette, w: number, h: number)
 
 function renderBoldModern(d: PrintAdData, p: SubPalette, w: number, h: number): string {
   const s = fontScale(w, h);
+  const sub = (((d.subVariation ?? 0) % 4) + 4) % 4;
   const padding = Math.max(14, Math.round(24 * s));
   const isLandscape = w > h * 1.2;
   const isCover = h > w * 1.15 && h > 1300;
+  const photoBg = d.photoUrl
+    ? `url('${d.photoUrl}') center/cover`
+    : `linear-gradient(135deg, ${d.brandColors.primary}, ${d.brandColors.accent})`;
+
+  // Per-sub photo placement for visible layout variance:
+  // sub 0: photo top-right diagonal (default)
+  // sub 1: photo top-left mirrored diagonal
+  // sub 2: photo covers entire background with heavy overlay tint
+  // sub 3: photo as thin bottom band across full width
+  let photoBlock = "";
+  if (sub === 0) {
+    photoBlock = `<div style="position:absolute;top:0;right:0;width:${Math.round(w * (isLandscape ? 0.45 : 0.55))}px;height:${Math.round(h * (isLandscape ? 1 : 0.5))}px;background:${photoBg};opacity:${isCover ? 0.95 : 0.85};mix-blend-mode:${p.bg.startsWith("#0") ? "screen" : "normal"};${isLandscape ? "" : "clip-path:polygon(20% 0, 100% 0, 100% 100%, 0% 100%);"}"></div>`;
+  } else if (sub === 1) {
+    photoBlock = `<div style="position:absolute;top:0;left:0;width:${Math.round(w * (isLandscape ? 0.45 : 0.55))}px;height:${Math.round(h * (isLandscape ? 1 : 0.5))}px;background:${photoBg};opacity:0.85;${isLandscape ? "" : "clip-path:polygon(0 0, 80% 0, 100% 100%, 0 100%);"}"></div>`;
+  } else if (sub === 2) {
+    photoBlock = `<div style="position:absolute;inset:0;background:${photoBg};opacity:0.45;"></div><div style="position:absolute;inset:0;background:${p.bg};opacity:0.78;"></div>`;
+  } else {
+    photoBlock = `<div style="position:absolute;bottom:0;left:0;right:0;height:${Math.round(h * 0.32)}px;background:${photoBg};opacity:0.9;"></div>`;
+  }
 
   return `<div style="width:${w}px;height:${h}px;background:${p.bg};display:flex;flex-direction:column;justify-content:space-between;padding:${padding}px;font-family:${p.fontFamily};color:${p.text};position:relative;overflow:hidden;">
-    <div style="position:absolute;top:0;right:0;width:${Math.round(w * (isLandscape ? 0.45 : 0.55))}px;height:${Math.round(h * (isLandscape ? 1 : 0.5))}px;background:${d.photoUrl ? `url('${d.photoUrl}') center/cover` : `linear-gradient(135deg, ${d.brandColors.primary}, ${d.brandColors.accent})`};opacity:${isCover ? 0.95 : 0.85};mix-blend-mode:${p.bg.startsWith("#0") ? "screen" : "normal"};${isLandscape ? "" : "clip-path:polygon(20% 0, 100% 0, 100% 100%, 0% 100%);"}"></div>
+    ${photoBlock}
     <div style="position:relative;z-index:2;max-width:${Math.round(w * 0.72)}px;">
       <div style="display:inline-block;font-size:${Math.round(10 * s)}px;font-weight:800;letter-spacing:0.22em;text-transform:uppercase;color:${p.accent};border-bottom:${Math.round(3 * s)}px solid ${p.accent};padding-bottom:${Math.round(3 * s)}px;margin-bottom:${Math.round(10 * s)}px;">${escape(d.city || "Local")}</div>
       <h1 style="font-family:${p.headlineFont};font-size:${Math.round(38 * s)}px;line-height:0.95;margin:0 0 ${Math.round(10 * s)}px;font-weight:900;letter-spacing:-0.02em;color:${p.text};">${escape(d.businessName)}</h1>

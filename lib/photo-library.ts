@@ -22,6 +22,28 @@ const PHOTO_LIBRARY: Record<string, string[]> = {
     U("1565299624946-b28f40a0ae38"),
     U("1482049016688-2d3e1b311543"),
   ],
+  bakery: [
+    U("1509440159596-0249088772ff"),
+    U("1555507036-ab1f4038808a"),
+    U("1486427944299-d1955d23e34d"),
+    U("1568254183919-78a4f43a2877"),
+    U("1546069901-ba9599a7e63c"),
+    U("1587241321921-91a834d6d191"),
+    U("1549931319-a545dcf3bc73"),
+    U("1464195244916-405fa0a82545"),
+    U("1558961363-fa8fdf82db35"),
+    U("1551024506-0bccd828d307"),
+    U("1571115177098-24ec42ed204d"),
+    U("1566478989037-eec170784d0b"),
+    U("1488477181946-6428a0291777"),
+    U("1517427294546-5aa121f68e8a"),
+    U("1578985545062-69928b1d9587"),
+    U("1608198093002-ad4e005484ec"),
+    U("1612203985729-70726954388c"),
+    U("1585478259715-876acc5be8eb"),
+    U("1499636136210-6f4ee915583e"),
+    U("1587241321837-4857b8bde74f"),
+  ],
   pizza: [
     U("1565299624946-b28f40a0ae38"),
     U("1513104890138-7c749659a591"),
@@ -608,6 +630,7 @@ const PHOTO_LIBRARY: Record<string, string[]> = {
 
 const CATEGORY_SEARCH_TERMS: Record<string, string[]> = {
   restaurant: ["restaurant", "food", "dining"],
+  bakery: ["bakery", "pastries", "bread"],
   pizza: ["pizza", "pizzeria", "italian food"],
   taco_mexican: ["tacos", "mexican food", "burrito"],
   bbq: ["bbq", "barbecue", "grill"],
@@ -683,7 +706,7 @@ export function getPhotoLibraryKey(businessType: string, subType?: string): stri
     if (s.match(/bbq|barbecue|smokehouse/)) return "bbq";
     if (s.match(/burger|patty/)) return "burger";
     if (s.match(/coffee|cafe|espresso|latte/)) return "coffee_cafe";
-    if (s.match(/bakery|cupcake/)) return "restaurant";
+    if (s.match(/bakery|baker|baked|pastry|pastries|bread|cake|cupcake|donut|doughnut|chocolate|chocolatier|sweets|confection|macaron|croissant|scone|muffin/)) return "bakery";
     if (s.match(/crossfit/)) return "fitness";
     if (s.match(/salon|barber|stylist|haircut/)) return "salon_barber";
     if (s.match(/spa|massage|facial/)) return "spa";

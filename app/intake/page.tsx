@@ -19,7 +19,6 @@ interface IntakeFields {
   targetCustomer: string;
   services: string[];
   cta: string;
-  brandVibe: string;
   logoUrl: string;
   photoUrl: string;
   printSize: string; // eighth|quarter|third|half|full|cover
@@ -49,19 +48,20 @@ CONVERSATION RULES — STRICT:
 - After the client answers, give ONE short natural acknowledgment (max one short sentence), then ONE next question.
 - Skip is always allowed. If the user says "skip", "pass", "I don't have one", or similar, acknowledge briefly and move to the next question.
 
-COLLECT IN THIS ORDER (ask one at a time, flex if user volunteers something):
+COLLECT IN THIS ORDER (ask one at a time, flex if user volunteers something). There are 11 questions total — do not add more:
 1. Business name + city (bizName, city — also capture zip if mentioned)
 2. What the business does in one sentence (desc)
 3. Street address for the ad — use these EXACT words: "What's the street address you'd like on the ad?" (address — optional, skip accepted)
-4. Target customer (targetCustomer)
+4. Target customer (targetCustomer — optional, skip accepted)
 5. Top 3 services or products (services as array)
 6. Call-to-action (cta)
-7. Brand vibe — colors, energy, feel (brandVibe)
+7. Print size (printSize) — one of: eighth, quarter, third, half, full, cover
 8. Logo — ask if they have one, they can upload or skip
 9. Photo — ask if they have a photo, upload or skip (stock used if skip)
-10. Print size (printSize) — one of: eighth, quarter, third, half, full, cover
-11. Tagline — generate a tagline based on what you know, then say exactly: I'd suggest '[generated tagline]' — want to use that, tweak it, or skip? (tagline)
-12. QR code — ask: "Would you like a QR code on your ad?" If yes: ask "What should it link to — your website or email?" If user says something else (not url/email): reply "Got it, I'll flag that for your rep." and move on with qrType "other". If no: qrType "none".
+10. Tagline — generate a tagline INFERRED from business type, services, and city (you set brand vibe internally; do NOT ask the client about it), then say exactly: I'd suggest '[generated tagline]' — want to use that, tweak it, or skip? (tagline)
+11. QR code — ask: "Would you like a QR code on your ad?" If yes: ask "What should it link to — your website or email?" If user says something else (not url/email): reply "Got it, I'll flag that for your rep." and move on with qrType "other". If no: qrType "none".
+
+NEVER ASK ABOUT BRAND VIBE, COLORS, OR FEEL. Infer brand vibe silently from the business type for tagline/style decisions.
 
 OTHER RULES:
 - Before asking any question, check the ALREADY COLLECTED list. Never re-ask a field already set.
@@ -71,7 +71,7 @@ OTHER RULES:
 
 CRITICAL OUTPUT FORMAT: Every response ends with a JSON block on its own line:
 ###FIELDS###
-{"bizName":"","city":"","zip":"","desc":"","address":"","targetCustomer":"","services":[],"cta":"","brandVibe":"","printSize":"","tagline":"","qrType":"","qrValue":"","phone":"","complete":false}
+{"bizName":"","city":"","zip":"","desc":"","address":"","targetCustomer":"","services":[],"cta":"","printSize":"","tagline":"","qrType":"","qrValue":"","phone":"","complete":false}
 ###END###
 
 For "printSize", use one of: "eighth", "quarter", "third", "half", "full", "cover".
@@ -127,7 +127,7 @@ function IntakeInner() {
 
   const [fields, setFields] = useState<IntakeFields>({
     bizName: "", city: "", zip: "", desc: "", address: "", targetCustomer: "",
-    services: [], cta: "", brandVibe: "", logoUrl: "", photoUrl: "",
+    services: [], cta: "", logoUrl: "", photoUrl: "",
     printSize: "", tagline: "", qrType: "", qrValue: "", phone: "",
   });
 
@@ -248,7 +248,6 @@ function IntakeInner() {
             q9: `${slug}.com`,
             address: f.address,
             targetCustomer: f.targetCustomer,
-            brandVibe: f.brandVibe,
             logoUrl: f.logoUrl,
             photoUrl: f.photoUrl,
             phone: f.phone,
@@ -280,7 +279,6 @@ function IntakeInner() {
       targetCustomer: "Young families, downtown workers, late-night foodies",
       services: ["Street Tacos", "Catering", "Late Night"],
       cta: "Order Now",
-      brandVibe: "warm, bold, street-food energy — red and gold",
       printSize: "quarter",
       tagline: "Tulsa's Taco Revolution Starts Here",
       qrType: "url" as const,
@@ -316,10 +314,10 @@ function IntakeInner() {
     addMsg("user", demo.cta);
     setFields((p) => ({ ...p, cta: demo.cta }));
     await w(d);
-    addMsg("bruno", "Got it. Describe the brand vibe — colors, energy, feel.");
+    addMsg("bruno", "Got it. What print size — eighth, quarter, third, half, full, or cover?");
     await w(d);
-    addMsg("user", demo.brandVibe);
-    setFields((p) => ({ ...p, brandVibe: demo.brandVibe }));
+    addMsg("user", "Quarter — most popular");
+    setFields((p) => ({ ...p, printSize: demo.printSize }));
     await w(d);
     addMsg("bruno", "Nice. Do you have a logo to upload, or skip for now?");
     await w(d);
@@ -328,11 +326,6 @@ function IntakeInner() {
     addMsg("bruno", "No problem. A photo of the business or team? Upload or skip.");
     await w(d);
     addMsg("user", "skip");
-    await w(d);
-    addMsg("bruno", "Alright. What print size — eighth, quarter, third, half, full, or cover?");
-    await w(d);
-    addMsg("user", "Quarter — most popular");
-    setFields((p) => ({ ...p, printSize: demo.printSize }));
     await w(d);
     addMsg("bruno", `I'd suggest '${demo.tagline}' — want to use that, tweak it, or skip?`);
     await w(d);
@@ -371,7 +364,6 @@ function IntakeInner() {
                   fields.targetCustomer && "Target",
                   fields.services.length > 0 && "Services",
                   fields.cta && "CTA",
-                  fields.brandVibe && "Vibe",
                   fields.printSize && "Size",
                   fields.tagline && "Tagline",
                   fields.qrType && "QR",

@@ -16,10 +16,13 @@ import type { ClientProfile } from "@/lib/pipeline";
 const NAVY = "#0C2340";
 const NAVY_MID = "#1a2f50";
 const GOLD = "#D4A843";
-const BORDER = "#e2e8f0";
-const TEXT = "#0f172a";
-const TEXT2 = "#475569";
-const BG = "#f5f7fb";
+const WHEAT = "#F5DEB3";
+const WHEAT_DARK = "#C9B584";
+const PANEL_DARK = "#1e3764";
+const BORDER = "rgba(255,255,255,0.12)";
+const TEXT = "#ffffff";
+const TEXT2 = "#cbd5e1";
+const BG = "#0C2340";
 
 const VARIATIONS: PrintVariation[] = ["clean_classic", "bold_modern", "premium_editorial"];
 
@@ -275,7 +278,7 @@ export default function ClientPortalPage() {
   if (!isApproved) {
     return (
       <div style={{ minHeight: "100vh", background: BG, display: "flex", flexDirection: "column" }}>
-        <div style={{ padding: "20px 32px", borderBottom: `1px solid ${BORDER}`, background: "#fff", display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ padding: "20px 32px", borderBottom: `1px solid ${BORDER}`, background: PANEL_DARK, display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 32, height: 32, background: NAVY, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 14 }}>B</div>
           <div>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", color: TEXT2, margin: 0, textTransform: "uppercase" }}>BVM Client Success Portal</p>
@@ -322,34 +325,34 @@ export default function ClientPortalPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: BG, color: TEXT, display: "flex" }}>
-      {/* Navy sidebar */}
-      <aside style={{ width: 240, minWidth: 240, background: NAVY, color: "#fff", display: "flex", flexDirection: "column", position: "sticky", top: 0, height: "100vh" }}>
-        <div style={{ padding: "24px 20px", borderBottom: `1px solid ${NAVY_MID}` }}>
+      {/* Wheat sidebar */}
+      <aside style={{ width: 240, minWidth: 240, background: WHEAT, color: NAVY, display: "flex", flexDirection: "column", position: "sticky", top: 0, height: "100vh" }}>
+        <div style={{ padding: "24px 20px", borderBottom: `1px solid ${WHEAT_DARK}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 30, height: 30, background: GOLD, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: NAVY, fontWeight: 800, fontSize: 14 }}>B</div>
-            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", color: "#cbd5e1", margin: 0, textTransform: "uppercase" }}>BVM CS Portal</p>
+            <div style={{ width: 30, height: 30, background: NAVY, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: WHEAT, fontWeight: 800, fontSize: 14 }}>B</div>
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", color: NAVY, margin: 0, textTransform: "uppercase" }}>BVM CS Portal</p>
           </div>
         </div>
-        <div style={{ padding: "20px", borderBottom: `1px solid ${NAVY_MID}` }}>
-          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", color: GOLD, textTransform: "uppercase", margin: 0 }}>Business</p>
-          <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, color: "#fff", margin: "6px 0 10px", lineHeight: 1.2 }}>{client.business_name}</p>
-          <span style={{ display: "inline-block", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", background: GOLD, color: NAVY, borderRadius: 999, padding: "3px 10px" }}>{stageBadge}</span>
+        <div style={{ padding: "20px", borderBottom: `1px solid ${WHEAT_DARK}` }}>
+          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", color: "#8a6e2c", textTransform: "uppercase", margin: 0 }}>Business</p>
+          <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, color: NAVY, margin: "6px 0 10px", lineHeight: 1.2 }}>{client.business_name}</p>
+          <span style={{ display: "inline-block", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", background: NAVY, color: WHEAT, borderRadius: 999, padding: "3px 10px" }}>{stageBadge}</span>
         </div>
         <nav style={{ padding: "16px 12px", flex: 1 }}>
           {SIDEBAR_NAV.map((n) => (
-            <a key={n.key} href={n.anchor} style={{ display: "block", padding: "10px 12px", borderRadius: 8, color: "#cbd5e1", fontSize: 13, textDecoration: "none", fontWeight: 500 }}>{n.label}</a>
+            <a key={n.key} href={n.anchor} style={{ display: "block", padding: "10px 12px", borderRadius: 8, color: NAVY, fontSize: 13, textDecoration: "none", fontWeight: 500 }}>{n.label}</a>
           ))}
         </nav>
-        <div style={{ padding: 16, borderTop: `1px solid ${NAVY_MID}` }}>
-          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", color: GOLD, textTransform: "uppercase", margin: 0 }}>Your rep</p>
-          <p style={{ fontSize: 14, fontWeight: 600, color: "#fff", margin: "6px 0 2px" }}>{client.assigned_rep || "BVM CS"}</p>
-          <p style={{ fontSize: 11, color: "#94a3b8", margin: 0 }}>Reach out anytime below.</p>
+        <div style={{ padding: 16, borderTop: `1px solid ${WHEAT_DARK}` }}>
+          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", color: "#8a6e2c", textTransform: "uppercase", margin: 0 }}>Your rep</p>
+          <p style={{ fontSize: 14, fontWeight: 600, color: NAVY, margin: "6px 0 2px" }}>{client.assigned_rep || "BVM CS"}</p>
+          <p style={{ fontSize: 11, color: "#6b5a2a", margin: 0 }}>Reach out anytime below.</p>
         </div>
       </aside>
 
       <div style={{ flex: 1, minWidth: 0 }}>
         {/* Progress bar */}
-        <div style={{ background: "#fff", borderBottom: `1px solid ${BORDER}`, padding: "20px 32px" }}>
+        <div style={{ background: PANEL_DARK, borderBottom: `1px solid ${BORDER}`, padding: "20px 32px" }}>
           <div style={{ maxWidth: 1100, margin: "0 auto" }}>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               {PROGRESS_STAGES.map((s, i) => {
@@ -370,7 +373,7 @@ export default function ClientPortalPage() {
 
           {/* Onboarding video */}
           {showVideo && (
-            <section style={{ background: "#fff", borderRadius: 14, border: `1px solid ${BORDER}`, padding: 24 }}>
+            <section style={{ background: PANEL_DARK, borderRadius: 14, border: `1px solid ${BORDER}`, padding: 24 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, fontWeight: 700, margin: 0, color: TEXT }}>Welcome — watch this first</h3>
                 <button onClick={() => setShowVideo(false)} style={{ background: "transparent", border: "none", color: TEXT2, fontSize: 13, cursor: "pointer" }}>Skip →</button>
@@ -389,7 +392,7 @@ export default function ClientPortalPage() {
             <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, fontWeight: 700, margin: "0 0 12px", color: TEXT }}>Learn as you go</h3>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
               {LMS_MODULES.map((m) => (
-                <a key={m.title} href={m.href} style={{ background: "#fff", borderRadius: 10, border: `1px solid ${BORDER}`, padding: 16, textDecoration: "none", color: TEXT }}>
+                <a key={m.title} href={m.href} style={{ background: PANEL_DARK, borderRadius: 10, border: `1px solid ${BORDER}`, padding: 16, textDecoration: "none", color: TEXT }}>
                   <p style={{ fontSize: 14, fontWeight: 600, color: TEXT, margin: 0 }}>{m.title}</p>
                   <p style={{ fontSize: 11, color: TEXT2, marginTop: 6 }}>Watch →</p>
                 </a>
@@ -398,7 +401,7 @@ export default function ClientPortalPage() {
           </section>
 
           {/* Print ad preview */}
-          <section id="campaign" style={{ background: "#fff", borderRadius: 14, border: `1px solid ${BORDER}`, padding: 24 }}>
+          <section id="campaign" style={{ background: PANEL_DARK, borderRadius: 14, border: `1px solid ${BORDER}`, padding: 24 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <div>
                 <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", color: GOLD, textTransform: "uppercase", margin: 0 }}>Campaign</p>
@@ -406,7 +409,7 @@ export default function ClientPortalPage() {
                 <p style={{ fontSize: 12, color: TEXT2, margin: 0 }}>{VARIATION_LABELS[variation]} — sub {subVariation + 1}/4</p>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <label style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 600, color: TEXT, cursor: "pointer" }}>
+                <label style={{ background: PANEL_DARK, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 600, color: TEXT, cursor: "pointer" }}>
                   Upload New Photo →
                   <input type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
                     const file = e.target.files?.[0]; if (!file) return;
@@ -442,15 +445,15 @@ export default function ClientPortalPage() {
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", color: GOLD, textTransform: "uppercase", margin: 0 }}>Full Campaign Preview</p>
             <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 26, margin: "6px 0 14px" }}>Print · Website · Digital</h3>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
-              <div style={{ background: "#fff", color: TEXT, borderRadius: 10, padding: 14 }}>
+              <div style={{ background: PANEL_DARK, color: TEXT, borderRadius: 10, padding: 14 }}>
                 <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", color: GOLD, textTransform: "uppercase", margin: 0 }}>Print</p>
                 <p style={{ fontSize: 13, fontWeight: 700, margin: "4px 0 0", color: TEXT }}>{client.business_name}</p>
               </div>
-              <div style={{ background: "#fff", color: TEXT, borderRadius: 10, padding: 14 }}>
+              <div style={{ background: PANEL_DARK, color: TEXT, borderRadius: 10, padding: 14 }}>
                 <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", color: GOLD, textTransform: "uppercase", margin: 0 }}>Website</p>
                 <div style={{ background: "#f1f5f9", borderRadius: 6, height: 60, marginTop: 4 }} />
               </div>
-              <div style={{ background: "#fff", color: TEXT, borderRadius: 10, padding: 14 }}>
+              <div style={{ background: PANEL_DARK, color: TEXT, borderRadius: 10, padding: 14 }}>
                 <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", color: GOLD, textTransform: "uppercase", margin: 0 }}>Digital</p>
                 <div style={{ background: "#f1f5f9", borderRadius: 6, height: 60, marginTop: 4 }} />
               </div>
@@ -464,18 +467,18 @@ export default function ClientPortalPage() {
           </section>
 
           {/* ROI Calculator */}
-          <section style={{ background: "#fff", borderRadius: 14, border: `1px solid ${BORDER}`, padding: 24 }}>
+          <section style={{ background: PANEL_DARK, borderRadius: 14, border: `1px solid ${BORDER}`, padding: 24 }}>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", color: GOLD, textTransform: "uppercase", margin: 0 }}>ROI</p>
             <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, fontWeight: 700, margin: "4px 0 6px", color: TEXT }}>Your ROI Snapshot</h3>
             <p style={{ fontSize: 12, color: TEXT2, margin: "0 0 16px" }}>Based on your ZIP ({client.zip || "—"}) and {printSize} size</p>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
               <div style={{ background: BG, borderRadius: 10, padding: 16 }}>
                 <p style={{ fontSize: 11, color: TEXT2, margin: 0 }}>Estimated reach</p>
-                <p style={{ fontSize: 24, fontWeight: 800, color: NAVY, margin: "4px 0 0" }}>{estReach.toLocaleString()}</p>
+                <p style={{ fontSize: 24, fontWeight: 800, color: WHEAT, margin: "4px 0 0" }}>{estReach.toLocaleString()}</p>
               </div>
               <div style={{ background: BG, borderRadius: 10, padding: 16 }}>
                 <p style={{ fontSize: 11, color: TEXT2, margin: 0 }}>Cost per impression</p>
-                <p style={{ fontSize: 24, fontWeight: 800, color: NAVY, margin: "4px 0 0" }}>${estCPI.toFixed(3)}</p>
+                <p style={{ fontSize: 24, fontWeight: 800, color: WHEAT, margin: "4px 0 0" }}>${estCPI.toFixed(3)}</p>
               </div>
               <div style={{ background: BG, borderRadius: 10, padding: 16 }}>
                 <p style={{ fontSize: 11, color: TEXT2, margin: 0 }}>Digital multiplier</p>
@@ -486,10 +489,10 @@ export default function ClientPortalPage() {
           </section>
 
           {/* Edit request */}
-          <section style={{ background: "#fff", borderRadius: 14, border: `1px solid ${BORDER}`, padding: 24 }}>
+          <section style={{ background: PANEL_DARK, borderRadius: 14, border: `1px solid ${BORDER}`, padding: 24 }}>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", color: GOLD, textTransform: "uppercase", margin: 0 }}>Revision</p>
             <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, fontWeight: 700, margin: "4px 0 12px", color: TEXT }}>Need a change?</h3>
-            <textarea value={editText} onChange={(e) => setEditText(e.target.value)} placeholder="Describe what you'd like changed on your print ad..." style={{ width: "100%", padding: 12, border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 14, color: TEXT, background: "#fff", minHeight: 90, fontFamily: "inherit", boxSizing: "border-box" }} />
+            <textarea value={editText} onChange={(e) => setEditText(e.target.value)} placeholder="Describe what you'd like changed on your print ad..." style={{ width: "100%", padding: 12, border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 14, color: TEXT, background: PANEL_DARK, minHeight: 90, fontFamily: "inherit", boxSizing: "border-box" }} />
             {!editSent ? (
               <button onClick={sendEditRequest} disabled={!editText.trim()} style={{ marginTop: 10, background: editText.trim() ? GOLD : "#e2e8f0", color: editText.trim() ? NAVY : "#94a3b8", border: "none", borderRadius: 8, padding: "10px 18px", fontSize: 13, fontWeight: 700, cursor: editText.trim() ? "pointer" : "not-allowed" }}>Submit Edit →</button>
             ) : (
@@ -504,7 +507,7 @@ export default function ClientPortalPage() {
               {UPSELL_LADDER.map((u) => {
                 const picked = interests.has(u.key);
                 return (
-                  <div key={u.key} style={{ background: "#fff", borderRadius: 12, border: `1px solid ${BORDER}`, padding: 18 }}>
+                  <div key={u.key} style={{ background: PANEL_DARK, borderRadius: 12, border: `1px solid ${BORDER}`, padding: 18 }}>
                     <div style={{ fontSize: 28 }}>{u.icon}</div>
                     <p style={{ fontSize: 14, fontWeight: 700, margin: "8px 0 4px", color: TEXT }}>{u.title}</p>
                     <p style={{ fontSize: 12, color: TEXT2, margin: "0 0 12px" }}>{u.desc}</p>
@@ -520,7 +523,7 @@ export default function ClientPortalPage() {
           {/* Content production */}
           <section id="content" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             {/* Business Profile Highlight */}
-            <div style={{ background: "#fff", borderRadius: 14, border: `1px solid ${BORDER}`, padding: 24 }}>
+            <div style={{ background: PANEL_DARK, borderRadius: 14, border: `1px solid ${BORDER}`, padding: 24 }}>
               <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", color: GOLD, textTransform: "uppercase", margin: 0 }}>Editorial Feature</p>
               <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, fontWeight: 700, margin: "4px 0 6px", color: TEXT }}>Your Story, Told by BVM</h3>
               <p style={{ fontSize: 13, color: TEXT2, margin: "0 0 16px", lineHeight: 1.5 }}>A professionally written business profile that runs as editorial content in your community magazine alongside your ad.</p>
@@ -528,7 +531,7 @@ export default function ClientPortalPage() {
                 <div style={{ background: BG, borderRadius: 10, padding: 20, textAlign: "center" }}>
                   <div style={{ fontSize: 30, color: GOLD }}>🔒</div>
                   <p style={{ fontSize: 13, color: TEXT, margin: "8px 0 14px", fontWeight: 600 }}>Locked — enter eligibility code to unlock</p>
-                  <input type="text" value={unlockInput} onChange={(e) => { setUnlockInput(e.target.value); setUnlockError(false); }} placeholder="Eligibility code" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${BORDER}`, fontSize: 13, textAlign: "center", letterSpacing: "0.12em", color: TEXT, background: "#fff", boxSizing: "border-box", marginBottom: 10 }} />
+                  <input type="text" value={unlockInput} onChange={(e) => { setUnlockInput(e.target.value); setUnlockError(false); }} placeholder="Eligibility code" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${BORDER}`, fontSize: 13, textAlign: "center", letterSpacing: "0.12em", color: TEXT, background: PANEL_DARK, boxSizing: "border-box", marginBottom: 10 }} />
                   <button onClick={attemptUnlock} disabled={!unlockInput.trim()} style={{ width: "100%", background: unlockInput.trim() ? GOLD : "#e2e8f0", color: unlockInput.trim() ? NAVY : "#94a3b8", border: "none", borderRadius: 8, padding: "10px 14px", fontSize: 13, fontWeight: 700, cursor: unlockInput.trim() ? "pointer" : "not-allowed" }}>Enter eligibility code →</button>
                   {unlockError && <p style={{ fontSize: 11, color: "#dc2626", margin: "8px 0 0" }}>Invalid code. Please try again or contact your rep.</p>}
                 </div>
@@ -536,7 +539,7 @@ export default function ClientPortalPage() {
                 <div>
                   {profileLoading && <p style={{ fontSize: 12, color: TEXT2, fontStyle: "italic" }}>Bruno is writing your profile…</p>}
                   {profileContent && (
-                    <article style={{ background: "#fefdf9", border: `1px solid ${BORDER}`, borderRadius: 10, padding: 22 }}>
+                    <article style={{ background: NAVY_MID, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 22 }}>
                       <h4 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, fontWeight: 700, color: TEXT, margin: "0 0 14px", lineHeight: 1.2 }}>{profileContent.headline}</h4>
                       {profileContent.paragraphs.map((p, i) => (
                         <p key={i} style={{ fontFamily: "Georgia, serif", fontSize: 13, lineHeight: 1.65, color: TEXT, margin: "0 0 12px" }}>{p}</p>
@@ -552,14 +555,14 @@ export default function ClientPortalPage() {
                   )}
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14 }}>
                     <span style={{ display: "inline-block", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", background: profileStatus === "Published" ? "#dcfce7" : profileStatus === "In Review" ? "#fef3c7" : "#e2e8f0", color: profileStatus === "Published" ? "#16a34a" : profileStatus === "In Review" ? "#a16207" : TEXT2, borderRadius: 999, padding: "4px 10px" }}>{profileStatus}</span>
-                    <button onClick={() => { setProfileStatus("In Review"); submitTopic(`Profile revision requested`); }} style={{ background: "transparent", color: NAVY, border: `1px solid ${NAVY}`, borderRadius: 8, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Request Changes →</button>
+                    <button onClick={() => { setProfileStatus("In Review"); submitTopic(`Profile revision requested`); }} style={{ background: "transparent", color: WHEAT, border: `1px solid ${WHEAT}`, borderRadius: 8, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Request Changes →</button>
                   </div>
                 </div>
               )}
             </div>
 
             {/* Expert Contributor Article */}
-            <div style={{ background: "#fff", borderRadius: 14, border: `1px solid ${BORDER}`, padding: 24 }}>
+            <div style={{ background: PANEL_DARK, borderRadius: 14, border: `1px solid ${BORDER}`, padding: 24 }}>
               <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", color: GOLD, textTransform: "uppercase", margin: 0 }}>Contributor Article</p>
               <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, fontWeight: 700, margin: "4px 0 6px", color: TEXT }}>Share Your Expertise</h3>
               <p style={{ fontSize: 13, color: TEXT2, margin: "0 0 16px", lineHeight: 1.5 }}>A 300-500 word expert article published under your name in your community magazine.</p>
@@ -567,7 +570,7 @@ export default function ClientPortalPage() {
                 <div style={{ background: BG, borderRadius: 10, padding: 20, textAlign: "center" }}>
                   <div style={{ fontSize: 30, color: GOLD }}>🔒</div>
                   <p style={{ fontSize: 13, color: TEXT, margin: "8px 0 14px", fontWeight: 600 }}>Locked — enter eligibility code to unlock</p>
-                  <input type="text" value={unlockInput} onChange={(e) => { setUnlockInput(e.target.value); setUnlockError(false); }} placeholder="Eligibility code" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${BORDER}`, fontSize: 13, textAlign: "center", letterSpacing: "0.12em", color: TEXT, background: "#fff", boxSizing: "border-box", marginBottom: 10 }} />
+                  <input type="text" value={unlockInput} onChange={(e) => { setUnlockInput(e.target.value); setUnlockError(false); }} placeholder="Eligibility code" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${BORDER}`, fontSize: 13, textAlign: "center", letterSpacing: "0.12em", color: TEXT, background: PANEL_DARK, boxSizing: "border-box", marginBottom: 10 }} />
                   <button onClick={attemptUnlock} disabled={!unlockInput.trim()} style={{ width: "100%", background: unlockInput.trim() ? GOLD : "#e2e8f0", color: unlockInput.trim() ? NAVY : "#94a3b8", border: "none", borderRadius: 8, padding: "10px 14px", fontSize: 13, fontWeight: 700, cursor: unlockInput.trim() ? "pointer" : "not-allowed" }}>Enter eligibility code →</button>
                 </div>
               ) : (
@@ -577,17 +580,17 @@ export default function ClientPortalPage() {
                     {articleTopics.map((t, i) => {
                       const active = selectedTopic === t.title;
                       return (
-                        <button key={`${t.title}-${i}`} onClick={() => submitTopic(t.title)} style={{ textAlign: "left", background: active ? "#fefdf9" : "#fff", border: `1px solid ${active ? GOLD : BORDER}`, borderRadius: 10, padding: 14, cursor: "pointer" }}>
+                        <button key={`${t.title}-${i}`} onClick={() => submitTopic(t.title)} style={{ textAlign: "left", background: active ? NAVY_MID : PANEL_DARK, border: `1px solid ${active ? GOLD : BORDER}`, borderRadius: 10, padding: 14, cursor: "pointer" }}>
                           <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 15, fontWeight: 700, margin: 0, color: TEXT }}>{t.title}</p>
                           <p style={{ fontSize: 12, color: TEXT2, margin: "4px 0 0", lineHeight: 1.5 }}>{t.hook}</p>
                         </button>
                       );
                     })}
                   </div>
-                  <textarea value={customTopic} onChange={(e) => setCustomTopic(e.target.value)} placeholder="Or propose your own topic..." style={{ width: "100%", padding: 10, border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 12, color: TEXT, background: "#fff", minHeight: 60, fontFamily: "inherit", boxSizing: "border-box" }} />
+                  <textarea value={customTopic} onChange={(e) => setCustomTopic(e.target.value)} placeholder="Or propose your own topic..." style={{ width: "100%", padding: 10, border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 12, color: TEXT, background: PANEL_DARK, minHeight: 60, fontFamily: "inherit", boxSizing: "border-box" }} />
                   <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                     <button onClick={() => submitTopic(customTopic)} disabled={!customTopic.trim()} style={{ background: customTopic.trim() ? GOLD : "#e2e8f0", color: customTopic.trim() ? NAVY : "#94a3b8", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: customTopic.trim() ? "pointer" : "not-allowed" }}>Submit My Topic →</button>
-                    <button onClick={loadTopics} style={{ background: "transparent", color: NAVY, border: `1px solid ${NAVY}`, borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Let Bruno Suggest Topics →</button>
+                    <button onClick={loadTopics} style={{ background: "transparent", color: WHEAT, border: `1px solid ${WHEAT}`, borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Let Bruno Suggest Topics →</button>
                   </div>
                   <div style={{ marginTop: 14 }}>
                     <span style={{ display: "inline-block", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", background: articleStatus === "Published" ? "#dcfce7" : articleStatus === "In Review" || articleStatus === "In Production" ? "#fef3c7" : "#e2e8f0", color: articleStatus === "Published" ? "#16a34a" : articleStatus === "In Review" || articleStatus === "In Production" ? "#a16207" : TEXT2, borderRadius: 999, padding: "4px 10px" }}>{articleStatus}</span>
@@ -598,7 +601,7 @@ export default function ClientPortalPage() {
           </section>
 
           {/* Territory Intelligence */}
-          <section style={{ background: "#fff", borderRadius: 12, border: `1px solid ${BORDER}`, padding: 18, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14 }}>
+          <section style={{ background: PANEL_DARK, borderRadius: 12, border: `1px solid ${BORDER}`, padding: 18, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14 }}>
             <div>
               <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", color: GOLD, textTransform: "uppercase", margin: 0 }}>Territory intelligence</p>
               <p style={{ fontSize: 13, fontWeight: 600, color: TEXT, margin: "4px 0 2px" }}>{client.city} {client.zip}</p>
@@ -606,11 +609,11 @@ export default function ClientPortalPage() {
                 Median income ${sbr.medianIncome?.toLocaleString() || "—"} · Opportunity {sbr.opportunityScore || "—"} · Competitors low
               </p>
             </div>
-            <a href="https://bruno-bvm.vercel.app" target="_blank" rel="noopener noreferrer" style={{ background: NAVY, color: "#fff", padding: "10px 16px", borderRadius: 8, fontSize: 12, fontWeight: 700, textDecoration: "none" }}>Full Market Report →</a>
+            <a href="https://bruno-bvm.vercel.app" target="_blank" rel="noopener noreferrer" style={{ background: GOLD, color: NAVY, padding: "10px 16px", borderRadius: 8, fontSize: 12, fontWeight: 700, textDecoration: "none" }}>Full Market Report →</a>
           </section>
 
           {/* Message thread — DO NOT TOUCH */}
-          <section id="messages" style={{ background: "#fff", borderRadius: 14, border: `1px solid ${BORDER}`, padding: 24 }}>
+          <section id="messages" style={{ background: PANEL_DARK, borderRadius: 14, border: `1px solid ${BORDER}`, padding: 24 }}>
             <h3 style={{ fontSize: 16, fontWeight: 700, margin: "0 0 12px", color: TEXT }}>Message your rep</h3>
             <div style={{ maxHeight: 260, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
               {(client.messages || []).map((m, i) => (
@@ -631,15 +634,15 @@ export default function ClientPortalPage() {
               ))}
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              <input type="text" value={replyInput} onChange={(e) => setReplyInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendMessage()} placeholder="Type a message..." style={{ flex: 1, padding: "10px 14px", borderRadius: 8, border: `1px solid ${BORDER}`, fontSize: 13, color: TEXT, background: "#fff" }} />
+              <input type="text" value={replyInput} onChange={(e) => setReplyInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendMessage()} placeholder="Type a message..." style={{ flex: 1, padding: "10px 14px", borderRadius: 8, border: `1px solid ${BORDER}`, fontSize: 13, color: TEXT, background: PANEL_DARK }} />
               <button onClick={sendMessage} disabled={!replyInput.trim()} style={{ background: replyInput.trim() ? GOLD : "#e2e8f0", color: replyInput.trim() ? NAVY : "#94a3b8", border: "none", borderRadius: 8, padding: "10px 18px", fontSize: 13, fontWeight: 700, cursor: replyInput.trim() ? "pointer" : "not-allowed" }}>Send →</button>
             </div>
           </section>
 
           {/* QR Request */}
-          <section style={{ background: "#fff", borderRadius: 12, border: `1px solid ${BORDER}`, padding: 18 }}>
+          <section style={{ background: PANEL_DARK, borderRadius: 12, border: `1px solid ${BORDER}`, padding: 18 }}>
             {!qrRequested ? (
-              <button onClick={requestQR} style={{ background: "transparent", color: NAVY, border: `1px solid ${NAVY}`, borderRadius: 8, padding: "10px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Want to add or update your QR code? →</button>
+              <button onClick={requestQR} style={{ background: "transparent", color: WHEAT, border: `1px solid ${WHEAT}`, borderRadius: 8, padding: "10px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Want to add or update your QR code? →</button>
             ) : (
               <p style={{ color: "#16a34a", fontSize: 13, fontWeight: 600, margin: 0 }}>✓ Rep notified — they'll be in touch.</p>
             )}

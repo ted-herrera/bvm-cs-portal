@@ -31,7 +31,7 @@ export function detectSubType(businessName: string, description: string): string
   if (a.match(/taco|tacos|mexican|burrito|tex.?mex/)) return "mexican";
   if (a.match(/pizza|italian/)) return "pizza";
   if (a.match(/burger|hamburger/)) return "burger";
-  if (a.match(/bakery|cake|cupcake|pastry|donut/)) return "bakery";
+  if (a.match(/bakery|bakeries|baked.?goods|baker\b|pastry|pastries|bread|breads|cake|cakes|cupcake|cupcakes|donut|doughnut|chocolate|chocolatier|sweets|sweet.?shop|confection|confectioner|macaron|croissant|scone|muffin/)) return "bakery";
   if (a.match(/cafe|coffee|espresso|brew(?!ery)/)) return "cafe";
   if (a.match(/sushi|ramen|japanese/)) return "japanese";
   if (a.match(/bar|pub|tavern|brewery|brew(?!ery)|grill|gastropub|saloon|lounge|nightclub|club/)) return "bar";
