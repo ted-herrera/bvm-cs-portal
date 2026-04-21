@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import TopNav from "@/components/TopNav";
+import { selectVariation, normalizeSize } from "@/lib/print-engine";
+import { detectSubType } from "@/lib/business-classifier";
 
 interface Msg {
   role: "bruno" | "user";
@@ -279,9 +281,69 @@ function IntakeInner() {
         }),
       });
       const data = await res.json();
-      if (data.profile?.id) {
-        await new Promise((r) => setTimeout(r, 600));
-        router.push(`/tearsheet/${data.profile.id}`);
+      const profileId = data.profile?.id as string | undefined;
+      if (profileId) {
+        // Compute selected variation and kick off AI image generation.
+        // Store both on the client record so the tearsheet loads with image ready.
+        try {
+          const subType = detectSubType(f.bizName, f.desc);
+          const normalizedSize = normalizeSize(f.printSize);
+          const sbrRaw = (data.profile?.sbrData || {}) as Record<string, unknown>;
+          const incomeTierRaw = (sbrRaw.incomeTier as "low" | "middle" | "premium" | undefined) || "middle";
+          const chosenVariation = selectVariation(subType, subType, normalizedSize, {
+            medianIncome: sbrRaw.medianIncome as number | string | undefined,
+            opportunityScore: sbrRaw.opportunityScore as number | string | undefined,
+            competitorDensity: sbrRaw.competitorDensity as number | string | undefined,
+            incomeTier: incomeTierRaw,
+          });
+
+          // Store selectedVariation immediately (so tearsheet can render layout even before image arrives)
+          fetch(`/api/profile/update/${profileId}`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              intakeAnswers: {
+                ...(data.profile.intakeAnswers || {}),
+                selectedVariation: chosenVariation,
+              },
+            }),
+          }).catch(() => {});
+
+          // Kick off image generation — await so the tearsheet gets it ready.
+          const imgRes = await fetch("/api/image/generate", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              clientId: profileId,
+              businessName: f.bizName,
+              businessType: subType,
+              services: f.services,
+              city: f.city,
+              adSize: normalizedSize,
+              incomeTier: incomeTierRaw,
+              variation: chosenVariation,
+              seed: Date.now(),
+            }),
+          }).catch(() => null);
+          const imgData = imgRes ? await imgRes.json().catch(() => null) : null;
+          const imageUrl = imgData?.imageUrl as string | undefined;
+
+          if (imageUrl) {
+            await fetch(`/api/profile/update/${profileId}`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                intakeAnswers: {
+                  ...(data.profile.intakeAnswers || {}),
+                  selectedVariation: chosenVariation,
+                  generatedImageUrl: imageUrl,
+                },
+              }),
+            }).catch(() => {});
+          }
+        } catch {
+          /* non-fatal — tearsheet can still generate on load */
+        }
+
+        await new Promise((r) => setTimeout(r, 400));
+        router.push(`/tearsheet/${profileId}`);
       }
     } catch { /* error */ }
   }

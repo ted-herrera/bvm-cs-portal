@@ -8,6 +8,7 @@ import {
   getSizeSpec,
   normalizeSize,
   VARIATION_LABELS,
+  selectVariation,
   type PrintAdData,
   type PrintVariation,
   type PrintSize,
@@ -23,8 +24,6 @@ const GOLD = "#D4A843";
 const BORDER = "#e2e8f0";
 const TEXT = "#0f172a";
 const TEXT2 = "#475569";
-
-const VARIATIONS: PrintVariation[] = ["clean_classic", "bold_modern", "premium_editorial"];
 
 async function fetchClient(id: string): Promise<ClientProfile | null> {
   try {
@@ -78,7 +77,12 @@ function pickDefaultPhoto(client: ClientProfile): string {
   return FALLBACK_PHOTO;
 }
 
-function buildAdData(client: ClientProfile, variation: PrintVariation, sub: number, realSize = true, overridePhoto?: string): PrintAdData {
+function buildAdData(
+  client: ClientProfile,
+  variation: PrintVariation,
+  realSize = true,
+  overridePhoto?: string,
+): PrintAdData {
   const intake = (client.intakeAnswers || {}) as Record<string, string>;
   const size: PrintSize = realSize ? normalizeSize(intake.q5 || intake.printSize) : "1/4";
   const services = (intake.q3 || "").split(",").map((s) => s.trim()).filter(Boolean).slice(0, 3);
@@ -101,7 +105,6 @@ function buildAdData(client: ClientProfile, variation: PrintVariation, sub: numb
     brandColors: { primary: NAVY, secondary: "#475569", accent: GOLD },
     size,
     variation,
-    subVariation: sub,
     qrValue: qrType !== "none" ? qrValue : undefined,
   };
 }
@@ -112,12 +115,18 @@ function PrintPreview({ data, scale = 1 }: { data: PrintAdData; scale?: number }
   return (
     <div style={{ width: spec.bleedPx150.w * scale, height: spec.bleedPx150.h * scale, position: "relative" }}>
       <div
-        key={`${data.variation}-${data.subVariation}`}
+        key={`${data.variation}-${data.photoUrl}`}
         style={{ width: spec.bleedPx150.w, height: spec.bleedPx150.h, transform: `scale(${scale})`, transformOrigin: "top left" }}
         dangerouslySetInnerHTML={{ __html: html }}
       />
     </div>
   );
+}
+
+function clientBusinessType(client: ClientProfile): string {
+  const intake = (client.intakeAnswers || {}) as Record<string, string>;
+  const desc = intake.q2 || intake.desc || "";
+  return detectSubType(client.business_name, desc);
 }
 
 export default function TearsheetPage({ params }: { params: Promise<{ id: string }> }) {
@@ -126,7 +135,6 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
   const [client, setClient] = useState<ClientProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [variation, setVariation] = useState<PrintVariation>("clean_classic");
-  const [subVariation, setSubVariation] = useState(0);
   const [realSize, setRealSize] = useState(false);
   const [showQR, setShowQR] = useState(true);
   const [approved, setApproved] = useState(false);
@@ -135,22 +143,51 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
   const [showCampaignInterest, setShowCampaignInterest] = useState(false);
   const [qaScore, setQaScore] = useState<number | null>(null);
 
-  const [aiAvailable, setAiAvailable] = useState(false);
-  const [aiModalOpen, setAiModalOpen] = useState(false);
+  // AI-generated photo + generation state
   const [aiImage, setAiImage] = useState<string | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiError, setAiError] = useState<string>("");
+  const [aiAvailable, setAiAvailable] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState("");
 
   useEffect(() => {
-    fetchClient(id).then((c) => { setClient(c); setLoading(false); });
+    fetchClient(id).then((c) => {
+      setClient(c);
+      setLoading(false);
+      if (c) {
+        // Hydrate from previously stored AI image (from intake completion)
+        const intake = (c.intakeAnswers || {}) as Record<string, string>;
+        if (intake.generatedImageUrl) setAiImage(intake.generatedImageUrl);
+        // Apply stored selectedVariation if present, otherwise compute via selectVariation
+        const stored = intake.selectedVariation as PrintVariation | undefined;
+        if (stored === "clean_classic" || stored === "bold_modern" || stored === "premium_editorial") {
+          setVariation(stored);
+        } else {
+          const subType = clientBusinessType(c);
+          const size = normalizeSize(intake.q5 || intake.printSize);
+          const v = selectVariation(subType, subType, size, extractSbrContext(c));
+          setVariation(v);
+        }
+      }
+    });
   }, [id]);
 
+  // Probe whether the AI image endpoint is configured (controls button visibility).
   useEffect(() => {
     fetch("/api/image/generate")
       .then((r) => r.json())
       .then((d) => setAiAvailable(!!d?.configured))
       .catch(() => setAiAvailable(false));
   }, []);
+
+  // If no AI image yet and key is configured, auto-generate one on first load.
+  useEffect(() => {
+    if (!client || !aiAvailable || aiImage || generating) return;
+    const intake = (client.intakeAnswers || {}) as Record<string, string>;
+    if (intake.generatedImageUrl) return;
+    // Fire once.
+    generateImage(undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client, aiAvailable]);
 
   useEffect(() => {
     if (!client) return;
@@ -169,63 +206,58 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
 
   const canApprove = checks.a && checks.b && checks.c && checks.d;
 
-  function cycleAutomagic() {
-    const vIdx = VARIATIONS.indexOf(variation);
-    if (subVariation < 3) {
-      setSubVariation((s) => s + 1);
-    } else {
-      const nextV = VARIATIONS[(vIdx + 1) % VARIATIONS.length];
-      setVariation(nextV);
-      setSubVariation(0);
-    }
-  }
-
-  async function handleAiTest() {
+  async function generateImage(seed?: string | number) {
     if (!client) return;
-    const pw = typeof window !== "undefined" ? window.prompt("Enter password") : "";
-    if (pw !== "bvmtest") return;
-    setAiModalOpen(true);
-    setAiLoading(true);
-    setAiImage(null);
-    setAiError("");
+    setGenerating(true);
+    setGenError("");
     try {
       const intake = (client.intakeAnswers || {}) as Record<string, string>;
       const services = (intake.q3 || "").split(",").map((s) => s.trim()).filter(Boolean);
+      const size = normalizeSize(intake.q5 || intake.printSize);
+      const subType = clientBusinessType(client);
+      const sbr = extractSbrContext(client);
+      const tier = sbr?.incomeTier || "middle";
+      const v = variation || selectVariation(subType, subType, size, sbr);
       const res = await fetch("/api/image/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clientId: client.id,
           businessName: client.business_name,
+          businessType: subType,
           services,
-          prompt: "",
+          city: client.city,
+          adSize: size,
+          incomeTier: tier,
+          variation: v,
+          seed: seed ?? Date.now(),
         }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
-        setAiError(`HTTP ${res.status}: ${data?.error || "unknown error"}`);
+        setGenError(`HTTP ${res.status}: ${data?.error || "unknown error"}`);
       } else if (data?.error) {
-        setAiError(
+        setGenError(
           data.error === "not configured"
-            ? "OPENAI_API_KEY is not set on the server. Add it in Vercel env vars."
+            ? "OPENAI_API_KEY is not set on the server."
             : String(data.error),
         );
       } else if (data?.imageUrl) {
         setAiImage(data.imageUrl);
       } else {
-        setAiError("No imageUrl returned by the API.");
+        setGenError("No imageUrl returned.");
       }
     } catch (err) {
-      setAiError(err instanceof Error ? err.message : "Network error");
+      setGenError(err instanceof Error ? err.message : "Network error");
     }
-    setAiLoading(false);
+    setGenerating(false);
   }
 
   async function handleApprove() {
     if (!canApprove) return;
     const res = await fetch(`/api/tearsheet/approve/${id}`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ note, variation, subVariation }),
+      body: JSON.stringify({ note, variation }),
     });
     if (res.ok) {
       setApproved(true);
@@ -253,7 +285,7 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
     return <div style={{ minHeight: "100vh", background: NAVY, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>Tearsheet not found</div>;
   }
 
-  const adData = buildAdData(client, variation, subVariation, realSize);
+  const adData = buildAdData(client, variation, realSize, aiImage || undefined);
   if (!showQR) adData.qrValue = undefined;
   const hasQrFromIntake = !!((client.intakeAnswers || {}) as Record<string, string>).q7;
 
@@ -262,8 +294,6 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
   const sbrMarket = ((client.sbrData || {}) as { marketInsight?: string; summary?: string }).marketInsight
     || ((client.sbrData || {}) as { summary?: string }).summary
     || `${client.city} is a growing market with strong engagement on print + digital.`;
-
-  const stockPhoto = pickDefaultPhoto(client);
 
   if (approved) {
     return (
@@ -290,7 +320,7 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <div>
             <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: TEXT2, margin: 0 }}>Variation</p>
-            <h2 style={{ fontSize: 22, fontWeight: 700, margin: "4px 0 0", color: TEXT }}>{VARIATION_LABELS[variation]} <span style={{ color: TEXT2, fontSize: 14 }}>— sub {subVariation + 1}/4</span></h2>
+            <h2 style={{ fontSize: 22, fontWeight: 700, margin: "4px 0 0", color: TEXT }}>{VARIATION_LABELS[variation]}</h2>
           </div>
           <div style={{ display: "flex", gap: 10 }}>
             <button onClick={() => setRealSize((s) => !s)} style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", color: TEXT }}>{realSize ? "Fit to screen" : "Real size"}</button>
@@ -298,15 +328,43 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
           </div>
         </div>
 
-        <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 16, padding: 32, display: "flex", justifyContent: "center", alignItems: "center", minHeight: 520 }}>
-          <PrintPreview data={adData} scale={viewportScale} />
+        <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 16, padding: 32, display: "flex", justifyContent: "center", alignItems: "center", minHeight: 520, position: "relative" }}>
+          {generating && !aiImage ? (
+            <div style={{ textAlign: "center", padding: 40 }}>
+              <div style={{ width: 44, height: 44, border: `3px solid ${GOLD}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite", margin: "0 auto 16px" }} />
+              <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, fontStyle: "italic", color: TEXT, margin: 0 }}>The BVM Art Director is building your campaign direction...</p>
+              <p style={{ fontSize: 12, color: TEXT2, marginTop: 8 }}>This takes about 10–20 seconds.</p>
+            </div>
+          ) : (
+            <PrintPreview data={adData} scale={viewportScale} />
+          )}
         </div>
 
-        {/* Automagic + AI test — directly below preview, centered */}
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 12, marginTop: 22 }}>
-          <button onClick={cycleAutomagic} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 10, padding: "14px 32px", fontSize: 15, fontWeight: 800, cursor: "pointer", letterSpacing: "0.04em", boxShadow: "0 4px 14px rgba(212,168,67,0.35)" }}>⚡ Automagic — next variation</button>
-          {aiAvailable && (
-            <button onClick={handleAiTest} style={{ background: "#fff", color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "10px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>🤖 Test AI Art</button>
+        {/* Surprise Me button — single CTA, replaces Automagic */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginTop: 22 }}>
+          <button
+            onClick={() => generateImage(Math.random().toString(36).slice(2, 10))}
+            disabled={generating || !aiAvailable}
+            style={{
+              background: aiAvailable ? GOLD : "#e2e8f0",
+              color: aiAvailable ? NAVY : "#94a3b8",
+              border: "none",
+              borderRadius: 10,
+              padding: "14px 32px",
+              fontSize: 15,
+              fontWeight: 800,
+              cursor: aiAvailable && !generating ? "pointer" : "not-allowed",
+              letterSpacing: "0.04em",
+              boxShadow: aiAvailable ? "0 4px 14px rgba(212,168,67,0.35)" : "none",
+            }}
+          >
+            {generating ? "Generating..." : "🎲 Surprise Me"}
+          </button>
+          {genError && (
+            <p style={{ fontSize: 11, color: "#dc2626", fontFamily: "ui-monospace, monospace", textAlign: "center", maxWidth: 520, margin: 0 }}>{genError}</p>
+          )}
+          {!aiAvailable && (
+            <p style={{ fontSize: 11, color: TEXT2, margin: 0 }}>AI Art Director is offline — showing stock photo.</p>
           )}
         </div>
       </div>
@@ -352,7 +410,7 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
                   return (
                     <div style={{ width: previewSpec.bleedPx150.w * thumbScale, height: previewSpec.bleedPx150.h * thumbScale }}>
                       <div
-                        key={`preview-${variation}-${subVariation}`}
+                        key={`preview-${variation}-${aiImage || "stock"}`}
                         style={{ width: previewSpec.bleedPx150.w, height: previewSpec.bleedPx150.h, transform: `scale(${thumbScale})`, transformOrigin: "top left" }}
                         dangerouslySetInnerHTML={{ __html: renderPrintAd(adData, { dpi: 150 }) }}
                       />
@@ -407,43 +465,7 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
         </div>
       </div>
 
-      {/* AI Test Modal */}
-      {aiModalOpen && (
-        <div role="dialog" style={{ position: "fixed", inset: 0, background: "rgba(12,35,64,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 24 }}>
-          <div style={{ background: "#fff", borderRadius: 14, maxWidth: 960, width: "100%", padding: 24 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, fontWeight: 700, color: TEXT, margin: 0 }}>AI Art Test — for rep comparison only</h3>
-              <button onClick={() => setAiModalOpen(false)} style={{ background: "transparent", border: "none", color: TEXT2, fontSize: 22, cursor: "pointer", lineHeight: 1 }}>×</button>
-            </div>
-            <p style={{ fontSize: 12, color: TEXT2, margin: "0 0 16px" }}>This is a rep-facing comparison tool. Nothing auto-applies.</p>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              <div>
-                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", color: GOLD, textTransform: "uppercase", margin: "0 0 8px" }}>AI Generated</p>
-                <div style={{ background: "#f1f5f9", borderRadius: 10, aspectRatio: "1/1", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", padding: 16, textAlign: "center" }}>
-                  {aiLoading && <p style={{ fontSize: 12, color: TEXT2 }}>Generating…</p>}
-                  {!aiLoading && aiImage && <img src={aiImage} alt="AI generated" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
-                  {!aiLoading && !aiImage && !aiError && <p style={{ fontSize: 12, color: TEXT2 }}>No image returned</p>}
-                  {!aiLoading && !aiImage && aiError && (
-                    <div style={{ color: "#dc2626" }}>
-                      <p style={{ fontSize: 12, fontWeight: 700, margin: "0 0 6px" }}>AI call failed</p>
-                      <p style={{ fontSize: 11, margin: 0, fontFamily: "ui-monospace, monospace", lineHeight: 1.4 }}>{aiError}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div>
-                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", color: GOLD, textTransform: "uppercase", margin: "0 0 8px" }}>Current Stock Photo</p>
-                <div style={{ background: "#f1f5f9", borderRadius: 10, aspectRatio: "1/1", overflow: "hidden" }}>
-                  <img src={stockPhoto} alt="Current stock" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                </div>
-              </div>
-            </div>
-            <div style={{ textAlign: "right", marginTop: 16 }}>
-              <button onClick={() => setAiModalOpen(false)} style={{ background: NAVY, color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Close</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 }

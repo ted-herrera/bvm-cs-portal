@@ -7,9 +7,11 @@ import {
   getSizeSpec,
   normalizeSize,
   VARIATION_LABELS,
+  selectVariation,
   type PrintAdData,
   type PrintVariation,
   type PrintSize,
+  type SbrContext,
 } from "@/lib/print-engine";
 import { getPhotoSourceList } from "@/lib/photo-library";
 import { detectSubType } from "@/lib/business-classifier";
@@ -43,7 +45,31 @@ const TEXT = "#ffffff";
 const TEXT2 = "#cbd5e1";
 const BG = "#0C2340";
 
-const VARIATIONS: PrintVariation[] = ["clean_classic", "bold_modern", "premium_editorial"];
+function extractSbrContext(client: ClientProfile): SbrContext | undefined {
+  const sbr = (client.sbrData || {}) as Record<string, unknown>;
+  const demographics = (sbr.demographics || {}) as Record<string, unknown>;
+  const medianIncomeRaw = (demographics.medianIncome ?? sbr.medianIncome ?? "") as string | number;
+  const income = typeof medianIncomeRaw === "number"
+    ? medianIncomeRaw
+    : parseInt(String(medianIncomeRaw || "").replace(/[^0-9]/g, ""), 10) || undefined;
+  const competitors = Array.isArray(sbr.competitors) ? (sbr.competitors as unknown[]).length : undefined;
+  const opportunityScore = (sbr.opportunityScore as number | string | undefined);
+  const incomeTier: "low" | "middle" | "premium" | undefined = income
+    ? (income >= 120000 ? "premium" : income < 55000 ? "low" : "middle")
+    : undefined;
+  return {
+    medianIncome: income,
+    opportunityScore,
+    competitorDensity: competitors,
+    incomeTier,
+  };
+}
+
+function clientBusinessType(client: ClientProfile): string {
+  const intake = (client.intakeAnswers || {}) as Record<string, string>;
+  const desc = intake.q2 || intake.desc || "";
+  return detectSubType(client.business_name, desc);
+}
 
 const PROGRESS_STAGES = [
   { key: "tear-sheet", label: "Direction Approved" },
@@ -82,12 +108,12 @@ const SIDEBAR_NAV = [
   { key: "messages", label: "Messages", anchor: "#messages" },
 ];
 
-function buildAdData(client: ClientProfile, variation: PrintVariation, sub: number): PrintAdData {
+function buildAdData(client: ClientProfile, variation: PrintVariation, photoOverride?: string): PrintAdData {
   const intake = (client.intakeAnswers || {}) as Record<string, string>;
   const size: PrintSize = normalizeSize(intake.q5 || intake.printSize);
   const services = (intake.q3 || "").split(",").map((s) => s.trim()).filter(Boolean).slice(0, 3);
   const tagline = intake.q8 || (client.sbrData as { tagline?: string } | null)?.tagline || "";
-  const photoUrl = pickDefaultPhoto(client);
+  const photoUrl = photoOverride || pickDefaultPhoto(client);
   const addressRaw = (intake.address || "").trim();
   return {
     businessName: client.business_name,
@@ -101,7 +127,7 @@ function buildAdData(client: ClientProfile, variation: PrintVariation, sub: numb
     brandColors: { primary: NAVY, secondary: "#475569", accent: GOLD },
     size,
     variation,
-    subVariation: sub,
+    sbr: extractSbrContext(client),
     qrValue: intake.q7 || undefined,
   };
 }
@@ -127,7 +153,10 @@ export default function ClientPortalPage() {
   const [client, setClient] = useState<ClientProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [variation, setVariation] = useState<PrintVariation>("clean_classic");
-  const [subVariation, setSubVariation] = useState(0);
+  const [aiImage, setAiImage] = useState<string | null>(null);
+  const [aiAvailable, setAiAvailable] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState("");
   const [editText, setEditText] = useState("");
   const [editSent, setEditSent] = useState(false);
   const [interests, setInterests] = useState<Set<string>>(new Set());
@@ -155,6 +184,18 @@ export default function ClientPortalPage() {
       const c = d.client as ClientProfile | null;
       setClient(c || null);
       if (c && (c.buildNotes || []).includes("content-unlocked")) setContentUnlocked(true);
+      if (c) {
+        const intake = (c.intakeAnswers || {}) as Record<string, string>;
+        const stored = intake.selectedVariation as PrintVariation | undefined;
+        if (stored === "clean_classic" || stored === "bold_modern" || stored === "premium_editorial") {
+          setVariation(stored);
+        } else {
+          const subType = clientBusinessType(c);
+          const size = normalizeSize(intake.q5 || intake.printSize);
+          setVariation(selectVariation(subType, subType, size, extractSbrContext(c)));
+        }
+        if (intake.generatedImageUrl) setAiImage(intake.generatedImageUrl);
+      }
       setLoading(false);
     }).catch(() => setLoading(false));
     load();
@@ -162,18 +203,59 @@ export default function ClientPortalPage() {
     return () => clearInterval(t);
   }, [id]);
 
+  useEffect(() => {
+    fetch("/api/image/generate")
+      .then((r) => r.json())
+      .then((d) => setAiAvailable(!!d?.configured))
+      .catch(() => setAiAvailable(false));
+  }, []);
+
   const stage = client?.stage;
   const isApproved = !!client && !["intake", "tear-sheet"].includes(stage || "");
 
-  function cycleAutomagic() {
-    const vIdx = VARIATIONS.indexOf(variation);
-    if (subVariation < 3) {
-      setSubVariation((s) => s + 1);
-    } else {
-      const nextV = VARIATIONS[(vIdx + 1) % VARIATIONS.length];
-      setVariation(nextV);
-      setSubVariation(0);
+  async function generateImage(seed?: string | number) {
+    if (!client) return;
+    setGenerating(true);
+    setGenError("");
+    try {
+      const intake = (client.intakeAnswers || {}) as Record<string, string>;
+      const services = (intake.q3 || "").split(",").map((s) => s.trim()).filter(Boolean);
+      const size = normalizeSize(intake.q5 || intake.printSize);
+      const subType = clientBusinessType(client);
+      const sbr = extractSbrContext(client);
+      const tier = sbr?.incomeTier || "middle";
+      const v = variation || selectVariation(subType, subType, size, sbr);
+      const res = await fetch("/api/image/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: client.id,
+          businessName: client.business_name,
+          businessType: subType,
+          services,
+          city: client.city,
+          adSize: size,
+          incomeTier: tier,
+          variation: v,
+          seed: seed ?? Date.now(),
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setGenError(`HTTP ${res.status}: ${data?.error || "unknown error"}`);
+      } else if (data?.error) {
+        setGenError(data.error === "not configured"
+          ? "OPENAI_API_KEY is not set on the server."
+          : String(data.error));
+      } else if (data?.imageUrl) {
+        setAiImage(data.imageUrl);
+      } else {
+        setGenError("No imageUrl returned.");
+      }
+    } catch (err) {
+      setGenError(err instanceof Error ? err.message : "Network error");
     }
+    setGenerating(false);
   }
 
   async function sendEditRequest() {
@@ -324,7 +406,7 @@ export default function ClientPortalPage() {
   }
 
   // STATE 2: post-approval full dashboard
-  const adData = buildAdData(client, variation, subVariation);
+  const adData = buildAdData(client, variation, aiImage || undefined);
   const spec = getSizeSpec(adData.size);
   const previewHtml = renderPrintAd(adData, { dpi: 150 });
   const previewScale = Math.min(1, 460 / spec.bleedPx150.w);
@@ -425,7 +507,7 @@ export default function ClientPortalPage() {
               <div>
                 <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", color: GOLD, textTransform: "uppercase", margin: 0 }}>Campaign</p>
                 <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, fontWeight: 700, margin: "4px 0 2px", color: TEXT }}>Your approved print ad</h3>
-                <p style={{ fontSize: 12, color: TEXT2, margin: 0 }}>{VARIATION_LABELS[variation]} — sub {subVariation + 1}/4</p>
+                <p style={{ fontSize: 12, color: TEXT2, margin: 0 }}>{VARIATION_LABELS[variation]}</p>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <label style={{ background: PANEL_DARK, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 600, color: TEXT, cursor: "pointer" }}>
@@ -445,17 +527,36 @@ export default function ClientPortalPage() {
                 </label>
               </div>
             </div>
-            <div style={{ display: "flex", justifyContent: "center", padding: 12, background: BG, borderRadius: 10 }}>
-              <div style={{ width: spec.bleedPx150.w * previewScale, height: spec.bleedPx150.h * previewScale }}>
-                <div
-                  key={`${variation}-${subVariation}`}
-                  style={{ width: spec.bleedPx150.w, height: spec.bleedPx150.h, transform: `scale(${previewScale})`, transformOrigin: "top left" }}
-                  dangerouslySetInnerHTML={{ __html: previewHtml }}
-                />
-              </div>
+            <div style={{ display: "flex", justifyContent: "center", padding: 12, background: BG, borderRadius: 10, minHeight: 240 }}>
+              {generating && !aiImage ? (
+                <div style={{ textAlign: "center", padding: 32 }}>
+                  <div style={{ width: 40, height: 40, border: `3px solid ${GOLD}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite", margin: "0 auto 14px" }} />
+                  <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, fontStyle: "italic", color: TEXT, margin: 0 }}>The BVM Art Director is building your campaign direction...</p>
+                </div>
+              ) : (
+                <div style={{ width: spec.bleedPx150.w * previewScale, height: spec.bleedPx150.h * previewScale }}>
+                  <div
+                    key={`${variation}-${aiImage || "stock"}`}
+                    style={{ width: spec.bleedPx150.w, height: spec.bleedPx150.h, transform: `scale(${previewScale})`, transformOrigin: "top left" }}
+                    dangerouslySetInnerHTML={{ __html: previewHtml }}
+                  />
+                </div>
+              )}
             </div>
-            <div style={{ display: "flex", justifyContent: "center", marginTop: 18 }}>
-              <button onClick={cycleAutomagic} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 10, padding: "12px 28px", fontSize: 14, fontWeight: 800, cursor: "pointer", letterSpacing: "0.04em", boxShadow: "0 4px 14px rgba(212,168,67,0.35)" }}>⚡ Automagic — next variation</button>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, marginTop: 18 }}>
+              <button
+                onClick={() => generateImage(Math.random().toString(36).slice(2, 10))}
+                disabled={generating || !aiAvailable}
+                style={{ background: aiAvailable ? GOLD : "#475569", color: aiAvailable ? NAVY : "#94a3b8", border: "none", borderRadius: 10, padding: "12px 28px", fontSize: 14, fontWeight: 800, cursor: aiAvailable && !generating ? "pointer" : "not-allowed", letterSpacing: "0.04em", boxShadow: aiAvailable ? "0 4px 14px rgba(212,168,67,0.35)" : "none" }}
+              >
+                {generating ? "Generating..." : "🎲 Surprise Me"}
+              </button>
+              {genError && (
+                <p style={{ fontSize: 11, color: "#fca5a5", fontFamily: "ui-monospace, monospace", textAlign: "center", maxWidth: 520, margin: 0 }}>{genError}</p>
+              )}
+              {!aiAvailable && (
+                <p style={{ fontSize: 11, color: TEXT2, margin: 0 }}>AI Art Director is offline — showing stock photo.</p>
+              )}
             </div>
           </section>
 

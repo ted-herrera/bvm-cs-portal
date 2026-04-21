@@ -84,6 +84,40 @@ function ctaWithUrgency(cta: string, sbr?: SbrContext): string {
   return cta;
 }
 
+// Rules-based single-variation selector. Picks the ONE best layout per client
+// based on business type + income tier + print size.
+// Cover/full ads always override to premium_editorial.
+export function selectVariation(
+  businessType: string | null | undefined,
+  subType: string | null | undefined,
+  size: PrintSize | null | undefined,
+  sbr?: SbrContext,
+): PrintVariation {
+  const s = String(size || "").toLowerCase();
+  if (s === "cover" || s === "full") return "premium_editorial";
+
+  const keys = `${businessType || ""} ${subType || ""}`.toLowerCase();
+  const tier = incomeTier(sbr);
+
+  // Explicit category → variation routing
+  if (/dental|law|legal|attorney|lawyer|financial|finance|medical|doctor|clinic|insurance/.test(keys)) return "premium_editorial";
+  if (/food|bakery|restaurant|cafe|coffee|pizza|taco|mexican|bbq|burger|chocolate|sweets|pastry|japanese|sushi/.test(keys)) return "bold_modern";
+  if (/roofing|plumbing|electrical|hvac|painting|flooring|landscaping|cleaning|moving|storage|remodel|handyman/.test(keys)) return "clean_classic";
+  if (/fitness|gym|yoga|pilates|martial_?arts|karate|dance|crossfit/.test(keys)) return "bold_modern";
+  if (/salon|spa|beauty|barber|aesthet/.test(keys)) return "premium_editorial";
+  if (/auto_?repair|automotive|car\b|mechanic|hardware|lumber/.test(keys)) return "clean_classic";
+  if (/retail|boutique|jewelry|florist|flower|photography/.test(keys)) {
+    return tier === "premium" ? "premium_editorial" : "bold_modern";
+  }
+  if (/hotel|motel|resort|inn/.test(keys)) return "premium_editorial";
+  if (/bookstore|library/.test(keys)) return "clean_classic";
+  if (/pet|veterinar|grooming/.test(keys)) return "clean_classic";
+  if (/real_?estate|realtor/.test(keys)) return "premium_editorial";
+
+  // Default
+  return "clean_classic";
+}
+
 export interface SizeSpec {
   label: string;
   trimInches: { w: number; h: number };
@@ -320,23 +354,19 @@ function servicesBlock(d: PrintAdData, s: number, textColor: string, accentColor
   return `<div style="font-family:${FONT_STACK_BODY};font-weight:500;font-size:${size}px;color:${textColor};letter-spacing:0.01em;line-height:1.5;">${items}</div>`;
 }
 
-function bottomBlock(d: PrintAdData, p: SubPalette, s: number, ctaBg: string, ctaText: string, monoColor: string, dividerColor: string): string {
+function bottomBlock(d: PrintAdData, _p: SubPalette, s: number, ctaBg: string, ctaText: string, monoColor: string, _dividerColor: string): string {
   const ctaSize = px(13, s);
   const phoneSize = px(11, s);
   const addrSize = px(10, s);
-  const citySize = px(10, s);
   const ctaLabel = escape(ctaWithUrgency(d.cta || "Contact Us", d.sbr));
   const ctaBtn = `<span style="font-family:${FONT_STACK_BODY};display:inline-block;background:${ctaBg};color:${ctaText};padding:${px(8, s)}px ${px(16, s)}px;font-size:${ctaSize}px;font-weight:900;text-transform:uppercase;letter-spacing:0.08em;border-radius:${Math.max(3, Math.round(4 * s))}px;line-height:1;white-space:nowrap;">${ctaLabel} →</span>`;
-  const phoneLine = d.phone
+  const phoneLine = d.phone && d.phone.trim()
     ? `<div style="font-family:${FONT_STACK_MONO};font-size:${phoneSize}px;color:${monoColor};margin-top:${px(6, s)}px;letter-spacing:0.02em;">${escape(d.phone)}${d.website ? ` · ${escape(d.website)}` : ""}</div>`
     : "";
   const addrLine = d.address && d.address.trim()
     ? `<div style="font-family:${FONT_STACK_MONO};font-size:${addrSize}px;color:${monoColor};margin-top:${px(2, s)}px;letter-spacing:0.02em;">${escape(d.address)}</div>`
     : "";
-  const cityLine = d.city
-    ? `<div style="font-family:${FONT_STACK_MONO};font-size:${citySize}px;color:${dividerColor};margin-top:${px(2, s)}px;letter-spacing:0.08em;text-transform:uppercase;">${escape(d.city)}</div>`
-    : "";
-  return `<div>${ctaBtn}${phoneLine}${addrLine}${cityLine}</div>`;
+  return `<div>${ctaBtn}${phoneLine}${addrLine}</div>`;
 }
 
 function photoOrBlock(d: PrintAdData): string {
@@ -345,143 +375,89 @@ function photoOrBlock(d: PrintAdData): string {
     : `linear-gradient(135deg, ${d.brandColors.primary}, ${d.brandColors.accent})`;
 }
 
+// ─── Single canonical layout per variation ─────────────────────────────
+// No sub-variations. Services always render BELOW the photo in the middle zone.
+// Bottom zone always shows CTA pill + phone + address (if exists).
+
 function renderCleanClassic(d: PrintAdData, p: SubPalette, w: number, h: number): string {
   const s = fontScale(w, h);
-  const sub = (((d.subVariation ?? 0) % 4) + 4) % 4;
   const { topH, midH, botH, padding } = zones(w, h, s);
   const photoBg = photoOrBlock(d);
-
-  // Sub variations vary photo framing in the middle zone — grid remains locked.
-  const midPadding = Math.max(8, Math.round(12 * s));
-  let middleZone = "";
-  if (sub === 0) {
-    // Photo left, services right
-    middleZone = `<div style="display:flex;height:100%;gap:${midPadding}px;">
-      <div style="flex:0 0 55%;height:100%;background:${photoBg};border-radius:${Math.max(2, Math.round(3 * s))}px;"></div>
-      <div style="flex:1;display:flex;flex-direction:column;justify-content:center;">${servicesBlock(d, s, p.text, p.accent)}</div>
-    </div>`;
-  } else if (sub === 1) {
-    // Photo right, services left with gold frame
-    middleZone = `<div style="display:flex;height:100%;gap:${midPadding}px;">
-      <div style="flex:1;display:flex;flex-direction:column;justify-content:center;">${servicesBlock(d, s, p.text, p.accent)}</div>
-      <div style="flex:0 0 55%;height:100%;background:${photoBg};border:${Math.max(2, Math.round(3 * s))}px solid ${p.accent};box-sizing:border-box;"></div>
-    </div>`;
-  } else if (sub === 2) {
-    // Photo as top banner, services below
-    middleZone = `<div style="display:flex;flex-direction:column;height:100%;gap:${midPadding}px;">
-      <div style="flex:0 0 62%;background:${photoBg};border-radius:${Math.max(2, Math.round(3 * s))}px;"></div>
-      <div style="flex:1;display:flex;align-items:center;">${servicesBlock(d, s, p.text, p.accent)}</div>
-    </div>`;
-  } else {
-    // Photo bottom band, services top
-    middleZone = `<div style="display:flex;flex-direction:column;height:100%;gap:${midPadding}px;">
-      <div style="flex:1;display:flex;align-items:flex-start;">${servicesBlock(d, s, p.text, p.accent)}</div>
-      <div style="flex:0 0 62%;background:${photoBg};border-radius:${Math.max(2, Math.round(3 * s))}px;"></div>
-    </div>`;
-  }
+  const midPadding = Math.max(8, Math.round(10 * s));
+  const radius = Math.max(2, Math.round(3 * s));
 
   return `<div style="width:${w}px;height:${h}px;background:${p.bg};color:${p.text};font-family:${FONT_STACK_BODY};box-sizing:border-box;display:flex;flex-direction:column;padding:${padding}px;">
     <div style="height:${topH - padding}px;flex-shrink:0;">${topBlock(d, p, s, p.accent, p.text, p.secondary)}</div>
-    <div style="height:${midH}px;flex-shrink:0;">${middleZone}</div>
+    <div style="height:${midH}px;flex-shrink:0;display:flex;flex-direction:column;gap:${midPadding}px;">
+      <div style="flex:1;background:${photoBg};border-radius:${radius}px;min-height:0;"></div>
+      <div style="flex-shrink:0;">${servicesBlock(d, s, p.text, p.accent)}</div>
+    </div>
     <div style="height:${botH - padding}px;flex-shrink:0;border-top:1px solid ${p.accent};padding-top:${Math.max(6, Math.round(8 * s))}px;margin-top:${Math.max(6, Math.round(8 * s))}px;">${bottomBlock(d, p, s, p.accent, p.bg, p.text, p.secondary)}</div>
   </div>`;
 }
 
 function renderBoldModern(d: PrintAdData, p: SubPalette, w: number, h: number): string {
   const s = fontScale(w, h);
-  const sub = (((d.subVariation ?? 0) % 4) + 4) % 4;
   const { topH, midH, botH, padding } = zones(w, h, s);
   const photoBg = photoOrBlock(d);
   const onDarkText = "#FFFFFF";
-  const mono = "rgba(255,255,255,0.75)";
-
-  // Middle zone: dark block with photo insert or photo dominant with tint
-  let middleZone = "";
-  if (sub === 0) {
-    middleZone = `<div style="display:flex;height:100%;gap:${Math.round(12 * s)}px;">
-      <div style="flex:1;display:flex;align-items:center;">${servicesBlock(d, s, onDarkText, p.accent)}</div>
-      <div style="flex:0 0 58%;height:100%;background:${photoBg};border-radius:${Math.max(2, Math.round(3 * s))}px;"></div>
-    </div>`;
-  } else if (sub === 1) {
-    middleZone = `<div style="display:flex;height:100%;gap:${Math.round(12 * s)}px;">
-      <div style="flex:0 0 58%;height:100%;background:${photoBg};border-radius:${Math.max(2, Math.round(3 * s))}px;"></div>
-      <div style="flex:1;display:flex;align-items:center;">${servicesBlock(d, s, onDarkText, p.accent)}</div>
-    </div>`;
-  } else if (sub === 2) {
-    // Photo tiled across full middle with overlay tint
-    middleZone = `<div style="position:relative;height:100%;border-radius:${Math.max(2, Math.round(3 * s))}px;overflow:hidden;">
-      <div style="position:absolute;inset:0;background:${photoBg};"></div>
-      <div style="position:absolute;inset:0;background:${p.bg};opacity:0.55;"></div>
-      <div style="position:relative;z-index:2;padding:${Math.round(16 * s)}px;height:100%;box-sizing:border-box;display:flex;align-items:flex-end;">${servicesBlock(d, s, onDarkText, p.accent)}</div>
-    </div>`;
-  } else {
-    // Split top/bottom: photo top 60%, services bottom strip
-    middleZone = `<div style="display:flex;flex-direction:column;height:100%;gap:${Math.round(10 * s)}px;">
-      <div style="flex:0 0 62%;background:${photoBg};border-radius:${Math.max(2, Math.round(3 * s))}px;"></div>
-      <div style="flex:1;display:flex;align-items:center;">${servicesBlock(d, s, onDarkText, p.accent)}</div>
-    </div>`;
-  }
+  const mono = "rgba(255,255,255,0.78)";
+  const midPadding = Math.max(8, Math.round(10 * s));
+  const radius = Math.max(2, Math.round(3 * s));
 
   return `<div style="width:${w}px;height:${h}px;background:${p.bg};color:${onDarkText};font-family:${FONT_STACK_BODY};box-sizing:border-box;display:flex;flex-direction:column;padding:${padding}px;">
     <div style="height:${topH - padding}px;flex-shrink:0;">${topBlock(d, p, s, p.accent, onDarkText, mono)}</div>
-    <div style="height:${midH}px;flex-shrink:0;">${middleZone}</div>
+    <div style="height:${midH}px;flex-shrink:0;display:flex;flex-direction:column;gap:${midPadding}px;">
+      <div style="flex:1;background:${photoBg};border-radius:${radius}px;min-height:0;"></div>
+      <div style="flex-shrink:0;">${servicesBlock(d, s, onDarkText, p.accent)}</div>
+    </div>
     <div style="height:${botH - padding}px;flex-shrink:0;border-top:${Math.max(1, Math.round(2 * s))}px solid ${p.accent};padding-top:${Math.max(6, Math.round(8 * s))}px;margin-top:${Math.max(6, Math.round(8 * s))}px;">${bottomBlock(d, p, s, p.accent, "#0C2340", mono, "rgba(255,255,255,0.55)")}</div>
   </div>`;
 }
 
 function renderPremiumEditorial(d: PrintAdData, p: SubPalette, w: number, h: number): string {
   const s = fontScale(w, h);
-  const sub = (((d.subVariation ?? 0) % 4) + 4) % 4;
   const { topH, midH, botH, padding } = zones(w, h, s);
   const photoBg = photoOrBlock(d);
   const onDarkText = "#FFFFFF";
   const mono = "rgba(255,255,255,0.8)";
+  const midPadding = Math.max(8, Math.round(10 * s));
+  const radius = Math.max(2, Math.round(3 * s));
 
-  // Photo fills full ad; content sits in translucent zones over photo.
-  // Sub variations change the overlay treatment + panel positions, grid stays 35/40/25.
-  let topOverlay = "", midOverlay = "", botOverlay = "";
-  if (sub === 0) {
-    // Dark tint across photo, content stacked center
-    topOverlay = `background:linear-gradient(180deg, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.35) 100%);`;
-    midOverlay = `background:rgba(0,0,0,0.22);`;
-    botOverlay = `background:linear-gradient(0deg, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.45) 100%);`;
-  } else if (sub === 1) {
-    // Soft gradient bottom, lighter top
-    topOverlay = `background:linear-gradient(180deg, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.15) 100%);`;
-    midOverlay = `background:transparent;`;
-    botOverlay = `background:linear-gradient(0deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.25) 100%);`;
-  } else if (sub === 2) {
-    // Brand-color wash with photo peeking in middle
-    topOverlay = `background:${p.bg};opacity:0.9;`;
-    midOverlay = `background:rgba(0,0,0,0.08);`;
-    botOverlay = `background:${p.bg};opacity:0.9;`;
-  } else {
-    // Frosted panels on photo
-    topOverlay = `background:rgba(12,35,64,0.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);`;
-    midOverlay = `background:rgba(0,0,0,0.20);`;
-    botOverlay = `background:rgba(12,35,64,0.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);`;
-  }
+  // Dark overlay on top + bottom zones for contrast. Middle zone shows the photo
+  // prominently with services rendered below it on an inset card.
+  const topOverlay = `background:linear-gradient(180deg, rgba(12,35,64,0.88) 0%, rgba(12,35,64,0.55) 100%);`;
+  const botOverlay = `background:linear-gradient(0deg, rgba(12,35,64,0.92) 0%, rgba(12,35,64,0.60) 100%);`;
 
-  return `<div style="width:${w}px;height:${h}px;background:${photoBg};color:${onDarkText};font-family:${FONT_STACK_BODY};position:relative;box-sizing:border-box;display:flex;flex-direction:column;">
-    <div style="height:${topH}px;flex-shrink:0;${topOverlay}padding:${padding}px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:flex-end;">
-      ${topBlock(d, p, s, p.accent, onDarkText, mono)}
+  return `<div style="width:${w}px;height:${h}px;background:${p.bg};color:${onDarkText};font-family:${FONT_STACK_BODY};position:relative;box-sizing:border-box;display:flex;flex-direction:column;">
+    <div style="height:${topH}px;flex-shrink:0;position:relative;overflow:hidden;">
+      <div style="position:absolute;inset:0;background:${photoBg};"></div>
+      <div style="position:absolute;inset:0;${topOverlay}"></div>
+      <div style="position:relative;z-index:2;padding:${padding}px;height:100%;box-sizing:border-box;display:flex;flex-direction:column;justify-content:flex-end;">
+        ${topBlock(d, p, s, p.accent, onDarkText, mono)}
+      </div>
     </div>
-    <div style="height:${midH}px;flex-shrink:0;${midOverlay}padding:${padding}px;box-sizing:border-box;display:flex;align-items:center;">
-      ${servicesBlock(d, s, onDarkText, p.accent)}
+    <div style="height:${midH}px;flex-shrink:0;display:flex;flex-direction:column;gap:${midPadding}px;padding:${padding}px;box-sizing:border-box;background:${p.bg};">
+      <div style="flex:1;background:${photoBg};border-radius:${radius}px;min-height:0;border:1px solid rgba(255,255,255,0.1);"></div>
+      <div style="flex-shrink:0;">${servicesBlock(d, s, onDarkText, p.accent)}</div>
     </div>
-    <div style="height:${botH}px;flex-shrink:0;${botOverlay}padding:${padding}px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;">
-      ${bottomBlock(d, p, s, p.accent, "#0C2340", mono, "rgba(255,255,255,0.6)")}
+    <div style="height:${botH}px;flex-shrink:0;position:relative;overflow:hidden;">
+      <div style="position:absolute;inset:0;background:${photoBg};"></div>
+      <div style="position:absolute;inset:0;${botOverlay}"></div>
+      <div style="position:relative;z-index:2;padding:${padding}px;height:100%;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;">
+        ${bottomBlock(d, p, s, p.accent, "#0C2340", mono, "rgba(255,255,255,0.65)")}
+      </div>
     </div>
   </div>`;
 }
 
-// Sub-variation count helper
+// Kept for back-compat (unused, now always 1)
 export function subVariationCount(_v: PrintVariation): number {
-  return 4;
+  return 1;
 }
 
-export function nextSubVariation(current: number, total = 4): number {
-  return (current + 1) % total;
+export function nextSubVariation(_current: number, _total = 1): number {
+  return 0;
 }
 
 // Map AD_SIZES storage strings → PrintSize enum
