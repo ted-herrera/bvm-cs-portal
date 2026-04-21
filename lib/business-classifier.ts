@@ -1,4 +1,11 @@
 export function classifyBusinessType(businessName: string, description: string): string {
+  console.log("[classifyBusiness] input:", { businessName, description });
+  const result = _classifyBusinessTypeImpl(businessName, description);
+  console.log("[classifyBusiness] → type:", result);
+  return result;
+}
+
+function _classifyBusinessTypeImpl(businessName: string, description: string): string {
   const a = `${businessName} ${description}`.toLowerCase();
   if (a.match(/karate|martial art|taekwondo|judo|boxing|mma|kickboxing|bjj|jiu.?jitsu|wrestling|dojo|kung fu|aikido|self.?defense/)) return "fitness";
   if (a.match(/yoga|pilates|barre|meditation/)) return "fitness";
@@ -22,6 +29,13 @@ export function classifyBusinessType(businessName: string, description: string):
 }
 
 export function detectSubType(businessName: string, description: string): string {
+  console.log("[classifyBusiness/subtype] input:", { businessName, description });
+  const result = _detectSubTypeImpl(businessName, description);
+  console.log("[classifyBusiness/subtype] → subtype:", result);
+  return result;
+}
+
+function _detectSubTypeImpl(businessName: string, description: string): string {
   const a = `${businessName} ${description}`.toLowerCase();
   if (a.match(/karate|martial art|taekwondo|judo|mma|kickboxing|bjj|jiu.?jitsu|dojo|kung fu|aikido|self.?defense/)) return "martialarts";
   if (a.match(/yoga|meditation|mindful/)) return "yoga";

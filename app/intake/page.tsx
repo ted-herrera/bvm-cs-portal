@@ -16,13 +16,11 @@ interface IntakeFields {
   zip: string;
   desc: string;
   address: string;
-  targetCustomer: string;
   services: string[];
   cta: string;
   logoUrl: string;
   photoUrl: string;
   printSize: string; // eighth|quarter|third|half|full|cover
-  tagline: string;
   qrType: string; // url|email|other|none
   qrValue: string;
   phone: string;
@@ -48,20 +46,18 @@ CONVERSATION RULES — STRICT:
 - After the client answers, give ONE short natural acknowledgment (max one short sentence), then ONE next question.
 - Skip is always allowed. If the user says "skip", "pass", "I don't have one", or similar, acknowledge briefly and move to the next question.
 
-COLLECT IN THIS ORDER (ask one at a time, flex if user volunteers something). There are 11 questions total — do not add more:
+COLLECT IN THIS ORDER (ask one at a time, flex if user volunteers something). There are exactly 9 questions total — do not add more. Never ask about target customer, brand vibe, tagline, colors, or feel:
 1. Business name + city (bizName, city — also capture zip if mentioned)
 2. What the business does in one sentence (desc)
 3. Street address for the ad — use these EXACT words: "What's the street address you'd like on the ad?" (address — optional, skip accepted)
-4. Target customer (targetCustomer — optional, skip accepted)
-5. Top 3 services or products (services as array)
-6. Call-to-action (cta)
-7. Print size (printSize) — one of: eighth, quarter, third, half, full, cover
-8. Logo — ask if they have one, they can upload or skip
-9. Photo — ask if they have a photo, upload or skip (stock used if skip)
-10. Tagline — generate a tagline INFERRED from business type, services, and city (you set brand vibe internally; do NOT ask the client about it), then say exactly: I'd suggest '[generated tagline]' — want to use that, tweak it, or skip? (tagline)
-11. QR code — ask: "Would you like a QR code on your ad?" If yes: ask "What should it link to — your website or email?" If user says something else (not url/email): reply "Got it, I'll flag that for your rep." and move on with qrType "other". If no: qrType "none".
+4. Top 3 services or products (services as array)
+5. Call-to-action (cta)
+6. Print size (printSize) — one of: eighth, quarter, third, half, full, cover
+7. Logo — ask if they have one, they can upload or skip
+8. Photo — ask if they have a photo, upload or skip (stock used if skip)
+9. QR code — ask: "Would you like a QR code on your ad?" If yes: ask "What should it link to — your website or email?" If user says something else (not url/email): reply "Got it, I'll flag that for your rep." and move on with qrType "other". If no: qrType "none".
 
-NEVER ASK ABOUT BRAND VIBE, COLORS, OR FEEL. Infer brand vibe silently from the business type for tagline/style decisions.
+NEVER ASK ABOUT TARGET CUSTOMER. NEVER ASK ABOUT TAGLINE. NEVER ASK ABOUT BRAND VIBE, COLORS, OR FEEL. Infer these silently from the business type when needed downstream.
 
 OTHER RULES:
 - Before asking any question, check the ALREADY COLLECTED list. Never re-ask a field already set.
@@ -71,7 +67,7 @@ OTHER RULES:
 
 CRITICAL OUTPUT FORMAT: Every response ends with a JSON block on its own line:
 ###FIELDS###
-{"bizName":"","city":"","zip":"","desc":"","address":"","targetCustomer":"","services":[],"cta":"","printSize":"","tagline":"","qrType":"","qrValue":"","phone":"","complete":false}
+{"bizName":"","city":"","zip":"","desc":"","address":"","services":[],"cta":"","printSize":"","qrType":"","qrValue":"","phone":"","complete":false}
 ###END###
 
 For "printSize", use one of: "eighth", "quarter", "third", "half", "full", "cover".
@@ -126,9 +122,9 @@ function IntakeInner() {
   const [finished, setFinished] = useState(false);
 
   const [fields, setFields] = useState<IntakeFields>({
-    bizName: "", city: "", zip: "", desc: "", address: "", targetCustomer: "",
+    bizName: "", city: "", zip: "", desc: "", address: "",
     services: [], cta: "", logoUrl: "", photoUrl: "",
-    printSize: "", tagline: "", qrType: "", qrValue: "", phone: "",
+    printSize: "", qrType: "", qrValue: "", phone: "",
   });
 
   const [sbrData, setSbrData] = useState<Record<string, unknown> | null>(null);
@@ -244,18 +240,15 @@ function IntakeInner() {
             q5: f.printSize,
             q6: f.qrType === "none" ? "no" : "yes",
             q7: f.qrValue,
-            q8: f.tagline,
+            q8: "",
             q9: `${slug}.com`,
             address: f.address,
-            targetCustomer: f.targetCustomer,
             logoUrl: f.logoUrl,
             photoUrl: f.photoUrl,
             phone: f.phone,
           },
           sbrData: {
             ...(sbrData || {}),
-            tagline: f.tagline,
-            suggestedTagline: f.tagline,
             services: f.services.map((s) => ({ name: s, description: `${s} — proudly serving ${f.city}.` })),
           },
           rep: isMagic ? "magic-link" : "ted",
@@ -276,11 +269,9 @@ function IntakeInner() {
       bizName: "Ted's Tacos", city: "Tulsa", zip: "74103",
       desc: "street tacos, smash burgers and craft sodas",
       address: "123 Main St, Tulsa OK 74103",
-      targetCustomer: "Young families, downtown workers, late-night foodies",
       services: ["Street Tacos", "Catering", "Late Night"],
       cta: "Order Now",
       printSize: "quarter",
-      tagline: "Tulsa's Taco Revolution Starts Here",
       qrType: "url" as const,
       qrValue: "tedstacos.com",
       phone: "(918) 555-0199",
@@ -298,11 +289,6 @@ function IntakeInner() {
     await w(d);
     addMsg("user", demo.address);
     setFields((p) => ({ ...p, address: demo.address }));
-    await w(d);
-    addMsg("bruno", "Nice. Who's your target customer?");
-    await w(d);
-    addMsg("user", demo.targetCustomer);
-    setFields((p) => ({ ...p, targetCustomer: demo.targetCustomer }));
     await w(d);
     addMsg("bruno", "Okay. Give me your top three services or products.");
     await w(d);
@@ -326,11 +312,6 @@ function IntakeInner() {
     addMsg("bruno", "No problem. A photo of the business or team? Upload or skip.");
     await w(d);
     addMsg("user", "skip");
-    await w(d);
-    addMsg("bruno", `I'd suggest '${demo.tagline}' — want to use that, tweak it, or skip?`);
-    await w(d);
-    addMsg("user", "Use it.");
-    setFields((p) => ({ ...p, tagline: demo.tagline }));
     await w(d);
     addMsg("bruno", "Would you like a QR code on your ad?");
     await w(d);
@@ -361,11 +342,9 @@ function IntakeInner() {
                   fields.city && "City",
                   fields.address && "Address",
                   fields.desc && "Desc",
-                  fields.targetCustomer && "Target",
                   fields.services.length > 0 && "Services",
                   fields.cta && "CTA",
                   fields.printSize && "Size",
-                  fields.tagline && "Tagline",
                   fields.qrType && "QR",
                 ].filter(Boolean).join(" · ") || "Getting started..."}
               </p>
@@ -432,10 +411,8 @@ function IntakeInner() {
               <>
                 <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 26, fontWeight: 700, color: "#fff", margin: 0 }}>{fields.bizName}</h2>
                 {fields.city && <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 4 }}>{fields.city}{fields.zip ? `, ${fields.zip}` : ""}</p>}
-                {fields.tagline && <p style={{ fontSize: 15, color: "#F5C842", fontStyle: "italic", marginTop: 12 }}>&ldquo;{fields.tagline}&rdquo;</p>}
                 {fields.desc && <p style={{ fontSize: 13, color: "#cbd5e1", marginTop: 8 }}>{fields.desc}</p>}
                 {fields.address && <p style={{ fontSize: 12, color: "#94a3b8", marginTop: 6 }}>📍 {fields.address}</p>}
-                {fields.targetCustomer && <p style={{ fontSize: 12, color: "#94a3b8", marginTop: 6 }}>🎯 {fields.targetCustomer}</p>}
                 {fields.services.length > 0 && (
                   <div style={{ marginTop: 16 }}>
                     <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#64748b", marginBottom: 8 }}>Services</p>

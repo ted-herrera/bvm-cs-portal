@@ -691,6 +691,7 @@ export interface PhotoSourceInfo {
 }
 
 export function getPhotoLibraryKey(businessType: string, subType?: string): string {
+  console.log("PHOTO LOOKUP:", businessType, subType);
   if (subType) {
     const s = subType.toLowerCase();
     if (s.match(/karate|martial|boxing|mma|kickboxing|bjj|tae\s*kwon|jiu/)) return "martial_arts";
@@ -749,6 +750,7 @@ export function getPixabaySearchUrl(category: string): string {
 }
 
 export function getPhotoSourceList(businessType: string, subType?: string): PhotoSourceInfo[] {
+  console.log("PHOTO LOOKUP:", businessType, subType);
   const key = getPhotoLibraryKey(businessType, subType);
   const unsplash: PhotoSourceInfo[] = (PHOTO_LIBRARY[key] || PHOTO_LIBRARY.business).map((url) => ({
     source: "unsplash" as const,
