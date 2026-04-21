@@ -139,18 +139,23 @@ function buildPrompt(inp: PromptInputs): string {
   const bizType = inp.businessType || "local business";
   const variation = (inp.variation || "clean_classic").toString();
 
-  // Per-variation photography composition + style
-  // These are tuned to the visual system: clean_classic puts the photo on the
-  // right 55% of the ad, so it needs right-weighted composition with left
-  // negative space. bold_modern uses a centered hero subject over a dark
-  // tinted full-bleed bg. premium_editorial needs a full-frame image that
-  // holds the whole ad.
-  const styleByVariation: Record<string, string> = {
-    clean_classic: `subject positioned right side of frame, left side negative space, ${bizType} photography, bright natural light, approachable, editorial`,
-    bold_modern: `centered hero subject, dark moody background, dramatic lighting, ${bizType}, cinematic contrast, commercial-grade`,
-    premium_editorial: `full frame immersive ${bizType} photography, cinematic, rich color, no negative space needed, editorial lifestyle`,
+  // Map legacy variation names → new named templates.
+  const canonical = (
+    variation === "clean_classic" ? "bauhaus" :
+    variation === "bold_modern" ? "nike" :
+    variation === "premium_editorial" ? "ogilvy" :
+    variation
+  );
+
+  // Per-template image-prompt modifier (matches print-engine layout needs).
+  const styleByTemplate: Record<string, string> = {
+    local_converter: `service professional in action, residential neighborhood, natural daylight, authentic not stock, ${bizType}`,
+    ogilvy: `lifestyle moment, warm golden light, human connection, editorial photography, shallow depth of field, ${bizType}`,
+    bauhaus: `clean professional portrait or product, bright studio lighting, minimal background, confident and trustworthy, ${bizType}`,
+    apple: `single hero subject centered, pure white or cream background, product or portrait photography, luxury editorial, absolute minimalism, ${bizType}`,
+    nike: `high energy action shot, dramatic lighting, motion blur or freeze frame, dark moody background, athletic or dynamic subject, ${bizType}`,
   };
-  const style = styleByVariation[variation] || styleByVariation.clean_classic;
+  const style = styleByTemplate[canonical] || styleByTemplate.bauhaus;
 
   // Per-size composition hint
   const size = (inp.adSize || "").toLowerCase();

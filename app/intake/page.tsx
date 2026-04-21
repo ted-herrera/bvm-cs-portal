@@ -259,14 +259,25 @@ function IntakeInner() {
             const incomeTier = incomeNum >= 120000 ? "premium" : incomeNum > 0 && incomeNum < 55000 ? "low" : "middle";
             const competitors = Array.isArray(raw.competitors) ? (raw.competitors as unknown[]).length : 0;
             const compTier = competitors >= 7 ? "high" : competitors <= 3 ? "low" : "medium";
-            // Opportunity score heuristic when SBR doesn't provide one:
-            // high income + lower competitor count = higher opportunity.
             let oppScore = raw.opportunityScore as number | undefined;
             if (!oppScore) {
               const incomeScore = incomeNum >= 120000 ? 40 : incomeNum >= 80000 ? 28 : incomeNum >= 55000 ? 18 : 10;
               const compScore = 40 - Math.min(40, competitors * 4);
               oppScore = Math.min(100, incomeScore + compScore + 25);
             }
+            // Silent vibe inference from intake description + business name.
+            // Keywords energy / bold / strong / powerful / urban / young push the
+            // nike template via selectVariation. Neutral vibes default to calm.
+            const vibeSource = `${f.bizName} ${f.desc} ${f.services.join(" ")}`.toLowerCase();
+            const vibeHits: string[] = [];
+            if (/energy|energetic|hype|pumped|intense/.test(vibeSource)) vibeHits.push("energy");
+            if (/bold|badass|loud|aggressive/.test(vibeSource)) vibeHits.push("bold");
+            if (/strong|strength|muscle|power.?house/.test(vibeSource)) vibeHits.push("strong");
+            if (/power|powerful|fierce/.test(vibeSource)) vibeHits.push("powerful");
+            if (/urban|street|downtown|grit/.test(vibeSource)) vibeHits.push("urban");
+            if (/young|youth|gen.?z|millennial/.test(vibeSource)) vibeHits.push("young");
+            if (/crossfit|mma|martial|boxing|fitness|gym|yoga|pilates|dance/.test(vibeSource)) vibeHits.push("energy");
+            const intakeVibe = vibeHits.join(" ").trim();
             return {
               ...raw,
               services: f.services.map((s) => ({ name: s, description: `${s} — proudly serving ${f.city}.` })),
@@ -275,6 +286,8 @@ function IntakeInner() {
               competitorDensity: compTier,
               competitorCount: competitors,
               opportunityScore: oppScore,
+              vibe: intakeVibe,
+              intakeVibe,
             };
           })(),
           rep: isMagic ? "magic-link" : "ted",
@@ -290,20 +303,25 @@ function IntakeInner() {
           const normalizedSize = normalizeSize(f.printSize);
           const sbrRaw = (data.profile?.sbrData || {}) as Record<string, unknown>;
           const incomeTierRaw = (sbrRaw.incomeTier as "low" | "middle" | "premium" | undefined) || "middle";
+          const vibeRaw = (sbrRaw.intakeVibe as string | undefined) || (sbrRaw.vibe as string | undefined) || "";
           const chosenVariation = selectVariation(subType, subType, normalizedSize, {
             medianIncome: sbrRaw.medianIncome as number | string | undefined,
             opportunityScore: sbrRaw.opportunityScore as number | string | undefined,
             competitorDensity: sbrRaw.competitorDensity as number | string | undefined,
             incomeTier: incomeTierRaw,
+            vibe: vibeRaw,
           });
 
-          // Store selectedVariation immediately (so tearsheet can render layout even before image arrives)
+          // Store selectedVariation + intakeVibe on the client record so the
+          // tearsheet renders the right template and downstream re-renders
+          // can factor in vibe again if needed.
           fetch(`/api/profile/update/${profileId}`, {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               intakeAnswers: {
                 ...(data.profile.intakeAnswers || {}),
                 selectedVariation: chosenVariation,
+                intakeVibe: vibeRaw,
               },
             }),
           }).catch(() => {});
