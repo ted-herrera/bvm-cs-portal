@@ -11,7 +11,26 @@ import {
   type PrintVariation,
   type PrintSize,
 } from "@/lib/print-engine";
+import { getPhotoSourceList } from "@/lib/photo-library";
+import { detectSubType } from "@/lib/business-classifier";
 import type { ClientProfile } from "@/lib/pipeline";
+
+const FALLBACK_PHOTO = "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=1200&auto=format&fit=crop";
+
+function pickDefaultPhoto(client: ClientProfile): string {
+  const intake = (client.intakeAnswers || {}) as Record<string, string>;
+  if (intake.photoUrl) return intake.photoUrl;
+  try {
+    const description = intake.q2 || intake.desc || "";
+    const subType = detectSubType(client.business_name, description);
+    const sources = getPhotoSourceList(subType, subType);
+    const firstUnsplash = sources.find((s) => s.source === "unsplash");
+    if (firstUnsplash?.url) return firstUnsplash.url;
+  } catch {
+    /* fall through */
+  }
+  return FALLBACK_PHOTO;
+}
 
 const NAVY = "#0C2340";
 const NAVY_MID = "#1a2f50";
@@ -68,7 +87,7 @@ function buildAdData(client: ClientProfile, variation: PrintVariation, sub: numb
   const size: PrintSize = normalizeSize(intake.q5 || intake.printSize);
   const services = (intake.q3 || "").split(",").map((s) => s.trim()).filter(Boolean).slice(0, 3);
   const tagline = intake.q8 || (client.sbrData as { tagline?: string } | null)?.tagline || "";
-  const photoUrl = intake.photoUrl || "https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=1200&auto=format&fit=crop";
+  const photoUrl = pickDefaultPhoto(client);
   const addressRaw = (intake.address || "").trim();
   return {
     businessName: client.business_name,

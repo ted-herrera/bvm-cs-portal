@@ -12,7 +12,11 @@ import {
   type PrintVariation,
   type PrintSize,
 } from "@/lib/print-engine";
+import { getPhotoSourceList } from "@/lib/photo-library";
+import { detectSubType } from "@/lib/business-classifier";
 import type { ClientProfile } from "@/lib/pipeline";
+
+const FALLBACK_PHOTO = "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=1200&auto=format&fit=crop";
 
 const NAVY = "#0C2340";
 const GOLD = "#D4A843";
@@ -33,9 +37,19 @@ async function fetchClient(id: string): Promise<ClientProfile | null> {
   }
 }
 
-function pickDefaultPhoto(intake: Record<string, string> | null | undefined): string {
-  if (intake?.photoUrl) return intake.photoUrl;
-  return "https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=1200&auto=format&fit=crop";
+function pickDefaultPhoto(client: ClientProfile): string {
+  const intake = (client.intakeAnswers || {}) as Record<string, string>;
+  if (intake.photoUrl) return intake.photoUrl;
+  try {
+    const description = intake.q2 || intake.desc || "";
+    const subType = detectSubType(client.business_name, description);
+    const sources = getPhotoSourceList(subType, subType);
+    const firstUnsplash = sources.find((s) => s.source === "unsplash");
+    if (firstUnsplash?.url) return firstUnsplash.url;
+  } catch {
+    /* fall through */
+  }
+  return FALLBACK_PHOTO;
 }
 
 function buildAdData(client: ClientProfile, variation: PrintVariation, sub: number, realSize = true, overridePhoto?: string): PrintAdData {
@@ -55,7 +69,7 @@ function buildAdData(client: ClientProfile, variation: PrintVariation, sub: numb
     cta: intake.q4 || "Contact Us",
     phone: client.phone || intake.phone || "",
     address: addressRaw || undefined,
-    photoUrl: overridePhoto || pickDefaultPhoto(intake),
+    photoUrl: overridePhoto || pickDefaultPhoto(client),
     logoUrl: client.logoUrl || intake.logoUrl || undefined,
     brandColors: { primary: NAVY, secondary: "#475569", accent: GOLD },
     size,
@@ -201,7 +215,7 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
     || ((client.sbrData || {}) as { summary?: string }).summary
     || `${client.city} is a growing market with strong engagement on print + digital.`;
 
-  const stockPhoto = pickDefaultPhoto((client.intakeAnswers || {}) as Record<string, string>);
+  const stockPhoto = pickDefaultPhoto(client);
 
   if (approved) {
     return (
