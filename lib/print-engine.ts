@@ -326,7 +326,7 @@ function ratios(nameBase: number, s: number): TypeSizes {
     tagline: Math.max(13, Math.round(name * 0.45)),
     services: Math.max(10, Math.round(name * 0.30)),
     cta: Math.max(11, Math.round(name * 0.35)),
-    phone: Math.max(9, Math.round(name * 0.20)),
+    phone: Math.max(12, Math.round(name * 0.28)),
     eyebrow: Math.max(9, Math.round(name * 0.22)),
   };
 }
@@ -358,13 +358,20 @@ function servicesLine(d: PrintAdData, t: TypeSizes, color: string, accent: strin
   return `<div style="font-family:${FONT_STACK_BODY};font-weight:500;font-size:${t.services}px;color:${color};line-height:1.5;${upper ? "letter-spacing:0.16em;text-transform:uppercase;" : "letter-spacing:0.01em;"}">${items}</div>`;
 }
 
-function phoneAddressMono(d: PrintAdData, t: TypeSizes, color: string): string {
-  const phoneLine = d.phone && d.phone.trim()
-    ? `<div style="font-family:${FONT_STACK_MONO};font-size:${t.phone}px;color:${color};letter-spacing:0.02em;line-height:1.4;">${escape(d.phone)}${d.website ? ` · ${escape(d.website)}` : ""}</div>`
+function phoneAddressMono(d: PrintAdData, t: TypeSizes, color: string, opts?: { pill?: boolean; s?: number }): string {
+  const phone = (d.phone || "").trim();
+  const address = (d.address || "").trim();
+  if (!phone && !address) return "";
+  const phoneLine = phone
+    ? `<div style="font-family:${FONT_STACK_MONO};font-size:${t.phone}px;color:${color};letter-spacing:0.04em;line-height:1.4;font-weight:500;">${escape(phone)}${d.website ? ` · ${escape(d.website)}` : ""}</div>`
     : "";
-  const addrLine = d.address && d.address.trim()
-    ? `<div style="font-family:${FONT_STACK_MONO};font-size:${Math.max(9, t.phone - 1)}px;color:${color};letter-spacing:0.02em;line-height:1.4;margin-top:${Math.round(t.phone * 0.2)}px;">${escape(d.address)}</div>`
+  const addrLine = address
+    ? `<div style="font-family:${FONT_STACK_MONO};font-size:${Math.max(11, t.phone - 1)}px;color:${color};letter-spacing:0.03em;line-height:1.4;margin-top:${Math.round(t.phone * 0.2)}px;">${escape(address)}</div>`
     : "";
+  if (opts?.pill) {
+    const s = opts.s ?? 1;
+    return `<div style="display:inline-block;background:rgba(0,0,0,0.55);border-radius:${Math.max(6, Math.round(8 * s))}px;padding:${Math.max(5, Math.round(6 * s))}px ${Math.max(10, Math.round(14 * s))}px;">${phoneLine}${addrLine}</div>`;
+  }
   return `${phoneLine}${addrLine}`;
 }
 
@@ -435,7 +442,7 @@ function renderBoldModern(d: PrintAdData, p: SubPalette, w: number, h: number): 
       </div>
       <div style="display:flex;flex-direction:column;align-items:center;gap:${Math.round(t.cta * 0.7)}px;padding-bottom:${Math.round(pad * 0.2)}px;">
         ${ctaPill(d, t, s, p.accent, "#0C2340")}
-        <div style="color:rgba(255,255,255,0.75);text-align:center;">${phoneAddressMono(d, t, "rgba(255,255,255,0.85)")}</div>
+        <div style="text-align:center;">${phoneAddressMono(d, t, "#ffffff", { pill: true, s })}</div>
       </div>
     </div>
   </div>`;
@@ -463,11 +470,16 @@ function renderPremiumEditorial(d: PrintAdData, _p: SubPalette, w: number, h: nu
     ? `<p style="font-family:${FONT_STACK_HEAD};font-size:${t.tagline}px;font-style:italic;line-height:1.3;margin:${Math.max(8, Math.round(10 * s))}px 0 0;color:rgba(255,255,255,0.95);font-weight:400;text-shadow:0 1px 10px rgba(0,0,0,0.35);">${escape(d.tagline)}</p>`
     : "";
 
-  const phoneLine = d.phone && d.phone.trim()
-    ? `<div style="font-family:${FONT_STACK_MONO};font-size:${Math.max(9, Math.round(t.phone * 0.9))}px;color:rgba(255,255,255,0.9);letter-spacing:0.04em;line-height:1.4;margin-top:${Math.max(8, Math.round(10 * s))}px;">${escape(d.phone)}${d.website ? ` · ${escape(d.website)}` : ""}</div>`
+  const phone = (d.phone || "").trim();
+  const address = (d.address || "").trim();
+  const phoneLine = phone
+    ? `<div style="font-family:${FONT_STACK_MONO};font-size:${t.phone}px;color:#ffffff;letter-spacing:0.05em;line-height:1.4;font-weight:500;">${escape(phone)}${d.website ? ` · ${escape(d.website)}` : ""}</div>`
     : "";
-  const addrLine = d.address && d.address.trim()
-    ? `<div style="font-family:${FONT_STACK_MONO};font-size:${Math.max(9, Math.round(t.phone * 0.85))}px;color:rgba(255,255,255,0.8);letter-spacing:0.03em;line-height:1.4;margin-top:${Math.max(2, Math.round(3 * s))}px;">${escape(d.address)}</div>`
+  const addrLine = address
+    ? `<div style="font-family:${FONT_STACK_MONO};font-size:${Math.max(11, Math.round(t.phone * 0.88))}px;color:rgba(255,255,255,0.88);letter-spacing:0.04em;line-height:1.4;margin-top:${Math.max(2, Math.round(3 * s))}px;">${escape(address)}</div>`
+    : "";
+  const contactPill = phone || address
+    ? `<div style="display:inline-block;background:rgba(0,0,0,0.62);border-radius:${Math.max(6, Math.round(8 * s))}px;padding:${Math.max(6, Math.round(8 * s))}px ${Math.max(12, Math.round(16 * s))}px;margin-top:${Math.max(10, Math.round(12 * s))}px;">${phoneLine}${addrLine}</div>`
     : "";
 
   return `<div style="width:${w}px;height:${h}px;background:${photoBg};color:#ffffff;font-family:${FONT_STACK_BODY};position:relative;overflow:hidden;box-sizing:border-box;">
@@ -480,8 +492,7 @@ function renderPremiumEditorial(d: PrintAdData, _p: SubPalette, w: number, h: nu
     </div>
     <div style="position:absolute;left:0;right:0;bottom:${edge}px;z-index:3;padding:0 ${edge}px;text-align:center;display:flex;flex-direction:column;align-items:center;">
       ${ctaPill(d, t, s, gold, "#0C2340")}
-      ${phoneLine}
-      ${addrLine}
+      ${contactPill}
     </div>
   </div>`;
 }

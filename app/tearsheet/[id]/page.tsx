@@ -56,25 +56,33 @@ function extractSbrContext(client: ClientProfile): PrintAdData["sbr"] {
   };
 }
 
-function pickDefaultPhoto(client: ClientProfile): string {
-  const intake = (client.intakeAnswers || {}) as Record<string, string>;
-  if (intake.photoUrl) return intake.photoUrl;
+function clientPhotoList(client: ClientProfile): string[] {
   try {
+    const intake = (client.intakeAnswers || {}) as Record<string, string>;
     const description = intake.q2 || intake.desc || "";
     const subType = detectSubType(client.business_name, description);
     const sources = getPhotoSourceList(subType, subType);
-    // SBR-influenced photo ordering: premium income tier takes first option (curated lifestyle);
-    // low income tier skips the most "premium" first and picks later. Middle = default first.
-    const tier = extractSbrContext(client)?.incomeTier;
-    const unsplash = sources.filter((s) => s.source === "unsplash").map((s) => s.url);
-    if (unsplash.length === 0) return FALLBACK_PHOTO;
-    if (tier === "premium") return unsplash[0];
-    if (tier === "low") return unsplash[Math.min(unsplash.length - 1, 3)];
-    return unsplash[0];
+    return sources.filter((s) => s.source === "unsplash").map((s) => s.url);
   } catch {
-    /* fall through */
+    return [];
   }
-  return FALLBACK_PHOTO;
+}
+
+function pickDefaultPhoto(client: ClientProfile): string {
+  const intake = (client.intakeAnswers || {}) as Record<string, string>;
+  if (intake.photoUrl) return intake.photoUrl;
+  const unsplash = clientPhotoList(client);
+  if (unsplash.length === 0) return FALLBACK_PHOTO;
+  const tier = extractSbrContext(client)?.incomeTier;
+  if (tier === "premium") return unsplash[0];
+  if (tier === "low") return unsplash[Math.min(unsplash.length - 1, 3)];
+  return unsplash[0];
+}
+
+function pickPhotoByIndex(client: ClientProfile, idx: number): string {
+  const unsplash = clientPhotoList(client);
+  if (unsplash.length === 0) return FALLBACK_PHOTO;
+  return unsplash[((idx % unsplash.length) + unsplash.length) % unsplash.length];
 }
 
 function buildAdData(
@@ -147,7 +155,7 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
   const [aiImage, setAiImage] = useState<string | null>(null);
   const [aiAvailable, setAiAvailable] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [genError, setGenError] = useState("");
+  const [photoCycleIdx, setPhotoCycleIdx] = useState(0);
 
   useEffect(() => {
     fetchClient(id).then((c) => {
@@ -209,7 +217,6 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
   async function generateImage(seed?: string | number) {
     if (!client) return;
     setGenerating(true);
-    setGenError("");
     try {
       const intake = (client.intakeAnswers || {}) as Record<string, string>;
       const services = (intake.q3 || "").split(",").map((s) => s.trim()).filter(Boolean);
@@ -234,23 +241,33 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
         }),
       });
       const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        setGenError(`HTTP ${res.status}: ${data?.error || "unknown error"}`);
-      } else if (data?.error) {
-        setGenError(
-          data.error === "not configured"
-            ? "OPENAI_API_KEY is not set on the server."
-            : String(data.error),
-        );
-      } else if (data?.imageUrl) {
+      if (res.ok && data?.imageUrl) {
         setAiImage(data.imageUrl);
-      } else {
-        setGenError("No imageUrl returned.");
+        setGenerating(false);
+        return;
       }
-    } catch (err) {
-      setGenError(err instanceof Error ? err.message : "Network error");
+      // Silent fallback: cycle through Unsplash library photos for the subtype.
+      // Each click advances the cycle so the ad visibly changes.
+    } catch {
+      /* silent */
     }
+    const nextIdx = photoCycleIdx + 1;
+    setPhotoCycleIdx(nextIdx);
+    setAiImage(pickPhotoByIndex(client, nextIdx));
     setGenerating(false);
+  }
+
+  // Keep Surprise Me responsive even when AI is offline: clicking cycles the
+  // Unsplash photo library for the subtype, one step per click.
+  function surpriseMe() {
+    if (!client) return;
+    if (aiAvailable) {
+      generateImage(Math.random().toString(36).slice(2, 10));
+      return;
+    }
+    const nextIdx = photoCycleIdx + 1;
+    setPhotoCycleIdx(nextIdx);
+    setAiImage(pickPhotoByIndex(client, nextIdx));
   }
 
   async function handleApprove() {
@@ -295,16 +312,6 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
     || ((client.sbrData || {}) as { summary?: string }).summary
     || `${client.city} is a growing market with strong engagement on print + digital.`;
 
-  if (approved) {
-    return (
-      <div style={{ minHeight: "100vh", background: NAVY, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column" }}>
-        <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 56, color: "#fff", margin: 0 }}>Campaign Direction Approved ✓</h1>
-        <p style={{ color: GOLD, fontSize: 18, marginTop: 16 }}>We&apos;ll take it from here.</p>
-        <button onClick={() => router.push(`/client/${id}`)} style={{ marginTop: 24, background: GOLD, color: NAVY, border: "none", borderRadius: 10, padding: "14px 28px", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>See Your Dashboard →</button>
-      </div>
-    );
-  }
-
   return (
     <div style={{ minHeight: "100vh", background: "#f5f7fb", color: TEXT }}>
       {/* Hero */}
@@ -343,19 +350,20 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
         {/* Surprise Me button — single CTA, replaces Automagic */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginTop: 22 }}>
           <button
-            onClick={() => generateImage(Math.random().toString(36).slice(2, 10))}
-            disabled={generating || !aiAvailable}
+            onClick={surpriseMe}
+            disabled={generating}
             style={{
-              background: aiAvailable ? GOLD : "#e2e8f0",
-              color: aiAvailable ? NAVY : "#94a3b8",
+              background: GOLD,
+              color: NAVY,
               border: "none",
               borderRadius: 10,
               padding: "14px 32px",
               fontSize: 15,
               fontWeight: 800,
-              cursor: aiAvailable && !generating ? "pointer" : "not-allowed",
+              cursor: generating ? "not-allowed" : "pointer",
               letterSpacing: "0.04em",
-              boxShadow: aiAvailable ? "0 4px 14px rgba(212,168,67,0.35)" : "none",
+              boxShadow: "0 4px 14px rgba(212,168,67,0.35)",
+              opacity: generating ? 0.7 : 1,
             }}
           >
             {generating ? "Generating..." : "🎲 Surprise Me"}
@@ -363,28 +371,38 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
         </div>
       </div>
 
-      {/* Approval gate */}
+      {/* Approval gate — becomes approved state inline so the campaign preview below stays visible */}
       <div style={{ maxWidth: 780, margin: "0 auto", padding: "0 24px 40px" }}>
-        <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 16, padding: 32 }}>
-          <h3 style={{ fontSize: 22, fontWeight: 700, margin: "0 0 8px", color: TEXT }}>Approve campaign direction</h3>
-          <p style={{ fontSize: 14, color: TEXT2, margin: "0 0 20px" }}>Once approved, our team moves straight to production. Check each item below.</p>
-          {([
-            ["a", "Business name, city, and contact look correct"],
-            ["b", "Services, CTA, and tagline feel right"],
-            ["c", "Chosen variation and print size work for me"],
-            ["d", "I'm ready to hand off to production"],
-          ] as const).map(([key, label]) => (
-            <label key={key} style={{ display: "flex", gap: 10, padding: "10px 0", cursor: "pointer" }}>
-              <input type="checkbox" checked={checks[key]} onChange={(e) => setChecks({ ...checks, [key]: e.target.checked })} style={{ marginTop: 3 }} />
-              <span style={{ fontSize: 14, color: TEXT }}>{label}</span>
-            </label>
-          ))}
-          <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Leave a note for your rep" style={{ width: "100%", marginTop: 12, padding: 12, border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 14, color: TEXT, background: "#fff", fontFamily: "inherit", minHeight: 80 }} />
-          <button onClick={handleApprove} disabled={!canApprove} style={{ marginTop: 16, width: "100%", background: canApprove ? GOLD : "#e2e8f0", color: canApprove ? NAVY : "#94a3b8", border: "none", borderRadius: 10, padding: "14px 20px", fontSize: 15, fontWeight: 700, cursor: canApprove ? "pointer" : "not-allowed" }}>Approve & Hand Off →</button>
-        </div>
+        {approved ? (
+          <div style={{ background: NAVY, color: "#fff", border: `1px solid ${BORDER}`, borderRadius: 16, padding: 32, textAlign: "center" }}>
+            <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 36, color: "#fff", margin: "0 0 10px" }}>Campaign Direction Approved ✓</h3>
+            <p style={{ color: GOLD, fontSize: 16, margin: "0 0 20px" }}>We&apos;ll take it from here.</p>
+            <button onClick={() => router.push(`/client/${id}`)} style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 10, padding: "14px 28px", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>See Your Dashboard →</button>
+          </div>
+        ) : (
+          <>
+            <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 16, padding: 32 }}>
+              <h3 style={{ fontSize: 22, fontWeight: 700, margin: "0 0 8px", color: TEXT }}>Approve campaign direction</h3>
+              <p style={{ fontSize: 14, color: TEXT2, margin: "0 0 20px" }}>Once approved, our team moves straight to production. Check each item below.</p>
+              {([
+                ["a", "Business name, city, and contact look correct"],
+                ["b", "Services, CTA, and tagline feel right"],
+                ["c", "Chosen variation and print size work for me"],
+                ["d", "I'm ready to hand off to production"],
+              ] as const).map(([key, label]) => (
+                <label key={key} style={{ display: "flex", gap: 10, padding: "10px 0", cursor: "pointer" }}>
+                  <input type="checkbox" checked={checks[key]} onChange={(e) => setChecks({ ...checks, [key]: e.target.checked })} style={{ marginTop: 3 }} />
+                  <span style={{ fontSize: 14, color: TEXT }}>{label}</span>
+                </label>
+              ))}
+              <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Leave a note for your rep" style={{ width: "100%", marginTop: 12, padding: 12, border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 14, color: TEXT, background: "#fff", fontFamily: "inherit", minHeight: 80 }} />
+              <button onClick={handleApprove} disabled={!canApprove} style={{ marginTop: 16, width: "100%", background: canApprove ? GOLD : "#e2e8f0", color: canApprove ? NAVY : "#94a3b8", border: "none", borderRadius: 10, padding: "14px 20px", fontSize: 15, fontWeight: 700, cursor: canApprove ? "pointer" : "not-allowed" }}>Approve & Hand Off →</button>
+            </div>
 
-        {qaScore !== null && (
-          <p style={{ textAlign: "center", marginTop: 12, fontSize: 11, color: TEXT2 }}>Post-flight QA: {qaScore}% pass</p>
+            {qaScore !== null && (
+              <p style={{ textAlign: "center", marginTop: 12, fontSize: 11, color: TEXT2 }}>Post-flight QA: {qaScore}% pass</p>
+            )}
+          </>
         )}
       </div>
 

@@ -380,7 +380,6 @@ export default function ClientPortalPage() {
     return (
       <div style={{ minHeight: "100vh", background: BG, display: "flex", flexDirection: "column" }}>
         <div style={{ padding: "20px 32px", borderBottom: `1px solid ${BORDER}`, background: PANEL_DARK, display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 32, height: 32, background: NAVY, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 14 }}>B</div>
           <div>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", color: TEXT2, margin: 0, textTransform: "uppercase" }}>BVM Client Success Portal</p>
             <p style={{ fontSize: 12, color: TEXT2, margin: 0 }}>{client.business_name}</p>
@@ -429,10 +428,7 @@ export default function ClientPortalPage() {
       {/* Wheat sidebar */}
       <aside style={{ width: 240, minWidth: 240, background: WHEAT, color: NAVY, display: "flex", flexDirection: "column", position: "sticky", top: 0, height: "100vh" }}>
         <div style={{ padding: "24px 20px", borderBottom: `1px solid ${WHEAT_DARK}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 30, height: 30, background: NAVY, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: WHEAT, fontWeight: 800, fontSize: 14 }}>B</div>
-            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", color: NAVY, margin: 0, textTransform: "uppercase" }}>BVM CS Portal</p>
-          </div>
+          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", color: NAVY, margin: 0, textTransform: "uppercase" }}>BVM CS Portal</p>
         </div>
         <div style={{ padding: "20px", borderBottom: `1px solid ${WHEAT_DARK}` }}>
           <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", color: "#8a6e2c", textTransform: "uppercase", margin: 0 }}>Business</p>
