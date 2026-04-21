@@ -10,8 +10,12 @@ export async function GET() {
 type IncomeTier = "low" | "middle" | "premium";
 
 export async function POST(request: Request) {
-  console.log("[image/generate] OPENAI_API_KEY set:", !!process.env.OPENAI_API_KEY);
-  if (!process.env.OPENAI_API_KEY) {
+  const keySet = !!process.env.OPENAI_API_KEY;
+  // Always log on every POST so Vercel function logs reveal whether the env
+  // var is present. If this prints `false` on prod, the env var is missing.
+  console.log("[image/generate] POST — OPENAI_API_KEY set:", keySet);
+  if (!keySet) {
+    console.error("[image/generate] OPENAI_API_KEY is missing from the server environment. Add it to Vercel env vars to enable AI image generation — all requests will fall back to stock photos until it is set.");
     return NextResponse.json({ error: "not configured" }, { status: 200 });
   }
 

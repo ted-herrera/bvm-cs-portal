@@ -1,10 +1,20 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ClientProfile, PipelineStage } from "@/lib/pipeline";
 import { STAGE_LABELS } from "@/lib/pipeline";
+import {
+  renderPrintAd,
+  getSizeSpec,
+  normalizeSize,
+  selectVariation,
+  VARIATION_LABELS,
+  type PrintAdData,
+  type PrintVariation,
+} from "@/lib/print-engine";
+import { detectSubType } from "@/lib/business-classifier";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -209,7 +219,7 @@ export default function DashboardPage() {
   const [affIdx, setAffIdx] = useState(Math.floor(new Date().getTime() / 86400000) % AFFIRMATIONS.length);
   const [selectedClient, setSelectedClient] = useState<ClientProfile | null>(null);
   const [slideOutOpen, setSlideOutOpen] = useState(false);
-  const [drawerTab, setDrawerTab] = useState<"overview" | "comm" | "actions">("overview");
+  const [drawerTab, setDrawerTab] = useState<"overview" | "campaign" | "comm" | "actions">("overview");
   const [msgInput, setMsgInput] = useState("");
   const [msgSending, setMsgSending] = useState(false);
   const [, setWeather] = useState<{ temp: string; icon: string } | null>(null);
@@ -1664,7 +1674,7 @@ export default function DashboardPage() {
 
             {/* Tabs */}
             <div style={{ display: "flex", borderBottom: "1px solid #e5e9ef" }}>
-              {([{ key: "overview" as const, label: "Overview" }, { key: "comm" as const, label: "Communication" }, { key: "actions" as const, label: "Actions" }]).map((t) => (
+              {([{ key: "overview" as const, label: "Overview" }, { key: "campaign" as const, label: "Campaign" }, { key: "comm" as const, label: "Communication" }, { key: "actions" as const, label: "Actions" }]).map((t) => (
                 <button
                   key={t.key}
                   onClick={() => setDrawerTab(t.key)}
@@ -1788,6 +1798,69 @@ export default function DashboardPage() {
                   </div>
                 </div>
               )}
+
+              {drawerTab === "campaign" && (() => {
+                // Single source of truth: stored selectedVariation + generatedImageUrl
+                // on the Supabase client record. Falls back to a computed variation
+                // only when no value has ever been stored; does not auto-generate
+                // a new AI image inside the drawer.
+                const intake = (selectedClient.intakeAnswers || {}) as Record<string, string>;
+                const validVariations: PrintVariation[] = [
+                  "local_converter", "ogilvy", "bauhaus", "apple", "nike",
+                  "clean_classic", "bold_modern", "premium_editorial",
+                ];
+                const storedVariation = intake.selectedVariation as PrintVariation | undefined;
+                const chosenVariation: PrintVariation =
+                  storedVariation && validVariations.includes(storedVariation)
+                    ? storedVariation
+                    : selectVariation(
+                        detectSubType(selectedClient.business_name, intake.q2 || intake.desc || ""),
+                        detectSubType(selectedClient.business_name, intake.q2 || intake.desc || ""),
+                        normalizeSize(intake.q5 || intake.printSize),
+                        undefined,
+                      );
+                const adPhoto = intake.generatedImageUrl
+                  || intake.photoUrl
+                  || "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=1200&auto=format&fit=crop";
+                const services = (intake.q3 || "").split(",").map((x) => x.trim()).filter(Boolean).slice(0, 3);
+                const adData: PrintAdData = {
+                  businessName: selectedClient.business_name,
+                  tagline: intake.q8 || "",
+                  city: selectedClient.city,
+                  services,
+                  cta: intake.q4 || "Contact Us",
+                  phone: selectedClient.phone || intake.phone || "",
+                  address: (intake.address || "").trim() || undefined,
+                  photoUrl: adPhoto,
+                  logoUrl: selectedClient.logoUrl || intake.logoUrl || undefined,
+                  brandColors: { primary: "#0C2340", secondary: "#475569", accent: "#D4A843" },
+                  size: normalizeSize(intake.q5 || intake.printSize),
+                  variation: chosenVariation,
+                  qrValue: intake.q7 || undefined,
+                };
+                const spec = getSizeSpec(adData.size);
+                const scale = Math.min(1, 300 / spec.bleedPx150.w, 360 / spec.bleedPx150.h);
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div style={{ background: "#f8fafc", border: "1px solid #e5e9ef", borderRadius: 10, padding: 12, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#7a8a9a", margin: 0 }}>Approved Ad · {VARIATION_LABELS[chosenVariation]}</p>
+                      <div style={{ width: spec.bleedPx150.w * scale, height: spec.bleedPx150.h * scale }}>
+                        <div
+                          style={{ width: spec.bleedPx150.w, height: spec.bleedPx150.h, transform: `scale(${scale})`, transformOrigin: "top left" }}
+                          dangerouslySetInnerHTML={{ __html: renderPrintAd(adData, { dpi: 150 }) }}
+                        />
+                      </div>
+                    </div>
+                    <p style={{ fontSize: 11, color: "#7a8a9a", margin: 0, textAlign: "center" }}>
+                      Single source of truth · same ad on tearsheet + client portal.
+                    </p>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <Link href={`/tearsheet/${selectedClient.id}`} style={{ flex: 1, textAlign: "center", background: "#F5C842", color: "#1a2332", border: "none", padding: "10px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700, textDecoration: "none" }}>Open Tearsheet →</Link>
+                      <Link href={`/client/${selectedClient.id}`} style={{ flex: 1, textAlign: "center", background: "#fff", color: "#1a2332", border: "1px solid #e5e9ef", padding: "10px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700, textDecoration: "none" }}>Client Portal →</Link>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {drawerTab === "comm" && (
                 <div>

@@ -162,12 +162,17 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
       setClient(c);
       setLoading(false);
       if (c) {
-        // Hydrate from previously stored AI image (from intake completion)
+        // Single source of truth: the Supabase client record. Hydrate both the
+        // variation and the AI image from stored values. Only compute a fresh
+        // variation if one has never been stored.
         const intake = (c.intakeAnswers || {}) as Record<string, string>;
         if (intake.generatedImageUrl) setAiImage(intake.generatedImageUrl);
-        // Apply stored selectedVariation if present, otherwise compute via selectVariation
         const stored = intake.selectedVariation as PrintVariation | undefined;
-        if (stored === "clean_classic" || stored === "bold_modern" || stored === "premium_editorial") {
+        const validVariations: PrintVariation[] = [
+          "local_converter", "ogilvy", "bauhaus", "apple", "nike",
+          "clean_classic", "bold_modern", "premium_editorial",
+        ];
+        if (stored && validVariations.includes(stored)) {
           setVariation(stored);
         } else {
           const subType = clientBusinessType(c);

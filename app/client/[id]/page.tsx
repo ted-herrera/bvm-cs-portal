@@ -185,9 +185,16 @@ export default function ClientPortalPage() {
       setClient(c || null);
       if (c && (c.buildNotes || []).includes("content-unlocked")) setContentUnlocked(true);
       if (c) {
+        // Single source of truth: Supabase client record. Read selectedVariation
+        // and generatedImageUrl verbatim. Only compute a variation if none was
+        // stored. Do not regenerate if an image already exists on the record.
         const intake = (c.intakeAnswers || {}) as Record<string, string>;
         const stored = intake.selectedVariation as PrintVariation | undefined;
-        if (stored === "clean_classic" || stored === "bold_modern" || stored === "premium_editorial") {
+        const validVariations: PrintVariation[] = [
+          "local_converter", "ogilvy", "bauhaus", "apple", "nike",
+          "clean_classic", "bold_modern", "premium_editorial",
+        ];
+        if (stored && validVariations.includes(stored)) {
           setVariation(stored);
         } else {
           const subType = clientBusinessType(c);

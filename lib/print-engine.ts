@@ -442,21 +442,22 @@ function starRating(s: number, color = "#F5C842"): string {
   return `<div style="display:flex;gap:${Math.max(2, Math.round(2 * s))}px;color:${color};font-size:${size}px;letter-spacing:0.04em;">★★★★★</div>`;
 }
 function qrCard(d: PrintAdData, s: number, opts: { size?: number; bg?: string; fg?: string; label?: string } = {}): string {
-  if (!d.qrValue) return "";
+  if (!d.qrValue || !d.qrValue.trim()) return "";
   const sz = opts.size ?? Math.max(44, Math.round(64 * s));
   const bg = opts.bg || "#ffffff";
   const fg = opts.fg || "#0C2340";
   const label = opts.label ? escape(opts.label) : "";
-  const value = escape(d.qrValue);
-  // Placeholder QR block — a dense dotted grid that reads as a QR glyph until
-  // the exporter swaps in a real QR image.
+  // Normalize qrValue — if it looks like a bare domain (no scheme + dot in it)
+  // prepend https:// so the QR scans to a valid URL.
+  let value = d.qrValue.trim();
+  if (/@/.test(value) && !/^mailto:/i.test(value)) value = `mailto:${value}`;
+  else if (/^[\w.-]+\.[a-z]{2,}(\/.*)?$/i.test(value) && !/^https?:\/\//i.test(value)) value = `https://${value}`;
+  const encoded = encodeURIComponent(value);
+  // Google Charts QR — render a real scannable QR image. "|0" = ECC level L, no margin.
+  const qrPx = Math.max(120, sz * 2);
+  const qrUrl = `https://chart.googleapis.com/chart?chs=${qrPx}x${qrPx}&cht=qr&chl=${encoded}&choe=UTF-8`;
   return `<div style="display:inline-flex;flex-direction:column;align-items:center;background:${bg};border-radius:${Math.max(4, Math.round(6 * s))}px;padding:${Math.max(6, Math.round(8 * s))}px;gap:${Math.max(4, Math.round(6 * s))}px;">
-    <div style="width:${sz}px;height:${sz}px;background:${fg};display:grid;grid-template-columns:repeat(8, 1fr);grid-template-rows:repeat(8, 1fr);gap:1px;padding:${Math.round(sz * 0.06)}px;box-sizing:border-box;">
-      ${Array.from({ length: 64 }).map((_, i) => {
-        const on = ((i * 2654435761) ^ (value.length * (i + 3))) & 1;
-        return `<div style="background:${on ? bg : fg};"></div>`;
-      }).join("")}
-    </div>
+    <img src="${qrUrl}" alt="QR code" width="${sz}" height="${sz}" style="display:block;width:${sz}px;height:${sz}px;image-rendering:pixelated;" />
     ${label ? `<div style="font-family:${FONT_STACK_MONO};font-size:${Math.max(8, Math.round(9 * s))}px;color:${fg};letter-spacing:0.08em;text-transform:uppercase;font-weight:700;">${label}</div>` : ""}
   </div>`;
 }
