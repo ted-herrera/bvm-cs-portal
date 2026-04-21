@@ -84,38 +84,25 @@ function ctaWithUrgency(cta: string, sbr?: SbrContext): string {
   return cta;
 }
 
-// Rules-based single-variation selector. Picks the ONE best layout per client
-// based on business type + income tier + print size.
-// Cover/full ads always override to premium_editorial.
+// Rules-based single-variation selector. premium_editorial is the DEFAULT for
+// every business type. Home services + auto repair clusters fall back to
+// clean_classic where product/service photography reads better. bold_modern
+// is no longer a default — only reachable via Surprise Me (which goes through
+// the AI prompt, not this selector).
 export function selectVariation(
   businessType: string | null | undefined,
   subType: string | null | undefined,
-  size: PrintSize | null | undefined,
-  sbr?: SbrContext,
+  _size: PrintSize | null | undefined,
+  _sbr?: SbrContext,
 ): PrintVariation {
-  const s = String(size || "").toLowerCase();
-  if (s === "cover" || s === "full") return "premium_editorial";
-
   const keys = `${businessType || ""} ${subType || ""}`.toLowerCase();
-  const tier = incomeTier(sbr);
 
-  // Explicit category → variation routing
-  if (/dental|law|legal|attorney|lawyer|financial|finance|medical|doctor|clinic|insurance/.test(keys)) return "premium_editorial";
-  if (/food|bakery|restaurant|cafe|coffee|pizza|taco|mexican|bbq|burger|chocolate|sweets|pastry|japanese|sushi/.test(keys)) return "bold_modern";
-  if (/roofing|plumbing|electrical|hvac|painting|flooring|landscaping|cleaning|moving|storage|remodel|handyman/.test(keys)) return "clean_classic";
-  if (/fitness|gym|yoga|pilates|martial_?arts|karate|dance|crossfit/.test(keys)) return "bold_modern";
-  if (/salon|spa|beauty|barber|aesthet/.test(keys)) return "premium_editorial";
-  if (/auto_?repair|automotive|car\b|mechanic|hardware|lumber/.test(keys)) return "clean_classic";
-  if (/retail|boutique|jewelry|florist|flower|photography/.test(keys)) {
-    return tier === "premium" ? "premium_editorial" : "bold_modern";
-  }
-  if (/hotel|motel|resort|inn/.test(keys)) return "premium_editorial";
-  if (/bookstore|library/.test(keys)) return "clean_classic";
-  if (/pet|veterinar|grooming/.test(keys)) return "clean_classic";
-  if (/real_?estate|realtor/.test(keys)) return "premium_editorial";
+  // Home services + auto repair → clean_classic
+  if (/roofing|plumbing|electrical|hvac|painting|flooring|landscaping|cleaning|moving|storage|remodel|handyman|home.?services/.test(keys)) return "clean_classic";
+  if (/auto_?repair|automotive|mechanic|\bcar\b/.test(keys)) return "clean_classic";
 
-  // Default
-  return "clean_classic";
+  // Every other business type defaults to premium_editorial.
+  return "premium_editorial";
 }
 
 export interface SizeSpec {
@@ -329,7 +316,7 @@ interface TypeSizes {
 const NAME_BASE: Record<PrintVariation, number> = {
   clean_classic: 36,
   bold_modern: 60,
-  premium_editorial: 52,
+  premium_editorial: 60,
 };
 
 function ratios(nameBase: number, s: number): TypeSizes {
@@ -455,38 +442,46 @@ function renderBoldModern(d: PrintAdData, p: SubPalette, w: number, h: number): 
 }
 
 // ─── premium_editorial ───────────────────────────────────────────────
-// Full-bleed photo is the hero. Top 20% gradient for eyebrow legibility.
-// Centered lower-third: large white name → white rule → italic tagline.
-// Dark semi-transparent bottom strip for CTA + services + phone.
-function renderPremiumEditorial(d: PrintAdData, p: SubPalette, w: number, h: number): string {
+// Morphe-level simplicity. Full-bleed photo, dark wash, centered name at 42%,
+// thin white rule, italic tagline, gold CTA centered near bottom, phone+
+// address mono tiny below CTA. No services on this variation — the image
+// carries the product story.
+function renderPremiumEditorial(d: PrintAdData, _p: SubPalette, w: number, h: number): string {
   const s = fontScale(w, h);
   const t = ratios(NAME_BASE.premium_editorial, s);
-  const pad = insetPadding(s);
+  const edge = Math.max(16, Math.round(18 * s));
   const photoBg = photoOrBlock(d);
-  const topH = Math.round(h * 0.2);
-  const stripH = Math.round(h * 0.22);
+  const gold = "#D4A843";
 
-  const eyebrow = `<div style="font-family:${FONT_STACK_MONO};font-size:${t.eyebrow}px;letter-spacing:0.28em;text-transform:uppercase;color:rgba(255,255,255,0.95);font-weight:600;">${escape(d.city || "Featured")}</div>`;
-  const name = `<h1 style="font-family:${FONT_STACK_HEAD};font-size:${t.name}px;line-height:0.96;margin:0;font-weight:700;letter-spacing:-0.015em;color:#ffffff;text-shadow:0 2px 16px rgba(0,0,0,0.35);">${escape(d.businessName || "Your Business")}</h1>`;
-  const rule = `<div style="width:${Math.max(36, Math.round(t.name * 1.4))}px;height:1px;background:rgba(255,255,255,0.85);margin:${Math.round(t.name * 0.35)}px auto;"></div>`;
+  const eyebrow = `<div style="position:absolute;left:${edge}px;top:${edge}px;z-index:3;font-family:${FONT_STACK_MONO};font-size:${t.eyebrow}px;letter-spacing:0.28em;text-transform:uppercase;color:${gold};font-weight:600;">${escape(d.city || "Local")}</div>`;
+
+  const ruleW = Math.round(w * 0.40);
+
+  const name = `<h1 style="font-family:${FONT_STACK_HEAD};font-size:${t.name}px;line-height:0.96;margin:0;font-weight:700;letter-spacing:-0.015em;color:#ffffff;text-shadow:0 2px 18px rgba(0,0,0,0.45);">${escape(d.businessName || "Your Business")}</h1>`;
+  const rule = `<div style="width:${ruleW}px;height:1px;background:rgba(255,255,255,0.92);margin:${Math.max(8, Math.round(8 * s))}px auto 0;"></div>`;
   const tagline = d.tagline && d.tagline.trim()
-    ? `<p style="font-family:${FONT_STACK_HEAD};font-size:${t.tagline}px;font-style:italic;line-height:1.35;margin:0;color:rgba(255,255,255,0.92);font-weight:400;max-width:80%;text-shadow:0 1px 8px rgba(0,0,0,0.3);">${escape(d.tagline)}</p>`
+    ? `<p style="font-family:${FONT_STACK_HEAD};font-size:${t.tagline}px;font-style:italic;line-height:1.3;margin:${Math.max(8, Math.round(10 * s))}px 0 0;color:rgba(255,255,255,0.95);font-weight:400;text-shadow:0 1px 10px rgba(0,0,0,0.35);">${escape(d.tagline)}</p>`
+    : "";
+
+  const phoneLine = d.phone && d.phone.trim()
+    ? `<div style="font-family:${FONT_STACK_MONO};font-size:${Math.max(9, Math.round(t.phone * 0.9))}px;color:rgba(255,255,255,0.9);letter-spacing:0.04em;line-height:1.4;margin-top:${Math.max(8, Math.round(10 * s))}px;">${escape(d.phone)}${d.website ? ` · ${escape(d.website)}` : ""}</div>`
+    : "";
+  const addrLine = d.address && d.address.trim()
+    ? `<div style="font-family:${FONT_STACK_MONO};font-size:${Math.max(9, Math.round(t.phone * 0.85))}px;color:rgba(255,255,255,0.8);letter-spacing:0.03em;line-height:1.4;margin-top:${Math.max(2, Math.round(3 * s))}px;">${escape(d.address)}</div>`
     : "";
 
   return `<div style="width:${w}px;height:${h}px;background:${photoBg};color:#ffffff;font-family:${FONT_STACK_BODY};position:relative;overflow:hidden;box-sizing:border-box;">
-    <div style="position:absolute;left:0;right:0;top:0;height:${topH}px;background:linear-gradient(180deg, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0) 100%);"></div>
-    <div style="position:absolute;left:${pad}px;right:${pad}px;top:${pad}px;z-index:3;">${eyebrow}</div>
-    <div style="position:absolute;left:0;right:0;top:52%;transform:translateY(-50%);z-index:3;display:flex;flex-direction:column;align-items:center;text-align:center;padding:0 ${pad}px;">
+    <div style="position:absolute;inset:0;background:rgba(0,0,0,0.45);z-index:1;"></div>
+    ${eyebrow}
+    <div style="position:absolute;left:0;right:0;top:42%;z-index:3;padding:0 ${edge}px;text-align:center;">
       ${name}
       ${rule}
       ${tagline}
     </div>
-    <div style="position:absolute;left:0;right:0;bottom:0;min-height:${stripH}px;z-index:3;background:rgba(12,35,64,0.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);padding:${pad}px;box-sizing:border-box;display:flex;justify-content:space-between;align-items:flex-end;gap:${pad}px;">
-      <div style="min-width:0;flex:1;">
-        ${servicesLine(d, t, "rgba(255,255,255,0.95)", p.accent)}
-        <div style="margin-top:${Math.round(t.services * 0.6)}px;">${phoneAddressMono(d, t, "rgba(255,255,255,0.85)")}</div>
-      </div>
-      <div style="flex-shrink:0;">${ctaPill(d, t, s, p.accent, "#0C2340")}</div>
+    <div style="position:absolute;left:0;right:0;bottom:${edge}px;z-index:3;padding:0 ${edge}px;text-align:center;display:flex;flex-direction:column;align-items:center;">
+      ${ctaPill(d, t, s, gold, "#0C2340")}
+      ${phoneLine}
+      ${addrLine}
     </div>
   </div>`;
 }

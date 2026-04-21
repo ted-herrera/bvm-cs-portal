@@ -360,12 +360,6 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
           >
             {generating ? "Generating..." : "🎲 Surprise Me"}
           </button>
-          {genError && (
-            <p style={{ fontSize: 11, color: "#dc2626", fontFamily: "ui-monospace, monospace", textAlign: "center", maxWidth: 520, margin: 0 }}>{genError}</p>
-          )}
-          {!aiAvailable && (
-            <p style={{ fontSize: 11, color: TEXT2, margin: 0 }}>AI Art Director is offline — showing stock photo.</p>
-          )}
         </div>
       </div>
 

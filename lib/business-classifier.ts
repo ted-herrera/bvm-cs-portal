@@ -115,7 +115,7 @@ function _detectSubTypeImpl(businessName: string, description: string): string {
   if (a.match(/childcare|daycare|preschool/)) return "childcare";
 
   // — retail & specialty —
-  if (a.match(/bookstore|book.?store|books?\b|library|used books|rare books/)) return "bookstore";
+  if (a.match(/bookstore|book.?store|\bbooks?\b|library|\bused.?books?\b|\bsecondhand.?books?\b|\bpre.?owned.?books?\b|rare books/)) return "bookstore";
   if (a.match(/florist|flower shop|bouquet|floral/)) return "florist";
   if (a.match(/jewelry|jeweler|diamond|engagement ring|fine gold/)) return "jewelry";
   if (a.match(/hardware|lumber|home improvement|building supply/)) return "hardware";

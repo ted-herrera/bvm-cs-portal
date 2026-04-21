@@ -3,12 +3,14 @@ import { generateAdImage } from "@/lib/openai-image";
 import { getClient } from "@/lib/mock-data";
 
 export async function GET() {
+  console.log("[image/generate] OPENAI_API_KEY set:", !!process.env.OPENAI_API_KEY);
   return NextResponse.json({ configured: !!process.env.OPENAI_API_KEY });
 }
 
 type IncomeTier = "low" | "middle" | "premium";
 
 export async function POST(request: Request) {
+  console.log("[image/generate] OPENAI_API_KEY set:", !!process.env.OPENAI_API_KEY);
   if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json({ error: "not configured" }, { status: 200 });
   }
