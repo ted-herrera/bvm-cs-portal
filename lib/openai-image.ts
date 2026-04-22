@@ -58,15 +58,15 @@ function sizeLabel(size: string | undefined): string {
   return "quarter page";
 }
 
-// OpenAI output size per print aspect ratio.
-function openaiSize(size: string | undefined): "1024x1024" | "1024x1792" | "1792x1024" {
+// OpenAI output size per print aspect ratio — gpt-image-1 supported dims only.
+function openaiSize(size: string | undefined): "1024x1024" | "1024x1536" | "1536x1024" {
   const s = (size || "").toLowerCase();
   // Landscape half-page
-  if (s === "1/2" || s.includes("half")) return "1792x1024";
+  if (s === "1/2" || s.includes("half")) return "1536x1024";
   // Square eighth-page
   if (s === "1/8" || s.includes("eighth")) return "1024x1024";
   // Portrait: full, cover, quarter, third
-  return "1024x1792";
+  return "1024x1536";
 }
 
 function buildPrompt(opts: GenerateAdImageOptions): string {
