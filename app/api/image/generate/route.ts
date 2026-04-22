@@ -3,7 +3,7 @@ import { generateAdImage } from "@/lib/openai-image";
 import { getClient } from "@/lib/mock-data";
 
 export async function GET() {
-  console.log("[image/generate] OPENAI_API_KEY set:", !!process.env.OPENAI_API_KEY);
+  console.log("[image/generate] GET — OPENAI_API_KEY set:", !!process.env.OPENAI_API_KEY);
   return NextResponse.json({ configured: !!process.env.OPENAI_API_KEY });
 }
 
@@ -11,8 +11,6 @@ type IncomeTier = "low" | "middle" | "premium";
 
 export async function POST(request: Request) {
   const keySet = !!process.env.OPENAI_API_KEY;
-  // Always log on every POST so Vercel function logs reveal whether the env
-  // var is present. If this prints `false` on prod, the env var is missing.
   console.log("[image/generate] POST — OPENAI_API_KEY set:", keySet);
   if (!keySet) {
     console.error("[image/generate] OPENAI_API_KEY is missing from the server environment. Add it to Vercel env vars to enable AI image generation — all requests will fall back to stock photos until it is set.");
@@ -26,6 +24,11 @@ export async function POST(request: Request) {
       businessType?: string;
       services?: string[];
       city?: string;
+      zip?: string;
+      desc?: string;
+      cta?: string;
+      phone?: string;
+      address?: string;
       adSize?: string;
       incomeTier?: IncomeTier;
       variation?: string;
@@ -38,17 +41,28 @@ export async function POST(request: Request) {
     let businessType = body.businessType || "";
     let services: string[] = Array.isArray(body.services) ? body.services.filter(Boolean) : [];
     let city = body.city || "";
+    let zip = body.zip || "";
+    let desc = body.desc || "";
+    let cta = body.cta || "";
+    let phone = body.phone || "";
+    let address = body.address || "";
     let adSize = body.adSize || "";
     let incomeTier: IncomeTier = body.incomeTier || "middle";
-    const variation = body.variation || "clean_classic";
+    const variation = body.variation || "bauhaus";
 
     if (body.clientId) {
       const client = await getClient(body.clientId);
       if (client) {
         businessName = businessName || client.business_name;
         city = city || client.city || "";
+        zip = zip || client.zip || "";
+        phone = phone || client.phone || "";
         const intake = (client.intakeAnswers || {}) as Record<string, string>;
         if (services.length === 0) services = (intake.q3 || "").split(",").map((s) => s.trim()).filter(Boolean);
+        if (!desc) desc = intake.q2 || intake.desc || businessType;
+        if (!cta) cta = intake.q4 || "";
+        if (!address) address = intake.address || "";
+        if (!phone) phone = intake.phone || "";
         if (!adSize) adSize = intake.q5 || intake.printSize || "";
         const sbr = (client.sbrData || {}) as Record<string, unknown>;
         const storedTier = sbr.incomeTier as IncomeTier | undefined;
@@ -56,16 +70,22 @@ export async function POST(request: Request) {
       }
     }
 
-    const imageUrl = await generateAdImage(
+    const imageUrl = await generateAdImage({
       businessName,
       businessType,
       services,
       city,
-      adSize,
+      zip,
+      desc,
+      cta,
+      phone,
+      address,
+      size: adSize,
       incomeTier,
       variation,
-      body.seed,
-    );
+      seed: body.seed,
+      prompt: body.prompt,
+    });
     if (!imageUrl) {
       return NextResponse.json({ error: "image generation failed" }, { status: 502 });
     }

@@ -344,15 +344,30 @@ export default function TearsheetPage({ params }: { params: Promise<{ id: string
         </div>
 
         <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 16, padding: 32, display: "flex", justifyContent: "center", alignItems: "center", minHeight: 520, position: "relative" }}>
-          {generating && !aiImage ? (
-            <div style={{ textAlign: "center", padding: 40 }}>
-              <div style={{ width: 44, height: 44, border: `3px solid ${GOLD}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite", margin: "0 auto 16px" }} />
-              <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, fontStyle: "italic", color: TEXT, margin: 0 }}>The BVM Art Director is building your campaign direction...</p>
-              <p style={{ fontSize: 12, color: TEXT2, marginTop: 8 }}>This takes about 10–20 seconds.</p>
-            </div>
-          ) : (
-            <PrintPreview data={adData} scale={viewportScale} />
-          )}
+          {(() => {
+            // When OPENAI is configured we render the gpt-image-1 result directly.
+            // When the key is missing we fall back to the HTML template engine.
+            const aspect = spec.trimInches.w / spec.trimInches.h;
+            const maxW = realSize ? spec.bleedPx150.w : Math.min(520, spec.bleedPx150.w);
+            const maxH = realSize ? spec.bleedPx150.h : 640;
+            let w = maxW, h = Math.round(w / aspect);
+            if (h > maxH) { h = maxH; w = Math.round(h * aspect); }
+            if (aiAvailable) {
+              if (aiImage) {
+                return (
+                  <img src={aiImage} alt={`${client.business_name} print ad`} style={{ width: w, height: h, objectFit: "cover", borderRadius: 4, boxShadow: "0 2px 14px rgba(12,35,64,0.12)" }} />
+                );
+              }
+              return (
+                <div style={{ textAlign: "center", padding: 40 }}>
+                  <div style={{ width: 44, height: 44, border: `3px solid ${GOLD}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite", margin: "0 auto 16px" }} />
+                  <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, fontStyle: "italic", color: TEXT, margin: 0 }}>The BVM Art Director is building your campaign...</p>
+                  <p style={{ fontSize: 12, color: TEXT2, marginTop: 8 }}>This takes about 20–30 seconds.</p>
+                </div>
+              );
+            }
+            return <PrintPreview data={adData} scale={viewportScale} />;
+          })()}
         </div>
 
         {/* Surprise Me button — single CTA, replaces Automagic */}

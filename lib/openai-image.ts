@@ -1,26 +1,145 @@
-// OpenAI image generation — builds an intelligent prompt from business context.
+// OpenAI gpt-image-1 ad generator.
 //
-// Primary signature (per spec):
-//   generateAdImage(businessName, businessType, services, city, adSize, incomeTier, variation)
-//
-// Legacy 3-arg signature kept for back-compat with /api/image/generate callers
-// that only pass businessName + services + vibe. The impl detects which call
-// shape was used by inspecting the second argument.
+// Primary signature — options object. Legacy 3-arg and 8-arg positional
+// signatures retained via overloads so older callers keep working.
+// Builds the exact prompt format specified by the BVM art system and selects
+// an OpenAI output size that matches the print size's aspect ratio.
+
+export type TemplateStyle =
+  | "nike"
+  | "ogilvy"
+  | "bauhaus"
+  | "apple"
+  | "local_converter"
+  | "clean_classic"
+  | "bold_modern"
+  | "premium_editorial";
 
 type IncomeTier = "low" | "middle" | "premium" | "" | undefined;
-type Variation = "clean_classic" | "bold_modern" | "premium_editorial" | string;
 
 export interface GenerateAdImageOptions {
   businessName: string;
-  businessType?: string;
-  services?: string[];
   city?: string;
-  adSize?: string;
-  incomeTier?: IncomeTier;
-  variation?: Variation;
+  zip?: string;
+  desc?: string;
+  services?: string[];
+  cta?: string;
+  phone?: string;
+  address?: string;
+  size?: string;        // "eighth" / "quarter" / "third" / "half" / "full" / "cover"
+  variation?: string;   // TemplateStyle or legacy alias
   seed?: string | number;
+  // Legacy extras (unused by the new prompt but accepted for compat):
+  businessType?: string;
+  incomeTier?: IncomeTier;
+  prompt?: string;
 }
 
+// Maps the legacy variation names → canonical template label.
+function canonicalStyle(variation: string | undefined): string {
+  const v = (variation || "").toLowerCase();
+  if (v === "clean_classic" || v === "bauhaus") return "bauhaus";
+  if (v === "bold_modern" || v === "nike") return "nike";
+  if (v === "premium_editorial" || v === "ogilvy") return "ogilvy";
+  if (v === "apple") return "apple";
+  if (v === "local_converter") return "local converter";
+  return "bauhaus";
+}
+
+// Friendly print-size label used inside the prompt.
+function sizeLabel(size: string | undefined): string {
+  const s = (size || "").toLowerCase();
+  if (s.includes("cover")) return "featured cover";
+  if (s.includes("full")) return "full page";
+  if (s === "1/2" || s.includes("half")) return "half page";
+  if (s === "1/3" || s.includes("third")) return "third page";
+  if (s === "1/4" || s.includes("quarter")) return "quarter page";
+  if (s === "1/8" || s.includes("eighth")) return "eighth page";
+  return "quarter page";
+}
+
+// OpenAI output size per print aspect ratio.
+function openaiSize(size: string | undefined): "1024x1024" | "1024x1792" | "1792x1024" {
+  const s = (size || "").toLowerCase();
+  // Landscape half-page
+  if (s === "1/2" || s.includes("half")) return "1792x1024";
+  // Square eighth-page
+  if (s === "1/8" || s.includes("eighth")) return "1024x1024";
+  // Portrait: full, cover, quarter, third
+  return "1024x1792";
+}
+
+function buildPrompt(opts: GenerateAdImageOptions): string {
+  const businessName = (opts.businessName || "your business").trim();
+  const city = (opts.city || "").trim();
+  const zip = (opts.zip || "").trim();
+  const desc = (opts.desc || opts.businessType || "").trim();
+  const services = (opts.services || []).filter(Boolean).slice(0, 5);
+  const cta = (opts.cta || "Contact Us").trim();
+  const phone = (opts.phone || "").trim();
+  const address = (opts.address || "").trim();
+  const size = sizeLabel(opts.size);
+  const style = canonicalStyle(opts.variation);
+
+  const styleLabel = `${style} style`;
+  const cityZip = [city, zip].filter(Boolean).join(" ");
+
+  // Exact prompt format per the BVM spec.
+  let prompt = `Create a ${size} print ad for ${businessName} in ${cityZip || "their local market"} (${styleLabel}).`;
+  if (desc) prompt += ` Business: ${desc}.`;
+  if (services.length > 0) prompt += ` Services: ${services.join(", ")}.`;
+  prompt += ` CTA: ${cta}.`;
+  if (phone) prompt += ` Phone: ${phone}.`;
+  if (address) prompt += ` Address: ${address}.`;
+  prompt += ` Include the business name prominently, phone number, address, and a QR code placeholder in the design. Make it look like a professional magazine print advertisement.`;
+  if (opts.seed) prompt += ` Creative seed: ${String(opts.seed)}.`;
+  if (opts.prompt) prompt += ` Extra direction: ${opts.prompt}.`;
+
+  return prompt;
+}
+
+async function callOpenAI(opts: GenerateAdImageOptions): Promise<string | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+
+  const prompt = buildPrompt(opts);
+  const size = openaiSize(opts.size);
+
+  try {
+    const res = await fetch("https://api.openai.com/v1/images/generations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-image-1",
+        prompt,
+        size,
+        quality: "high",
+        n: 1,
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      console.error("[openai-image] HTTP error:", res.status, text.slice(0, 600));
+      return null;
+    }
+    const data = await res.json();
+    const first = data?.data?.[0];
+    if (!first) return null;
+    if (typeof first.url === "string") return first.url;
+    if (typeof first.b64_json === "string") return `data:image/png;base64,${first.b64_json}`;
+    return null;
+  } catch (err) {
+    console.error("[openai-image] error:", err);
+    return null;
+  }
+}
+
+// Overload declarations ─────────────────────────────────────────────────
+export async function generateAdImage(opts: GenerateAdImageOptions): Promise<string | null>;
 export async function generateAdImage(
   businessName: string,
   services: string[],
@@ -33,151 +152,40 @@ export async function generateAdImage(
   city: string,
   adSize: string,
   incomeTier: IncomeTier,
-  variation: Variation,
+  variation: string,
   seed?: string | number,
 ): Promise<string | null>;
+// Implementation ────────────────────────────────────────────────────────
 export async function generateAdImage(
-  businessName: string,
-  arg2: string | string[],
+  first: string | GenerateAdImageOptions,
+  arg2?: string | string[],
   arg3?: string | string[],
   city?: string,
   adSize?: string,
   incomeTier?: IncomeTier,
-  variation?: Variation,
+  variation?: string,
   seed?: string | number,
 ): Promise<string | null> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return null;
-
-  // Detect call shape via arg2 type.
-  const legacyShape = Array.isArray(arg2);
-  let businessType = "";
-  let services: string[] = [];
-  let tierIn: IncomeTier = "middle";
-  let variationIn: Variation = "clean_classic";
-  let cityIn = "";
-  let adSizeIn = "";
-  let legacyVibe = "";
-
-  if (legacyShape) {
-    services = arg2 as string[];
-    legacyVibe = (arg3 as string) || "";
-  } else {
-    businessType = (arg2 as string) || "";
-    services = (arg3 as string[]) || [];
-    cityIn = city || "";
-    adSizeIn = adSize || "";
-    tierIn = incomeTier || "middle";
-    variationIn = variation || "clean_classic";
+  if (typeof first === "object" && first !== null) {
+    return callOpenAI(first);
   }
-
-  const prompt = buildPrompt({
-    businessName,
-    businessType,
-    services,
-    city: cityIn,
-    adSize: adSizeIn,
-    incomeTier: tierIn,
-    variation: variationIn,
-    seed,
-    legacyVibe,
-  });
-
-  try {
-    const res = await fetch("https://api.openai.com/v1/images/generations", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-image-1",
-        prompt,
-        size: "1024x1024",
-        quality: "standard",
-        n: 1,
-      }),
+  // Positional call shapes: detect by arg2 type.
+  const legacy3 = Array.isArray(arg2);
+  if (legacy3) {
+    return callOpenAI({
+      businessName: first,
+      services: arg2 as string[],
+      prompt: (arg3 as string) || undefined,
     });
-
-    if (!res.ok) {
-      if (process.env.NODE_ENV !== "production") {
-        const body = await res.text().catch(() => "");
-        console.error("[openai-image] HTTP error:", res.status, body.slice(0, 500));
-      }
-      return null;
-    }
-    const data = await res.json();
-    const first = data?.data?.[0];
-    if (!first) return null;
-    if (typeof first.url === "string") return first.url;
-    if (typeof first.b64_json === "string") return `data:image/png;base64,${first.b64_json}`;
-    return null;
-  } catch (err) {
-    if (process.env.NODE_ENV !== "production") {
-      console.error("[openai-image] error:", err);
-    }
-    return null;
   }
-}
-
-interface PromptInputs {
-  businessName: string;
-  businessType: string;
-  services: string[];
-  city: string;
-  adSize: string;
-  incomeTier: IncomeTier;
-  variation: Variation;
-  seed?: string | number;
-  legacyVibe?: string;
-}
-
-function buildPrompt(inp: PromptInputs): string {
-  const svcList = (inp.services || []).filter(Boolean).slice(0, 3);
-  const svcText = svcList.join(", ");
-  const city = inp.city || "";
-  const bizType = inp.businessType || "local business";
-  const variation = (inp.variation || "clean_classic").toString();
-
-  // Map legacy variation names → new named templates.
-  const canonical = (
-    variation === "clean_classic" ? "bauhaus" :
-    variation === "bold_modern" ? "nike" :
-    variation === "premium_editorial" ? "ogilvy" :
-    variation
-  );
-
-  // Per-template image-prompt modifier (matches print-engine layout needs).
-  const styleByTemplate: Record<string, string> = {
-    local_converter: `service professional in action, residential neighborhood, natural daylight, authentic not stock, ${bizType}`,
-    ogilvy: `lifestyle moment, warm golden light, human connection, editorial photography, shallow depth of field, ${bizType}`,
-    bauhaus: `clean professional portrait or product, bright studio lighting, minimal background, confident and trustworthy, ${bizType}`,
-    apple: `single hero subject centered, pure white or cream background, product or portrait photography, luxury editorial, absolute minimalism, ${bizType}`,
-    nike: `high energy action shot, dramatic lighting, motion blur or freeze frame, dark moody background, athletic or dynamic subject, ${bizType}`,
-  };
-  const style = styleByTemplate[canonical] || styleByTemplate.bauhaus;
-
-  // Per-size composition hint
-  const size = (inp.adSize || "").toLowerCase();
-  let composition = "";
-  if (size === "cover" || size === "full") composition = "wide cinematic composition";
-  else if (size === "1/2" || size === "half") composition = "landscape format hero shot";
-  else if (size === "1/4" || size === "1/3" || size === "quarter" || size === "third") composition = "tight vertical crop single hero element";
-  else if (size === "1/8" || size === "eighth") composition = "extreme close-up single product or face";
-  else composition = "balanced single-subject composition";
-
-  // Per-income-tier modifier
-  const tier = (inp.incomeTier || "middle").toString().toLowerCase();
-  const tierModifier =
-    tier === "premium" ? "luxury editorial, aspirational"
-    : tier === "low" ? "friendly approachable authentic"
-    : "warm community feel";
-
-  const seedSuffix = inp.seed ? ` Artistic seed: ${String(inp.seed)}.` : "";
-  const vibePart = inp.legacyVibe ? ` Additional vibe: ${inp.legacyVibe}.` : "";
-
-  const features = svcText ? ` Featuring ${svcText}.` : "";
-  const cityPart = city ? ` in ${city}` : "";
-
-  return `${style} photograph for ${inp.businessName || "a local business"}, a ${bizType}${cityPart}.${features} ${composition}. ${tierModifier}. Professional advertising photography. No text. No logos.${vibePart}${seedSuffix}`.trim();
+  return callOpenAI({
+    businessName: first,
+    businessType: (arg2 as string) || "",
+    services: (arg3 as string[]) || [],
+    city: city || "",
+    size: adSize || "",
+    incomeTier: incomeTier || "middle",
+    variation: variation || "bauhaus",
+    seed,
+  });
 }

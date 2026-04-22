@@ -120,6 +120,7 @@ function IntakeInner() {
       : "Hey — I'm Bruno. Let's build your print campaign direction. What's the business name and city?",
   }]);
   const [input, setInput] = useState("");
+  const [generating, setGenerating] = useState(false);
   const [loading, setLoading] = useState(false);
   const [finished, setFinished] = useState(false);
 
@@ -326,23 +327,42 @@ function IntakeInner() {
             }),
           }).catch(() => {});
 
-          // Kick off image generation — await so the tearsheet gets it ready.
-          const imgRes = await fetch("/api/image/generate", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              clientId: profileId,
-              businessName: f.bizName,
-              businessType: subType,
-              services: f.services,
-              city: f.city,
-              adSize: normalizedSize,
-              incomeTier: incomeTierRaw,
-              variation: chosenVariation,
-              seed: Date.now(),
-            }),
-          }).catch(() => null);
-          const imgData = imgRes ? await imgRes.json().catch(() => null) : null;
-          const imageUrl = imgData?.imageUrl as string | undefined;
+          // Kick off image generation and WAIT for it before routing. If it
+          // doesn't return within 30 seconds we route anyway; the tearsheet
+          // will handle the missing image gracefully.
+          setGenerating(true);
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 30_000);
+          let imageUrl: string | undefined;
+          try {
+            const imgRes = await fetch("/api/image/generate", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                clientId: profileId,
+                businessName: f.bizName,
+                businessType: subType,
+                services: f.services,
+                city: f.city,
+                zip: f.zip,
+                desc: f.desc,
+                cta: f.cta,
+                phone: f.phone,
+                address: f.address,
+                adSize: normalizedSize,
+                incomeTier: incomeTierRaw,
+                variation: chosenVariation,
+                seed: Math.floor(Math.random() * 9999) + 1,
+              }),
+              signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+            const imgData = await imgRes.json().catch(() => null);
+            imageUrl = imgData?.imageUrl as string | undefined;
+          } catch {
+            /* aborted or network error — fall through */
+          } finally {
+            clearTimeout(timeoutId);
+          }
 
           if (imageUrl) {
             await fetch(`/api/profile/update/${profileId}`, {
@@ -351,12 +371,15 @@ function IntakeInner() {
                 intakeAnswers: {
                   ...(data.profile.intakeAnswers || {}),
                   selectedVariation: chosenVariation,
+                  intakeVibe: vibeRaw,
                   generatedImageUrl: imageUrl,
                 },
               }),
             }).catch(() => {});
           }
+          setGenerating(false);
         } catch {
+          setGenerating(false);
           /* non-fatal — tearsheet can still generate on load */
         }
 
@@ -435,6 +458,14 @@ function IntakeInner() {
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "#0d1a2e" }}>
       <TopNav activePage="intake" />
+      {generating && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(13,26,46,0.96)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16, padding: 24, textAlign: "center" }}>
+          <div style={{ width: 56, height: 56, border: "4px solid #F5C842", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+          <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 26, color: "#fff", margin: 0, fontStyle: "italic" }}>Bruno is building your campaign direction...</p>
+          <p style={{ fontSize: 13, color: "#cbd5e1", margin: 0, maxWidth: 420 }}>Hang on 20–30 seconds while the BVM Art Director renders your ad.</p>
+          <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+        </div>
+      )}
       <div style={{ display: "flex", flex: 1 }}>
         <div style={{ width: "50%", display: "flex", flexDirection: "column", borderRight: "1px solid #1e293b" }}>
           <div style={{ borderBottom: "1px solid #1e293b", padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>

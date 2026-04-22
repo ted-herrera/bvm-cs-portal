@@ -556,20 +556,32 @@ export default function ClientPortalPage() {
               </div>
             </div>
             <div style={{ display: "flex", justifyContent: "center", padding: 12, background: BG, borderRadius: 10, minHeight: 240 }}>
-              {generating && !aiImage ? (
-                <div style={{ textAlign: "center", padding: 32 }}>
-                  <div style={{ width: 40, height: 40, border: `3px solid ${GOLD}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite", margin: "0 auto 14px" }} />
-                  <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, fontStyle: "italic", color: TEXT, margin: 0 }}>The BVM Art Director is building your campaign direction...</p>
-                </div>
-              ) : (
-                <div style={{ width: spec.bleedPx150.w * previewScale, height: spec.bleedPx150.h * previewScale }}>
-                  <div
-                    key={`${variation}-${aiImage || "stock"}`}
-                    style={{ width: spec.bleedPx150.w, height: spec.bleedPx150.h, transform: `scale(${previewScale})`, transformOrigin: "top left" }}
-                    dangerouslySetInnerHTML={{ __html: previewHtml }}
-                  />
-                </div>
-              )}
+              {(() => {
+                const aspect = spec.trimInches.w / spec.trimInches.h;
+                const maxW = Math.min(460, spec.bleedPx150.w);
+                let w = maxW, h = Math.round(w / aspect);
+                if (h > 620) { h = 620; w = Math.round(h * aspect); }
+                if (aiAvailable) {
+                  if (aiImage) {
+                    return <img src={aiImage} alt={`${client.business_name} print ad`} style={{ width: w, height: h, objectFit: "cover", borderRadius: 6, boxShadow: "0 4px 18px rgba(0,0,0,0.22)" }} />;
+                  }
+                  return (
+                    <div style={{ textAlign: "center", padding: 32 }}>
+                      <div style={{ width: 40, height: 40, border: `3px solid ${GOLD}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite", margin: "0 auto 14px" }} />
+                      <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, fontStyle: "italic", color: TEXT, margin: 0 }}>The BVM Art Director is building your campaign...</p>
+                    </div>
+                  );
+                }
+                return (
+                  <div style={{ width: spec.bleedPx150.w * previewScale, height: spec.bleedPx150.h * previewScale }}>
+                    <div
+                      key={`${variation}-stock`}
+                      style={{ width: spec.bleedPx150.w, height: spec.bleedPx150.h, transform: `scale(${previewScale})`, transformOrigin: "top left" }}
+                      dangerouslySetInnerHTML={{ __html: previewHtml }}
+                    />
+                  </div>
+                );
+              })()}
             </div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, marginTop: 18 }}>
               <button

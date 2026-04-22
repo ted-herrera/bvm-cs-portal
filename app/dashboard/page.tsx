@@ -1840,16 +1840,23 @@ export default function DashboardPage() {
                 };
                 const spec = getSizeSpec(adData.size);
                 const scale = Math.min(1, 300 / spec.bleedPx150.w, 360 / spec.bleedPx150.h);
+                const aspect = spec.trimInches.w / spec.trimInches.h;
+                let imgW = 300, imgH = Math.round(imgW / aspect);
+                if (imgH > 360) { imgH = 360; imgW = Math.round(imgH * aspect); }
                 return (
                   <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                     <div style={{ background: "#f8fafc", border: "1px solid #e5e9ef", borderRadius: 10, padding: 12, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
                       <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#7a8a9a", margin: 0 }}>Approved Ad · {VARIATION_LABELS[chosenVariation]}</p>
-                      <div style={{ width: spec.bleedPx150.w * scale, height: spec.bleedPx150.h * scale }}>
-                        <div
-                          style={{ width: spec.bleedPx150.w, height: spec.bleedPx150.h, transform: `scale(${scale})`, transformOrigin: "top left" }}
-                          dangerouslySetInnerHTML={{ __html: renderPrintAd(adData, { dpi: 150 }) }}
-                        />
-                      </div>
+                      {intake.generatedImageUrl ? (
+                        <img src={intake.generatedImageUrl} alt={`${selectedClient.business_name} print ad`} style={{ width: imgW, height: imgH, objectFit: "cover", borderRadius: 4, boxShadow: "0 2px 12px rgba(0,0,0,0.12)" }} />
+                      ) : (
+                        <div style={{ width: spec.bleedPx150.w * scale, height: spec.bleedPx150.h * scale }}>
+                          <div
+                            style={{ width: spec.bleedPx150.w, height: spec.bleedPx150.h, transform: `scale(${scale})`, transformOrigin: "top left" }}
+                            dangerouslySetInnerHTML={{ __html: renderPrintAd(adData, { dpi: 150 }) }}
+                          />
+                        </div>
+                      )}
                     </div>
                     <p style={{ fontSize: 11, color: "#7a8a9a", margin: 0, textAlign: "center" }}>
                       Single source of truth · same ad on tearsheet + client portal.
